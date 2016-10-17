@@ -1,7 +1,7 @@
 #!/opt/local/bin/python
 import numpy as np
 import cv2
-
+import tifffile as tf
 
 def adjust_brightness(img, val):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)  # convert it to hsv
@@ -39,14 +39,20 @@ def substract_ex():
     cv2.createTrackbar('threshold','output',0,255,nothing)
 
 
-    img_prev = cv2.imread('%s/Capture 5.Project Maximum Z_XY1455292007_Z0_T%03d_C0.tiff'%(dir,0), cv2.IMREAD_UNCHANGED)
+    filename = '%s/%s%03d%s'%(dir,file_pre,0,file_post)
+    img_prev = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
+
     exit_flag = False
     while not exit_flag:
         for i in range(148):
             # Load frame-by-frame images
-            filename = '%s/Capture 5.Project Maximum Z_XY1455292007_Z0_T%03d_C0.tiff'%(dir,i)
+            filename = '%s/%s%03d%s' % (dir, file_pre, i, file_post)
             # print 'reading %s'%filename
             img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
+            with tf.TiffFile(filename) as tif:
+                page = tif.pages[0]
+                tags = page.tags.values()
+                img =  page.asarray()
 
             # adjust brightness and contrast
             contrast = cv2.getTrackbarPos('contrast','frame')/10.0
@@ -74,7 +80,9 @@ def substract_ex():
 
             # save current frame to disk
             filename_out = '%s/out/out_frame Z_XY1455292007_Z0_T%03d_C0.tiff'%(dir,i)
-            cv2.imwrite(filename_out, sub)
+            with tf.TiffWriter(filename_out, software="Fabio Echegaray's python script") as tif:
+                tif.save(img,
+                         extratags=[(tag.code, tag.dtype[1], tag.count, tag.value, True) for tag in tags])
 
     # When everything done, release the capture
     cv2.destroyAllWindows()
