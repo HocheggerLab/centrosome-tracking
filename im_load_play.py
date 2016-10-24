@@ -2,6 +2,8 @@
 import numpy as np
 import cv2
 import tifffile as tf
+import javabridge
+import bioformats
 
 def adjust_brightness(img, val):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)  # convert it to hsv
@@ -20,11 +22,11 @@ def nothing(x):
 
 dir = "/Users/Fabio/Documents/Trabajo/universidad/PHD Tesis/Computer Vision/12-2-16"
 file_pre = "Capture 5.Project Maximum Z_XY1455292007_Z0_T"
+fileout_pre = "out_frame Z_XY1455292007_Z0_T"
 file_post = "_C0.tiff"
 
-
 def substract_ex():
-    # create window
+    # create windows
     cv2.namedWindow('frame')
     cv2.namedWindow('output')
     cv2.namedWindow('sub')
@@ -41,51 +43,48 @@ def substract_ex():
 
     filename = '%s/%s%03d%s'%(dir,file_pre,0,file_post)
     img_prev = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
+    try:
+        javabridge.start_vm(class_path=bioformats.JARS)
 
-    exit_flag = False
-    while not exit_flag:
-        for i in range(148):
-            # Load frame-by-frame images
-            filename = '%s/%s%03d%s' % (dir, file_pre, i, file_post)
-            # print 'reading %s'%filename
-            img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
-            with tf.TiffFile(filename) as tif:
-                page = tif.pages[0]
-                tags = page.tags.values()
-                img =  page.asarray()
+        exit_flag = False
+        while not exit_flag:
+            for i in range(148):
+                # Load frame-by-frame images
+                filename = '%s/%s%03d%s' % (dir, file_pre, i, file_post)
+                # print 'reading %s'%filename
+                img, scale = bioformats.load_image(filename, rescale=False, wants_max_intensity=True)
+                omexml = bioformats.get_omexml_metadata(filename)
+                omexml.replace(file_pre, fileout_pre)
 
-            # adjust brightness and contrast
-            contrast = cv2.getTrackbarPos('contrast','frame')/10.0
-            brightness = cv2.getTrackbarPos('brightness','frame')/10.0
-            thresh = cv2.getTrackbarPos('threshold','output')
+                # adjust brightness and contrast
+                contrast = cv2.getTrackbarPos('contrast','frame')/10.0
+                brightness = cv2.getTrackbarPos('brightness','frame')/10.0
+                thresh = cv2.getTrackbarPos('threshold','output')
 
-            #substract two images
-            # sub = cv2.subtract(img, img_prev)
-            sub = cv2.addWeighted(img, contrast, img_prev, -contrast, brightness)
-            sub_8 = np.uint8(sub)
-            out = cv2.threshold(sub_8, thresh, 255, cv2.THRESH_TOZERO)
+                #substract two images
+                sub = cv2.addWeighted(img, contrast, img_prev, -contrast, brightness)
 
-            # img_prev = img
+                # Display the resulting frame
+                cv2.imshow('frame',img)
+                cv2.imshow('sub',sub)
+                key = cv2.waitKey(1)
+                if key & 0xFF == ord('q'):
+                    exit_flag = True
+                    break
+                elif key & 0xFF == ord('r'):
+                    break
 
-            # Display the resulting frame
-            cv2.imshow('frame',img)
-            cv2.imshow('sub',sub)
-            # cv2.imshow('output',out[1])
-            key = cv2.waitKey(1)
-            if key & 0xFF == ord('q'):
-                exit_flag = True
-                break
-            elif key & 0xFF == ord('r'):
-                break
+                # save current frame to disk - a bit hacky
+                filename_out = '%s/out/%s%03d%s'%(dir, fileout_pre, i, file_post)
 
-            # save current frame to disk
-            filename_out = '%s/out/out_frame Z_XY1455292007_Z0_T%03d_C0.tiff'%(dir,i)
-            with tf.TiffWriter(filename_out, software="Fabio Echegaray's python script") as tif:
-                tif.save(img,
-                         extratags=[(tag.code, tag.dtype[1], tag.count, tag.value, True) for tag in tags])
+                with tf.TiffWriter(filename_out, software="Fabio Echegaray's python script") as tif:
+                    tif.save(sub, description=omexml.encode('ascii', 'ignore'))
 
-    # When everything done, release the capture
-    cv2.destroyAllWindows()
+
+        # When everything done, release the capture
+        cv2.destroyAllWindows()
+    finally:
+        javabridge.kill_vm()
 
 
 def substract_img():
