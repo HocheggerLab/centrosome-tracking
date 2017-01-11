@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 import numpy as np
 import codecs
@@ -44,7 +45,7 @@ def plot_nucleus_dataframe(nucleiDf, filename=None):
 
 
 
-def html_centrosomes_csv(filename, nuclei_ban_list=None, max_time_dict=None):
+def html_centrosomes_csv(filename, nuclei_list=None, max_time_dict=None):
     df = pd.read_csv(filename)
 
     df = df[df.ValidCentroid==1]
@@ -61,24 +62,29 @@ def html_centrosomes_csv(filename, nuclei_ban_list=None, max_time_dict=None):
     df['Speed'] = d.Dist / d.Time
     df[np.isinf(df.Speed)] = float('NaN')
 
+    # TODO: Fix nuclei assignation on dataframes
 
-    nuclei_list = list()
+    nuclei_data = list()
     for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
-        nuc_item={}
-        nuc_item['filename'] = filename
-        nuc_item['nuclei_id'] = '%d '%nucleusID
-        nuc_item['nuclei_centrosomes_tags'] = ''.join( ['C%d, '%cnId for cnId in sorted( filtered_nuc_df['Centrosome'].unique() )] )[:-2]
-        nuc_item['centrosomes_img'] = 'img/nuc_%d.svg'%nucleusID
-        nuc_item['centrosomes_speed_stats'] = filtered_nuc_df.groupby(['Centrosome']).Speed.describe()
+        if(nucleusID in nuclei_list):
+            if((max_time_dict is not None) and (nucleusID in max_time_dict)):
+                filtered_nuc_df = filtered_nuc_df[filtered_nuc_df['Time']<=max_time_dict[nucleusID]]
+            nuc_item={}
+            nuc_item['filename'] = filename
+            nuc_item['exp_id'] = re.search('centr-(.+?)-table.csv', filename).group(1)
+            nuc_item['nuclei_id'] = '%d '%nucleusID
+            nuc_item['nuclei_centrosomes_tags'] = ''.join( ['C%d, '%cnId for cnId in sorted( filtered_nuc_df['Centrosome'].unique() )] )[:-2]
+            nuc_item['centrosomes_img'] = 'img/%s-nuc_%d.svg'%(nuc_item['exp_id'],nucleusID)
+            nuc_item['centrosomes_speed_stats'] = filtered_nuc_df.groupby(['Centrosome']).Speed.describe()
 
-        plot_nucleus_dataframe(filtered_nuc_df, 'out/%s'%nuc_item['centrosomes_img'])
-        nuclei_list.append(nuc_item)
+            plot_nucleus_dataframe(filtered_nuc_df, 'out/%s'%nuc_item['centrosomes_img'])
+            nuclei_data.append(nuc_item)
 
 
     template ="""
         {% for nuc_item in nuclei_list %}
         <div class="container">
-            <h3>Filename: {{ nuc_item['filename']}}</h3>
+            <!--<h3>Filename: {{ nuc_item['filename']}}</h3>-->
             <ul>
                 <li>Nucleus ID: {{ nuc_item['nuclei_id'] }}</li>
                 <li>Centrosome Tags: {{ nuc_item['nuclei_centrosomes_tags'] }}</li>
@@ -90,12 +96,33 @@ def html_centrosomes_csv(filename, nuclei_ban_list=None, max_time_dict=None):
         {% endfor %}
     """
     templ = j2.Template(template)
-    htmlout = templ.render({'nuclei_list':nuclei_list})
+    htmlout = templ.render({'nuclei_list':nuclei_data})
     return htmlout
 
 
+html = '<h3>Filename: centr-pc-0.avi</h3>'
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-0-table.csv", nuclei_list=[1,2,4], max_time_dict={1:130})
+html += '<h3>Filename: centr-pc-1.avi</h3>'
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-1-table.csv", nuclei_list=[0,2,4], max_time_dict={2:110,4:110})
+html += '<h3>Filename: centr-pc-3.avi</h3>'
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-3-table.csv", nuclei_list=[8], max_time_dict={})
 
-html = '<h2>Condition: Positive Control</h2>' + html_centrosomes_csv("/Users/Fabio/lab/centr-pc-0-table.csv")
+html += '<h3>Filename: centr-pc-4.avi</h3>'
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-4-table.csv", nuclei_list=[5], max_time_dict={5:120})
+
+html += '<h3>Filename: centr-pc-10.avi</h3>'
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-10-table.csv", nuclei_list=[4], max_time_dict={})
+html += '<h3>Filename: centr-pc-12.avi</h3>'
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-12-table.csv", nuclei_list=[1], max_time_dict={})
+html += '<h3>Filename: centr-pc-14.avi</h3>'
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-14-table.csv", nuclei_list=[4], max_time_dict={})
+html += '<h3>Filename: centr-pc-17.avi</h3>'
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-17-table.csv", nuclei_list=[3], max_time_dict={})
+html += '<h3>Filename: centr-pc-18.avi</h3>'
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-18-table.csv", nuclei_list=[2,3], max_time_dict={})
+
+
+
 
 master_template = """<!DOCTYPE html>
 <html>
@@ -105,6 +132,7 @@ master_template = """<!DOCTYPE html>
 </head>
 <body>
     <h1>Centrosome Data Report - {{report_date}}</h1>
+    <h2>Condition: Positive Control</h2>'
     {{ nuclei_data_html }}
 </body>
 </html>
