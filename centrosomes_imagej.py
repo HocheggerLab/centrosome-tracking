@@ -45,10 +45,37 @@ def plot_nucleus_dataframe(nucleiDf, filename=None):
 
 
 
-def html_centrosomes_csv(filename, nuclei_list=None, max_time_dict=None):
+def html_centrosomes_csv(filename, nuclei_list=None,
+                         centrosome_exclusion_dict=None,
+                         centrosome_inclusion_dict=None,
+                         max_time_dict=None):
     df = pd.read_csv(filename)
+    fname = re.search('lab/(.+?)-table.csv', filename).group(1)
+    htmlout = '<h3>Filename: %s.avi</h3>'%(fname)
 
-    df = df[df.ValidCentroid==1]
+    # apply filters
+    # filter non wanted centrosomes
+    if centrosome_exclusion_dict is not None:
+        for nuId in centrosome_exclusion_dict.keys():
+            for centId in centrosome_exclusion_dict[nuId]:
+                df[(df['Nuclei']==nuId) & (df['Centrosome']==centId)] = np.NaN
+    # include wanted centrosomes
+    if centrosome_inclusion_dict is not None:
+        for nuId in centrosome_inclusion_dict.keys():
+            for centId in centrosome_inclusion_dict[nuId]:
+                # fstCentr = df[df['Nuclei']==nuId]['Centrosome'].unique()[0]
+                nucRpl = df.ix[df['Nuclei']==nuId, ['Nuclei','NuclX','NuclY','Time']].drop_duplicates()
+                for t in nucRpl.Time:
+                    df.ix[(df['Centrosome'] == centId) & (df['Time'] == t), 'NuclX'] = list(nucRpl[nucRpl['Time'] == t].NuclX)[0]
+                    df.ix[(df['Centrosome'] == centId) & (df['Time'] == t), 'NuclY'] = list(nucRpl[nucRpl['Time'] == t].NuclY)[0]
+
+                df.ix[df['Centrosome'] == centId, 'Nuclei'] = nuId
+                print df.ix[df['Centrosome'] == centId]
+
+    # TODO: Fix nuclei assignation on dataframes
+
+    # compute characteristics
+    df = df.ix[df.ValidCentroid==1]
     df['CNx'] = df.NuclX - df.CentX
     df['CNy'] = df.NuclY - df.CentY
     df['Time'] = df.Time / 60.0
@@ -62,7 +89,6 @@ def html_centrosomes_csv(filename, nuclei_list=None, max_time_dict=None):
     df['Speed'] = d.Dist / d.Time
     df[np.isinf(df.Speed)] = float('NaN')
 
-    # TODO: Fix nuclei assignation on dataframes
 
     nuclei_data = list()
     for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
@@ -96,30 +122,47 @@ def html_centrosomes_csv(filename, nuclei_list=None, max_time_dict=None):
         {% endfor %}
     """
     templ = j2.Template(template)
-    htmlout = templ.render({'nuclei_list':nuclei_data})
+    htmlout += templ.render({'nuclei_list':nuclei_data})
     return htmlout
 
 
-html = '<h3>Filename: centr-pc-0.avi</h3>'
-html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-0-table.csv", nuclei_list=[1,2,4], max_time_dict={1:130})
-html += '<h3>Filename: centr-pc-1.avi</h3>'
+html = '<h3></h3>'
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-0-table.csv", nuclei_list=[1,2], max_time_dict={1:130})
 html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-1-table.csv", nuclei_list=[0,2,4], max_time_dict={2:110,4:110})
-html += '<h3>Filename: centr-pc-3.avi</h3>'
 html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-3-table.csv", nuclei_list=[8], max_time_dict={})
 
-html += '<h3>Filename: centr-pc-4.avi</h3>'
 html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-4-table.csv", nuclei_list=[5], max_time_dict={5:120})
 
-html += '<h3>Filename: centr-pc-10.avi</h3>'
 html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-10-table.csv", nuclei_list=[4], max_time_dict={})
-html += '<h3>Filename: centr-pc-12.avi</h3>'
 html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-12-table.csv", nuclei_list=[1], max_time_dict={})
-html += '<h3>Filename: centr-pc-14.avi</h3>'
 html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-14-table.csv", nuclei_list=[4], max_time_dict={})
-html += '<h3>Filename: centr-pc-17.avi</h3>'
 html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-17-table.csv", nuclei_list=[3], max_time_dict={})
-html += '<h3>Filename: centr-pc-18.avi</h3>'
 html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-18-table.csv", nuclei_list=[2,3], max_time_dict={})
+
+
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-200-table.csv", nuclei_list=[1,4],
+                             centrosome_exclusion_dict={1:[13], 4:[12]}, max_time_dict={4:170})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-201-table.csv", nuclei_list=[13], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-202-table.csv", nuclei_list=[9], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-203-table.csv", nuclei_list=[5], max_time_dict={})
+# html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-204-table.csv", nuclei_list=[], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-205-table.csv", nuclei_list=[5], max_time_dict={})
+# html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-207-table.csv", nuclei_list=[], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-209-table.csv", nuclei_list=[5], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-210-table.csv", nuclei_list=[5], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-211-table.csv", nuclei_list=[4], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-212-table.csv", nuclei_list=[4], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-213-table.csv", nuclei_list=[7], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-214-table.csv", nuclei_list=[4,5],
+                             centrosome_inclusion_dict={5:[4]}, max_time_dict={})
+# html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-216-table.csv", nuclei_list=[], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-218-table.csv", nuclei_list=[5], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-219-table.csv", nuclei_list=[8], max_time_dict={})
+# html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-220-table.csv", nuclei_list=[], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-221-table.csv", nuclei_list=[3], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-222-table.csv", nuclei_list=[1], max_time_dict={})
+# html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-223-table.csv", nuclei_list=[4], max_time_dict={})
+html += html_centrosomes_csv("/Users/Fabio/lab/centr-pc-224-table.csv", nuclei_list=[6], max_time_dict={})
 
 
 
@@ -132,7 +175,7 @@ master_template = """<!DOCTYPE html>
 </head>
 <body>
     <h1>Centrosome Data Report - {{report_date}}</h1>
-    <h2>Condition: Positive Control</h2>'
+    <h2>Condition: Positive Control</h2>
     {{ nuclei_data_html }}
 </body>
 </html>
