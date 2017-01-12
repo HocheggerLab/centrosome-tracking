@@ -19,11 +19,23 @@ def plot_nucleus_dataframe(nucleiDf, filename=None):
     in_yticks = list()
     in_yticks_lbl = list()
     for [(lblCentr), _df], k in zip(nucleiDf.groupby(['Centrosome']), range(len(nucleiDf.groupby(['Centrosome'])))):
-        track = _df[_df.Centrosome == lblCentr].set_index('Time')
+        track = _df.set_index('Time').sort_index()
+        track = track.reset_index()
 
-        track.Dist.plot(ax=ax1, label='N%d-C%d' % (nucleusID, lblCentr), marker='o', sharex=True)
+
+        # compute distance & speed
+        d = track.diff()
+        d['Dist'] = np.sqrt((d.CNx) ** 2 + (d.CNy) ** 2)
+        d['Time'] = track.Time.diff()
+
+        track['Dist'] = np.sqrt((track.CNx) ** 2 + (track.CNy) ** 2)
+        track['Speed'] = d.Dist / d.Time
+
         spd = pd.rolling_mean(track.Speed.abs(), window=3)
+
+        track = track.set_index('Time').sort_index()
         # spd = track.Speed
+        track.Dist.plot(ax=ax1, label='N%d-C%d' % (nucleusID, lblCentr), marker='o', sharex=True)
         spd.plot(ax=ax2, label='N%d-C%d' % (nucleusID, lblCentr), sharex=True)
 
         iN = track.InsideNuclei + 2*k
@@ -70,25 +82,92 @@ def html_centrosomes_csv(filename, nuclei_list=None,
                     df.ix[(df['Centrosome'] == centId) & (df['Time'] == t), 'NuclY'] = list(nucRpl[nucRpl['Time'] == t].NuclY)[0]
 
                 df.ix[df['Centrosome'] == centId, 'Nuclei'] = nuId
-                print df.ix[df['Centrosome'] == centId]
+                # print df.ix[df['Centrosome'] == centId]
 
-    # TODO: Fix nuclei assignation on dataframes
+    # filter dataframe wit wanted data
+    df = df.ix[(df['Nuclei'].isin(nuclei_list)) & (df.ValidCentroid==1)]
+
+    # ----------------------------------
+    # Track joining algorithm
+    # ----------------------------------
+    # df = df.set_index(['Frame', 'Centrosome']).reindex(['Time']).reset_index()
+    # check if there's a maximun of 2 centrosomes at all times
+    for nID in df['Nuclei'].unique():
+        if (df[df['Nuclei']==nID].groupby('Frame')['Centrosome'].count().max() <= 2):
+            # print df[df['Nuclei'] == nID].set_index(['Frame', 'Centrosome'])[['CentX', 'CentY', 'Nuclei', 'NuclX', 'NuclY']].unstack()
+            d = df[df['Nuclei'] == nID].set_index(['Frame', 'Centrosome']).sort_index().unstack()
+
+            last_ccouple, last_row, hid_centr = (None, None, None)
+            idx, f = d.iterrows().next()
+            orig_couple = f['CentX'][f['CentX'].notnull()].index.get_values()
+            all_centr = f['CentX'].index.get_values()
+            centrosomes_processed = list()
+            centr_equivalence = dict()
+            is_in_merge, just_ini = False, True
+            for index, row in d.iterrows():
+                curr_ccouple = row['CentX'][row['CentX'].notnull()].index.get_values()
+
+                if ((len(orig_couple)==1) & (len(curr_ccouple)==2) & just_ini): # change on original condition
+                    just_ini = False
+                    orig_couple = curr_ccouple
+
+                if ((len(curr_ccouple)==1) & (last_ccouple is not None) & (not is_in_merge) & (len(orig_couple)==2)): # merge
+                    is_in_merge = True
+                    just_ini =  False
+                    hid_centr = list(set(last_ccouple).difference(curr_ccouple))
+                    hid_orig = hid_centr
+                    while (hid_centr in centrosomes_processed):
+                        hid_centr = [centr_equivalence[hid_centr[0]]]
+
+                if ((len(curr_ccouple)==1) & (hid_centr is not None) & (is_in_merge)): # inside a merge
+                    visible_centr = list(set(all_centr).intersection(curr_ccouple))
+                    # if(visible_centr in centrosomes_processed):
+                    #     visible_centr = [centr_equivalence[visible_centr[0]]]
+                    # df.ix[(df['Frame']==index) & (df['Centrosome']==hcentr_orig[0]), ['CentX']] = row.loc['CentX', visible_centr[0]]
+                    # df.ix[(df['Frame']==index) & (df['Centrosome']==hcentr_orig[0]), ['CentY']] = row.loc['CentY', visible_centr[0]]
+                    # df.ix[(df['Frame']==index) & (df['Centrosome']==hcentr_orig[0]), ['NuclX']] = row.loc['NuclX', visible_centr[0]]
+                    # df.ix[(df['Frame']==index) & (df['Centrosome']==hcentr_orig[0]), ['NuclY']] = row.loc['NuclY', visible_centr[0]]
+                    idata = {'Frame':[index],
+                             'Time':[row.loc['Time', visible_centr[0]]],
+                             'Nuclei':[nID],
+                             'ValidCentroid':[True],
+                             'Centrosome':[hid_centr[0]],
+                             'CentX':[row.loc['CentX', visible_centr[0]]],
+                             'CentY':[row.loc['CentY', visible_centr[0]]],
+                             'NuclX':[row.loc['NuclX', visible_centr[0]]],
+                             'NuclY':[row.loc['NuclY', visible_centr[0]]]}
+                    idf = pd.DataFrame(idata)
+                    # print idf
+                    df = df.append(idf, ignore_index=True)
+
+                if ((len(curr_ccouple)==2) & (hid_centr is not None) & (is_in_merge)): # split (Cn = Cm)
+                    is_in_merge =  False
+                    new_centr = list(set(curr_ccouple)-set(orig_couple))
+                    if (len(new_centr)==1 & (new_centr not in centrosomes_processed)):
+                        df.ix[df['Centrosome'] == new_centr, 'Centrosome'] = hid_centr
+                        df.ix[df['CentX'] == new_centr, 'CentX'] = df.ix[df['CentX'] == hid_centr, 'CentX']
+                        df.ix[df['CentY'] == new_centr, 'CentY'] = df.ix[df['CentY'] == hid_centr, 'CentY']
+                        df.ix[df['NuclX'] == new_centr, 'NuclX'] = df.ix[df['NuclX'] == hid_centr, 'NuclX']
+                        df.ix[df['NuclY'] == new_centr, 'NuclY'] = df.ix[df['NuclY'] == hid_centr, 'NuclY']
+
+                        centrosomes_processed.append(new_centr)
+                        centr_equivalence[new_centr[0]] = hid_centr[0]
+                    hid_centr = None
+
+                last_ccouple = curr_ccouple
+                # last_row = row
+
+
 
     # compute characteristics
-    df = df.ix[df.ValidCentroid==1]
+    df.set_index('Frame').sort_index()
     df['CNx'] = df.NuclX - df.CentX
     df['CNy'] = df.NuclY - df.CentY
     df['Time'] = df.Time / 60.0
+    df.reset_index()
+    # print df[df.Speed.isnull()]
 
-    d = df.diff()
-    d['Dist'] = np.sqrt((d.CNx) ** 2 + (d.CNy) ** 2)
-    d['Time'] = df.groupby(['Centrosome']).Time.apply(lambda x: x.diff())
-    # d = d.fillna(0.)
-
-    df['Dist'] = np.sqrt((df.CNx) ** 2 + (df.CNy) ** 2)
-    df['Speed'] = d.Dist / d.Time
-    df[np.isinf(df.Speed)] = float('NaN')
-
+    # print df[df['Nuclei'] == 0].set_index(['Frame', 'Centrosome']).sort_index().unstack()
 
     nuclei_data = list()
     for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
@@ -101,7 +180,7 @@ def html_centrosomes_csv(filename, nuclei_list=None,
             nuc_item['nuclei_id'] = '%d '%nucleusID
             nuc_item['nuclei_centrosomes_tags'] = ''.join( ['C%d, '%cnId for cnId in sorted( filtered_nuc_df['Centrosome'].unique() )] )[:-2]
             nuc_item['centrosomes_img'] = 'img/%s-nuc_%d.svg'%(nuc_item['exp_id'],nucleusID)
-            nuc_item['centrosomes_speed_stats'] = filtered_nuc_df.groupby(['Centrosome']).Speed.describe()
+            # nuc_item['centrosomes_speed_stats'] = filtered_nuc_df.groupby(['Centrosome']).Speed.describe()
 
             plot_nucleus_dataframe(filtered_nuc_df, 'out/%s'%nuc_item['centrosomes_img'])
             nuclei_data.append(nuc_item)
