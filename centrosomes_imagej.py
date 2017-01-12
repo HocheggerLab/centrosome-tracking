@@ -60,6 +60,33 @@ class dataframe_from_imagej():
         else:
             plt.savefig(filename, format='svg')
 
+    @staticmethod
+    def join_tracks(df, Cn, Cm):
+        # makes the operation df(Cn) <- df(Cm)
+        df.ix[df['Centrosome'] == Cn, 'Centrosome'] = Cm
+        df.ix[df['CentX'] == Cn, 'CentX'] = df.ix[df['CentX'] == Cm, 'CentX']
+        df.ix[df['CentY'] == Cn, 'CentY'] = df.ix[df['CentY'] == Cm, 'CentY']
+        df.ix[df['NuclX'] == Cn, 'NuclX'] = df.ix[df['NuclX'] == Cm, 'NuclX']
+        df.ix[df['NuclY'] == Cn, 'NuclY'] = df.ix[df['NuclY'] == Cm, 'NuclY']
+        return df
+
+    @staticmethod
+    def fill_gaps_in_track(df, row, frame, nucleusId, h, c):
+        # fills a point in centrosome track h using a point from centrosome track c
+        idata = {'Frame': [frame],
+                 'Time': [row.loc['Time', c[0]]],
+                 'Nuclei': [nucleusId],
+                 'ValidCentroid': [True],
+                 'Centrosome': [h[0]],
+                 'CentX': [row.loc['CentX', c[0]]],
+                 'CentY': [row.loc['CentY', c[0]]],
+                 'NuclX': [row.loc['NuclX', c[0]]],
+                 'NuclY': [row.loc['NuclY', c[0]]]}
+        idf = pd.DataFrame(idata)
+        # print idf
+        df = df.append(idf, ignore_index=True)
+        return df
+
     def html_centrosomes_report(self, nuclei_list=None,
                                 centrosome_exclusion_dict=None,
                                 centrosome_inclusion_dict=None,
@@ -98,8 +125,11 @@ class dataframe_from_imagej():
         # df = df.set_index(['Frame', 'Centrosome']).reindex(['Time']).reset_index()
         # check if there's a maximun of 2 centrosomes at all times
         for nID in df['Nuclei'].unique():
-            # FIXME: correct that ugly filter in the if
-            if ((df[df['Nuclei'] == nID].groupby('Frame')['Centrosome'].count().max() <= 2) & (
+            # FIXME: correct that ugly filter in the if, nuc==7 and fname=='centr-pc-213'
+            if (self.fname == 'centr-pc-213' and nID == 7):
+                df = self.join_tracks(df,4,6)
+
+            elif ((df[df['Nuclei'] == nID].groupby('Frame')['Centrosome'].count().max() <= 2) & (
             not (self.fname == 'centr-pc-213' and nID == 7))):
                 # print df[df['Nuclei'] == nID].set_index(['Frame', 'Centrosome'])[['CentX', 'CentY', 'Nuclei', 'NuclX', 'NuclY']].unstack()
                 d = df[df['Nuclei'] == nID].set_index(['Frame', 'Centrosome']).sort_index().unstack()
@@ -129,28 +159,13 @@ class dataframe_from_imagej():
 
                     if ((len(curr_ccouple) == 1) & (hid_centr is not None) & (is_in_merge)):  # inside a merge
                         visible_centr = list(set(all_centr).intersection(curr_ccouple))
-                        idata = {'Frame': [index],
-                                 'Time': [row.loc['Time', visible_centr[0]]],
-                                 'Nuclei': [nID],
-                                 'ValidCentroid': [True],
-                                 'Centrosome': [hid_centr[0]],
-                                 'CentX': [row.loc['CentX', visible_centr[0]]],
-                                 'CentY': [row.loc['CentY', visible_centr[0]]],
-                                 'NuclX': [row.loc['NuclX', visible_centr[0]]],
-                                 'NuclY': [row.loc['NuclY', visible_centr[0]]]}
-                        idf = pd.DataFrame(idata)
-                        # print idf
-                        df = df.append(idf, ignore_index=True)
+                        df = self.fill_gaps_in_track(df,row,index,nID,hid_centr,visible_centr)
 
                     if ((len(curr_ccouple) == 2) & (hid_centr is not None) & (is_in_merge)):  # split (Cn = Cm)
                         is_in_merge = False
                         new_centr = list(set(curr_ccouple) - set(orig_couple))
                         if (len(new_centr) == 1 & (new_centr not in centrosomes_processed)):
-                            df.ix[df['Centrosome'] == new_centr, 'Centrosome'] = hid_centr
-                            df.ix[df['CentX'] == new_centr, 'CentX'] = df.ix[df['CentX'] == hid_centr, 'CentX']
-                            df.ix[df['CentY'] == new_centr, 'CentY'] = df.ix[df['CentY'] == hid_centr, 'CentY']
-                            df.ix[df['NuclX'] == new_centr, 'NuclX'] = df.ix[df['NuclX'] == hid_centr, 'NuclX']
-                            df.ix[df['NuclY'] == new_centr, 'NuclY'] = df.ix[df['NuclY'] == hid_centr, 'NuclY']
+                            df = self.join_tracks(df, new_centr, hid_centr)
 
                             centrosomes_processed.append(new_centr)
                             centr_equivalence[new_centr[0]] = hid_centr[0]
@@ -249,7 +264,7 @@ if __name__ == '__main__':
     html += dataframe_from_imagej("/Users/Fabio/lab/centr-pc-212-table.csv") \
         .html_centrosomes_report(nuclei_list=[4], max_time_dict={})
     html += dataframe_from_imagej("/Users/Fabio/lab/centr-pc-213-table.csv") \
-        .html_centrosomes_report(nuclei_list=[7], max_time_dict={})
+        .html_centrosomes_report(nuclei_list=[4,7], max_time_dict={})
     html += dataframe_from_imagej("/Users/Fabio/lab/centr-pc-214-table.csv") \
         .html_centrosomes_report(nuclei_list=[4, 5], centrosome_inclusion_dict={5: [4]}, max_time_dict={})
     # html += html_centrosomes_report("/Users/Fabio/lab/centr-pc-216-table.csv").html_centrosomes_report(nuclei_list=[], max_time_dict={})
