@@ -22,6 +22,7 @@ class DataFrameFromImagej(object):
         self.dt_before_contact = 30
         self.t_per_frame = 5
         self.d_threshold = 1
+        self.centrosome_repacements = dict()
 
     @staticmethod
     def get_contact_time(df, threshold):
@@ -161,37 +162,7 @@ class DataFrameFromImagej(object):
         df = df.append(idf, ignore_index=True)
         return df
 
-    def html_centrosomes_report(self, nuclei_list=None,
-                                centrosome_exclusion_dict=None,
-                                centrosome_inclusion_dict=None,
-                                max_time_dict=None):
-        htmlout = '<h3>Filename: %s.avi</h3>' % self.fname
-
-        # apply filters
-        df = self.df_csv
-        # filter non wanted centrosomes
-        if centrosome_exclusion_dict is not None:
-            for nuId in centrosome_exclusion_dict.keys():
-                for centId in centrosome_exclusion_dict[nuId]:
-                    df[(df['Nuclei'] == nuId) & (df['Centrosome'] == centId)] = np.NaN
-        # include wanted centrosomes
-        if centrosome_inclusion_dict is not None:
-            for nuId in centrosome_inclusion_dict.keys():
-                for centId in centrosome_inclusion_dict[nuId]:
-                    # fstCentr = df[df['Nuclei']==nuId]['Centrosome'].unique()[0]
-                    nucRpl = df.ix[df['Nuclei'] == nuId, ['Nuclei', 'NuclX', 'NuclY', 'Time']].drop_duplicates()
-                    for t in nucRpl.Time:
-                        df.ix[(df['Centrosome'] == centId) & (df['Time'] == t), 'NuclX'] = \
-                            list(nucRpl[nucRpl['Time'] == t].NuclX)[0]
-                        df.ix[(df['Centrosome'] == centId) & (df['Time'] == t), 'NuclY'] = \
-                            list(nucRpl[nucRpl['Time'] == t].NuclY)[0]
-
-                    df.ix[df['Centrosome'] == centId, 'Nuclei'] = nuId
-                    # print df.ix[df['Centrosome'] == centId]
-
-        # filter dataframe with wanted data
-        df = df.ix[(df['Nuclei'].isin(nuclei_list)) & (df.ValidCentroid == 1)]
-
+    def join_tracks_algorithm(self, df):
         # ----------------------------------
         # Track joining algorithm
         # ----------------------------------
@@ -245,7 +216,39 @@ class DataFrameFromImagej(object):
                         hid_centr = None
 
                     last_ccouple = curr_ccouple
-                    # last_row = row
+        return df
+
+    def html_centrosomes_report(self, nuclei_list=None,
+                                centrosome_exclusion_dict=None,
+                                centrosome_inclusion_dict=None,
+                                max_time_dict=None):
+        htmlout = '<h3>Filename: %s.avi</h3>' % self.fname
+
+        # apply filters
+        df = self.df_csv
+        # filter non wanted centrosomes
+        if centrosome_exclusion_dict is not None:
+            for nuId in centrosome_exclusion_dict.keys():
+                for centId in centrosome_exclusion_dict[nuId]:
+                    df[(df['Nuclei'] == nuId) & (df['Centrosome'] == centId)] = np.NaN
+        # include wanted centrosomes
+        if centrosome_inclusion_dict is not None:
+            for nuId in centrosome_inclusion_dict.keys():
+                for centId in centrosome_inclusion_dict[nuId]:
+                    # fstCentr = df[df['Nuclei']==nuId]['Centrosome'].unique()[0]
+                    nucRpl = df.ix[df['Nuclei'] == nuId, ['Nuclei', 'NuclX', 'NuclY', 'Time']].drop_duplicates()
+                    for t in nucRpl.Time:
+                        df.ix[(df['Centrosome'] == centId) & (df['Time'] == t), 'NuclX'] = \
+                            list(nucRpl[nucRpl['Time'] == t].NuclX)[0]
+                        df.ix[(df['Centrosome'] == centId) & (df['Time'] == t), 'NuclY'] = \
+                            list(nucRpl[nucRpl['Time'] == t].NuclY)[0]
+
+                    df.ix[df['Centrosome'] == centId, 'Nuclei'] = nuId
+                    # print df.ix[df['Centrosome'] == centId]
+
+        # filter dataframe with wanted data
+        df = df.ix[(df['Nuclei'].isin(nuclei_list)) & (df.ValidCentroid == 1)]
+        df = self.join_tracks_algorithm(df)
 
         # compute characteristics
         df.set_index('Frame').sort_index().reset_index()
@@ -273,7 +276,6 @@ class DataFrameFromImagej(object):
 
                 filtered_nuc_df = self.compute_velocity(filtered_nuc_df)
                 self.plot_nucleus_dataframe(filtered_nuc_df, 'out/%s' % nuc_item['centrosomes_img'])
-
 
         template = """
                 {% for nuc_item in nuclei_list %}
@@ -414,7 +416,7 @@ if __name__ == '__main__':
         artist.set_facecolor('None')
     plt.savefig('out/img/beeswarm_boxplot.svg', format='svg')
     # print stats_dataframe[stats_dataframe['Type'] == 'Contact']
-    print stats_dataframe
+    # print stats_dataframe
 
     master_template = """<!DOCTYPE html>
         <html>
