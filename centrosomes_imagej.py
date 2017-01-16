@@ -27,12 +27,11 @@ class DataFrameFromImagej(object):
     @staticmethod
     def get_contact_time(df, threshold):
         # get all distances less than a threshold, order them by time and pick the earlier one
-        # ds = df[df['Dist'] < threshold].set_index('Time').sort_index()
         cent_list = df.groupby('Centrosome').size().index
         ds = df.copy()
         cl_bool = ds['Centrosome'] == cent_list[1]
         ds.loc[cl_bool, ['CNx', 'CNy']] *= -1
-        dsf = ds.groupby(['Frame'])[['CNx', 'CNy']].sum().apply(lambda x: x ** 2)
+        dsf = ds.groupby(['Frame'])[['CNx', 'CNy']].sum().apply(lambda x: x ** 2)  # dist between centrosomes squared
         dsf['Dist'] = (dsf.CNx + dsf.CNy).apply(lambda x: np.sqrt(x))
         dsr = dsf[dsf['Dist'] < threshold]
 
@@ -52,14 +51,18 @@ class DataFrameFromImagej(object):
 
     @staticmethod
     def compute_velocity(df):
-        df = df.set_index('Time').sort_index().reset_index()
-        d = df.groupby('Centrosome').diff()
-        # d['Dist'] = np.sqrt(d.CNx ** 2 + d.CNy ** 2)  # dist diff between centrosomes
-        d['Dist'] = np.sqrt(d.CentX ** 2 + d.CentX ** 2)  # dist diff between centrosomes
+        df = df.set_index('Frame').sort_index()
+        for c_i in df.groupby('Centrosome').groups.keys():
+            dc = df[df['Centrosome'] == c_i]
+            d = dc[['CentX', 'CentY', 'NuclX', 'NuclY', 'CNx', 'CNy', 'Time']].diff()
 
-        df['Dist'] = np.sqrt(df.CNx ** 2 + df.CNy ** 2)  # dist of each centrosome relative to nuclei centroid
-        df['Speed'] = d.Dist / d.Time
-        return df
+            d['Dist'] = np.sqrt(d.CNx ** 2 + d.CNy ** 2)  # relative to nuclei centroid
+            #  d['Dist'] = np.sqrt(d.CentX ** 2 + d.CentX ** 2)  # dist  between centrosomes
+
+            df.loc[df['Centrosome'] == c_i, 'Dist'] = np.sqrt(dc.CNx ** 2 + dc.CNy ** 2)  # relative to nuclei centroid
+            df.loc[df['Centrosome'] == c_i, 'Speed'] = d.Dist / d.Time
+
+        return df.reset_index()
 
     def add_stats(self):
         pass
@@ -138,7 +141,7 @@ class DataFrameFromImagej(object):
     def join_tracks(df, cn, cm):
         # makes the operation df(Cn) <- df(Cm)
         df.ix[df['Centrosome'] == cn, 'Centrosome'] = cm
-        # df.ix[df['InsideNuclei'] == Cn, 'InsideNuclei'] = df.ix[df['InsideNuclei'] == Cm, 'InsideNuclei']
+        # df.ix[df['InsideNuclei'] == cn, 'InsideNuclei'] = df.ix[df['InsideNuclei'] == cm, 'InsideNuclei']
         df.ix[df['CentX'] == cn, 'CentX'] = df.ix[df['CentX'] == cm, 'CentX']
         df.ix[df['CentY'] == cn, 'CentY'] = df.ix[df['CentY'] == cm, 'CentY']
         df.ix[df['NuclX'] == cn, 'NuclX'] = df.ix[df['NuclX'] == cm, 'NuclX']
@@ -147,6 +150,9 @@ class DataFrameFromImagej(object):
 
     @staticmethod
     def fill_gaps_in_track(df, row, frame, nucleus_id, h, c):
+        if len(df[(df['Frame'] == frame) & (df['Centrosome'] == h[0])]) > 0:
+            return df
+
         # fills a point in centrosome track h using a point from centrosome track c
         idata = {'Frame': [frame],
                  'Time': [row.loc['Time', c[0]]],
@@ -166,13 +172,12 @@ class DataFrameFromImagej(object):
         # ----------------------------------
         # Track joining algorithm
         # ----------------------------------
-        # df = df.set_index(['Frame', 'Centrosome']).reindex(['Time']).reset_index()
-        # check if there's a maximum of 2 centrosomes at all times
         for nID in df['Nuclei'].unique():
             # FIXME: correct that ugly filter in the if, nuc==7 and fname=='centr-pc-213'
             if self.fname == 'centr-pc-213' and nID == 7:
                 df = self.join_tracks(df, 4, 6)
 
+            # check if there's a maximum of 2 centrosomes at all times
             elif ((df[df['Nuclei'] == nID].groupby('Frame')['Centrosome'].count().max() <= 2) & (
                     not (self.fname == 'centr-pc-213' and nID == 7))):
 
@@ -251,13 +256,9 @@ class DataFrameFromImagej(object):
         df = self.join_tracks_algorithm(df)
 
         # compute characteristics
-        df.set_index('Frame').sort_index().reset_index()
         df['CNx'] = df.NuclX - df.CentX
         df['CNy'] = df.NuclY - df.CentY
         df['Time'] /= 60.0
-        # print df[df.Speed.isnull()]
-
-        # print df[df['Nuclei'] == 0].set_index(['Frame', 'Centrosome']).sort_index().unstack()
 
         nuclei_data = list()
         for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
