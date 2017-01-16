@@ -208,12 +208,12 @@ class DataFrameFromImagej(object):
                     if (len(curr_ccouple) == 2) & (hid_centr is not None) & is_in_merge:  # split (Cn = Cm)
                         is_in_merge = False
                         new_centr = list(set(curr_ccouple) - set(orig_couple))
-                        if len(new_centr) == 1 & (new_centr not in centrosomes_processed):
-                            df = self.join_tracks(df, new_centr, hid_centr)
-
-                            centrosomes_processed.append(new_centr)
-                            centr_equivalence[new_centr[0]] = hid_centr[0]
-                        hid_centr = None
+                        for nc in new_centr:
+                            if nc not in centrosomes_processed:
+                                df = self.join_tracks(df, nc, hid_centr[0])
+                                centrosomes_processed.append(nc)
+                                centr_equivalence[nc] = hid_centr[0]
+                                hid_centr = None
 
                     last_ccouple = curr_ccouple
         return df
