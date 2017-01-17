@@ -22,7 +22,7 @@ class DataFrameFromImagej(object):
         self.dt_before_contact = 30
         self.t_per_frame = 5
         self.d_threshold = 1
-        self.centrosome_repacements = dict()
+        self.centrosome_replacements = dict()
 
     @staticmethod
     def get_contact_time(df, threshold):
@@ -172,16 +172,18 @@ class DataFrameFromImagej(object):
         # ----------------------------------
         # Track joining algorithm
         # ----------------------------------
-        for nID in df['Nuclei'].unique():
+        for nid in df['Nuclei'].unique():
+            self.centrosome_replacements[nid] = dict()
+
             # FIXME: correct that ugly filter in the if, nuc==7 and fname=='centr-pc-213'
-            if self.fname == 'centr-pc-213' and nID == 7:
+            if self.fname == 'centr-pc-213' and nid == 7:
                 df = self.join_tracks(df, 4, 6)
 
             # check if there's a maximum of 2 centrosomes at all times
-            elif ((df[df['Nuclei'] == nID].groupby('Frame')['Centrosome'].count().max() <= 2) & (
-                    not (self.fname == 'centr-pc-213' and nID == 7))):
+            elif ((df[df['Nuclei'] == nid].groupby('Frame')['Centrosome'].count().max() <= 2) & (
+                    not (self.fname == 'centr-pc-213' and nid == 7))):
 
-                d = df[df['Nuclei'] == nID].set_index(['Frame', 'Centrosome']).sort_index().unstack()
+                d = df[df['Nuclei'] == nid].set_index(['Frame', 'Centrosome']).sort_index().unstack()
 
                 last_ccouple, last_row, hid_centr = (None, None, None)
                 idx, f = d.iterrows().next()
@@ -208,7 +210,7 @@ class DataFrameFromImagej(object):
 
                     if (len(curr_ccouple) == 1) & (hid_centr is not None) & is_in_merge:  # inside a merge
                         visible_centr = list(set(all_centr).intersection(curr_ccouple))
-                        df = self.fill_gaps_in_track(df, row, index, nID, hid_centr, visible_centr)
+                        df = self.fill_gaps_in_track(df, row, index, nid, hid_centr, visible_centr)
 
                     if (len(curr_ccouple) == 2) & (hid_centr is not None) & is_in_merge:  # split (Cn = Cm)
                         is_in_merge = False
@@ -221,6 +223,9 @@ class DataFrameFromImagej(object):
                                 hid_centr = None
 
                     last_ccouple = curr_ccouple
+
+                if centr_equivalence is not None:
+                    self.centrosome_replacements[nid] = centr_equivalence
         return df
 
     def html_centrosomes_report(self, nuclei_list=None,
@@ -254,6 +259,7 @@ class DataFrameFromImagej(object):
         # filter dataframe with wanted data
         df = df.ix[(df['Nuclei'].isin(nuclei_list)) & (df.ValidCentroid == 1)]
         df = self.join_tracks_algorithm(df)
+        print self.centrosome_replacements
 
         # compute characteristics
         df['CNx'] = df.NuclX - df.CentX
@@ -267,11 +273,23 @@ class DataFrameFromImagej(object):
                 if (max_time_dict is not None) and (nucleusID in max_time_dict):
                     filtered_nuc_df = filtered_nuc_df[filtered_nuc_df['Time'] <= max_time_dict[nucleusID]]
                 exp_id = re.search('centr-(.+?)-table.csv', self.path_csv).group(1)
+
+                centrs = set(self.centrosome_replacements[nucleusID].values())
+                c_tags = ''
+                for ct in centrs:
+                    c_tags += 'C%d was merged with (' % ct
+                    for r in self.centrosome_replacements[nucleusID]:
+                        if self.centrosome_replacements[nucleusID][r] == ct:
+                            c_tags += 'C%d,' % r
+                    c_tags = c_tags[:-1] + ') '
+                print c_tags
+
                 nuc_item = {'filename': self.path_csv,
                             'exp_id': exp_id,
                             'nuclei_id': '%d ' % nucleusID,
                             'nuclei_centrosomes_tags': ''.join(
-                                ['C%d, ' % cnId for cnId in sorted(filtered_nuc_df['Centrosome'].unique())])[:-2],
+                                ['C%d, ' % cnId for cnId in sorted(filtered_nuc_df['Centrosome'].unique())])[:-2]
+                                                       + '. ' + c_tags,
                             'centrosomes_img': 'img/%s-nuc_%d.svg' % (exp_id, nucleusID)}
                 nuclei_data.append(nuc_item)
 
