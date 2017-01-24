@@ -319,126 +319,202 @@ class DataFrameFromImagej(object):
 
 
 if __name__ == '__main__':
-    stats_dataframe = pd.DataFrame()
-    html = '<h3></h3>'
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-0-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[1, 2], max_time_dict={1: 130})
-    stats_dataframe = dfij.stats
+    stats_pc_dataframe = pd.DataFrame()
+    html_pc = '<h3></h3>'
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-0-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[1, 2], max_time_dict={1: 130})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-1-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[0, 2, 4], max_time_dict={2: 110, 4: 110})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-1-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[0, 2, 4], max_time_dict={2: 110, 4: 110})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-3-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[8], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-3-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[8], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-4-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[5], centrosome_exclusion_dict={5: [26, 27]},
-                                         max_time_dict={5: 120})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-4-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[5], centrosome_exclusion_dict={5: [26, 27]},
+                                            max_time_dict={5: 120})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-10-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[4], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-10-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[4], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-12-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[1], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-12-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[1], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-14-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[4], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-14-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[4], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-17-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[3], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-17-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[3], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-18-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[2, 3], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-18-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[2, 3], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-200-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[1, 4], centrosome_exclusion_dict={1: [13], 4: [12]},
-                                         max_time_dict={4: 170})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-200-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[1, 4], centrosome_exclusion_dict={1: [13], 4: [12]},
+                                            max_time_dict={4: 170})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-201-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[13], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-201-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[13], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-202-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[9], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-202-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[9], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-203-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[5], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-203-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[5], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
     # dfij= html_centrosomes_report("/Users/Fabio/lab/centr-pc-204-table.csv", stats_df=stats_dataframe).html_centrosomes_report(nuclei_list=[], max_time_dict={})
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-205-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[5], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-205-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[5], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
     # dfij= html_centrosomes_report("/Users/Fabio/lab/centr-pc-207-table.csv", stats_df=stats_dataframe).html_centrosomes_report(nuclei_list=[], max_time_dict={})
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-209-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[5], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-209-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[5], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-210-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[5], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-210-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[5], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-211-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[4], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-211-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[4], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-212-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[4], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-212-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[4], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-213-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[4, 7], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-213-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[4, 7], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-214-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[4, 5], centrosome_inclusion_dict={5: [4]}, max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-214-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[4, 5], centrosome_inclusion_dict={5: [4]}, max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
     # dfij= html_centrosomes_report("/Users/Fabio/lab/centr-pc-216-table.csv").html_centrosomes_report(nuclei_list=[], max_time_dict={})
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-218-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[5], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-218-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[5], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-219-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[8], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-219-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[8], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
     # dfij= html_centrosomes_report("/Users/Fabio/lab/centr-pc-220-table.csv").html_centrosomes_report(nuclei_list=[], max_time_dict={})
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-221-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[3], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-221-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[3], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-222-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[1], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-222-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[1], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
     # dfij= html_centrosomes_report("/Users/Fabio/lab/centr-pc-223-table.csv").html_centrosomes_report(nuclei_list=[4], max_time_dict={})
-    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-224-table.csv", stats_df=stats_dataframe)
-    html += dfij.html_centrosomes_report(nuclei_list=[6], max_time_dict={})
-    stats_dataframe = dfij.stats
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-pc-224-table.csv", stats_df=stats_pc_dataframe)
+    html_pc += dfij.html_centrosomes_report(nuclei_list=[6], max_time_dict={})
+    stats_pc_dataframe = dfij.stats
 
     plt.figure(10)
-    ax = sns.swarmplot(data=stats_dataframe, y='Dist', x='Type')
-    plt.savefig('out/img/beeswarm.svg', format='svg')
+    ax = sns.swarmplot(data=stats_pc_dataframe, y='Dist', x='Type')
+    plt.savefig('out/img/beeswarm_pc.svg', format='svg')
     plt.figure(11)
-    sns.boxplot(data=stats_dataframe, y='Dist', x='Type', whis=np.inf)
-    ax = sns.swarmplot(data=stats_dataframe[stats_dataframe['Stat']=='Distance'], y='Dist', x='Type')
+    sns.boxplot(data=stats_pc_dataframe, y='Dist', x='Type', whis=np.inf)
+    ax = sns.swarmplot(data=stats_pc_dataframe[stats_pc_dataframe['Stat'] == 'Distance'], y='Dist', x='Type')
     for i, artist in enumerate(ax.artists):
         artist.set_facecolor('None')
-    plt.savefig('out/img/beeswarm_boxplot.svg', format='svg')
+    plt.savefig('out/img/beeswarm_boxplot_pc.svg', format='svg')
     # print stats_dataframe[stats_dataframe['Type'] == 'Contact']
     # print stats_dataframe
+
+    stats_dyndic1_dataframe = pd.DataFrame()
+    html_dyndic1 = ''
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-101-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[3], centrosome_inclusion_dict={3: [200, 201]})
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-102-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[0, 2, 3])
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-103-table.csv",
+                               stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[0, 3], centrosome_inclusion_dict={1: [300]},
+                                                 centrosome_exclusion_dict={3: [300]})
+    stats_dyndic1_dataframe = dfij.stats
+
+    # dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-104-table.csv", stats_df=stats_dyndic1_dataframe)
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-105-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[6, 10])
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-107-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[3, 7, 10])
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-109-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[3, 4], centrosome_exclusion_dict={3: [302, 303]})
+    stats_dyndic1_dataframe = dfij.stats
+
+    # dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-110-table.csv", stats_df=stats_dyndic1_dataframe)
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-112-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[0, 2, 3])
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-203-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[1])
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-204-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[0, 2, 3], centrosome_inclusion_dict={2: [1]})
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-205-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[0, 1, 2, 3])
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-207-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[0, 3, 4, 7])
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-208-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[0, 1])
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-209-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[2])
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-210-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[2, 3, 5], centrosome_inclusion_dict={2: [300, 302]})
+    stats_dyndic1_dataframe = dfij.stats
+
+    dfij = DataFrameFromImagej("/Users/Fabio/lab/centr-dyn-213-table.csv", stats_df=stats_dyndic1_dataframe)
+    html_dyndic1 += dfij.html_centrosomes_report(nuclei_list=[7])
+    stats_dyndic1_dataframe = dfij.stats
+
+    plt.figure(10)
+    ax = sns.swarmplot(data=stats_dyndic1_dataframe, y='Dist', x='Type')
+    plt.savefig('out/img/beeswarm_dyndic1.svg', format='svg')
+    plt.figure(11)
+    sns.boxplot(data=stats_dyndic1_dataframe, y='Dist', x='Type', whis=np.inf)
+    ax = sns.swarmplot(data=stats_dyndic1_dataframe[stats_dyndic1_dataframe['Stat'] == 'Distance'], y='Dist', x='Type')
+    for i, artist in enumerate(ax.artists):
+        artist.set_facecolor('None')
+    plt.savefig('out/img/beeswarm_boxplot_dyndic1.svg', format='svg')
 
     master_template = """<!DOCTYPE html>
         <html>
@@ -451,15 +527,24 @@ if __name__ == '__main__':
             <h2>Condition: Positive Control</h2>
             <h3>Brief</h3>
             <div class="container">
-                <img src="img/beeswarm.svg">
-                <img src="img/beeswarm_boxplot.svg">
+                <img src="img/beeswarm_pc.svg">
+                <img src="img/beeswarm_boxplot_pc.svg">
             </div>
-            {{ nuclei_data_html }}
+            {{ nuclei_data_pc_html }}
+
+            <h2>Condition: DynH1 & DIC1</h2>
+            <h3>Brief</h3>
+            <div class="container">
+                <img src="img/beeswarm_dyndic1.svg">
+                <img src="img/beeswarm_boxplot_dyndic1.svg">
+            </div>
+            {{ nuclei_data_dyndic1_html }}
         </body>
         </html>
         """
     templ = j2.Template(master_template)
-    htmlout = templ.render({'title': 'Centrosomes report', 'nuclei_data_html': html})
+    htmlout = templ.render(
+        {'title': 'Centrosomes report', 'nuclei_data_pc_html': html_pc, 'nuclei_data_dyndic1_html': html_dyndic1})
 
     with codecs.open('out/index.html', "w", "utf-8") as text_file:
         text_file.write(htmlout)
