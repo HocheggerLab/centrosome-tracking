@@ -87,18 +87,21 @@ class DataFrameFromImagej(object):
                                 'Nuclei': nuclei_df['Nuclei'].unique()[0],
                                 'Frame': [frame_contact],
                                 'Time': [time_contact],
+                                'Stat': 'Distance',
                                 'Type': 'Contact',
                                 'Dist': [dist_contact]})
         df_row1 = pd.DataFrame({'Tag': self.fname,
                                 'Nuclei': nuclei_df['Nuclei'].unique()[0],
                                 'Frame': [frame_before],
                                 'Time': [nuclei_df[nuclei_df['Frame'] == frame_before]['Time'].unique()[0]],
+                                'Stat': 'Distance',
                                 'Type': 'Away',
                                 'Dist': [max(dists_before_contact)]})
         df_row2 = pd.DataFrame({'Tag': self.fname,
                                 'Nuclei': nuclei_df['Nuclei'].unique()[0],
                                 'Frame': [frame_before],
                                 'Time': [nuclei_df[nuclei_df['Frame'] == frame_before]['Time'].unique()[0]],
+                                'Stat': 'Distance',
                                 'Type': 'Close',
                                 'Dist': [min(dists_before_contact)]})
         self.stats = self.stats.append(df_row1, ignore_index=True)
@@ -430,7 +433,7 @@ if __name__ == '__main__':
     plt.savefig('out/img/beeswarm.svg', format='svg')
     plt.figure(11)
     sns.boxplot(data=stats_dataframe, y='Dist', x='Type', whis=np.inf)
-    ax = sns.swarmplot(data=stats_dataframe, y='Dist', x='Type')
+    ax = sns.swarmplot(data=stats_dataframe[stats_dataframe['Stat']=='Distance'], y='Dist', x='Type')
     for i, artist in enumerate(ax.artists):
         artist.set_facecolor('None')
     plt.savefig('out/img/beeswarm_boxplot.svg', format='svg')
