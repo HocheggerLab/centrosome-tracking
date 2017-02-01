@@ -28,7 +28,7 @@ class DataFrameFromImagej(object):
 
         self.dt_before_contact = 30
         self.t_per_frame = 5
-        self.d_threshold = 1  # 1um
+        self.d_threshold = 1.0  # um before 1 frame of contact
         self.centrosome_replacements = dict()
 
     @staticmethod
@@ -38,45 +38,68 @@ class DataFrameFromImagej(object):
         if len(cent_list) <= 1:
             return 0, 0, 0
         elif len(cent_list) == 2:
-            ds = df.copy()
-            cl_bool = ds['Centrosome'] == cent_list[1]
-
-            ds.loc[cl_bool, ['CNx', 'CNy']] *= -1
-            dsf = ds.groupby(['Frame'])[['CNx', 'CNy']].sum().apply(
-                lambda x: x ** 2)  # dist between centrosomes squared
-            dsf['Dist'] = (dsf.CNx + dsf.CNy).apply(lambda x: np.sqrt(x))
-            dsr = dsf[dsf['Dist'] < threshold]
+            dsf = DataFrameFromImagej.compute_distance_between_centrosomes(df)
+            dsr = dsf[dsf['DistCentr'] < threshold * 10]
 
             if dsr.size > 0:
-                dsr = dsr['Dist'].sort_index()
-                frame = list(dsr.index)[0]
-                time = list(ds[ds['Frame'] == frame]['Time'])[0]
-                dist = list(ds[ds['Frame'] == frame]['Dist'])[0]
+                dsr = dsr.set_index('DistCentr').sort_index()
+                frame = list(dsr['Frame'])[0] + 1  # take next frame
+                time = list(df[df['Frame'] == frame]['Time'])[0]
+                dist = list(dsf[dsf['Frame'] == frame]['DistCentr'])[0]
 
-            else:  # just get the time for the min distance
-                dsr = dsf['Dist'].sort_values()
-                frame = list(dsr.index)[0]
-                time = list(ds[ds['Frame'] == frame]['Time'])[0]
-                dist = list(ds[ds['Frame'] == frame]['Dist'])[0]
+                if not np.isnan(dist):
+                    frame -= 1
+                    time = list(df[df['Frame'] == frame]['Time'])[0]
+                    dist = list(dsf[dsf['Frame'] == frame]['DistCentr'])[0]
 
-            return time, frame, dist
-        else:
-            return None, None, None
+                    if dist > threshold:
+                        frame = time = dist = None
+
+                return time, frame, dist
+
+        return None, None, None
 
     @staticmethod
     def compute_velocity(df):
         df = df.set_index('Frame').sort_index()
+        df['CNx'] = df.NuclX - df.CentX
+        df['CNy'] = df.NuclY - df.CentY
+        df = df.drop(['NuclX', 'NuclY', 'CentX', 'CentY'], axis=1)
         for c_i in df.groupby('Centrosome').groups.keys():
             dc = df[df['Centrosome'] == c_i]
-            d = dc[['CentX', 'CentY', 'NuclX', 'NuclY', 'CNx', 'CNy', 'Time']].diff()
+            d = dc[['CNx', 'CNy', 'Time']].diff()
 
             d['Dist'] = np.sqrt(d.CNx ** 2 + d.CNy ** 2)  # relative to nuclei centroid
-            #  d['Dist'] = np.sqrt(d.CentX ** 2 + d.CentX ** 2)  # dist  between centrosomes
 
             df.loc[df['Centrosome'] == c_i, 'Dist'] = np.sqrt(dc.CNx ** 2 + dc.CNy ** 2)  # relative to nuclei centroid
             df.loc[df['Centrosome'] == c_i, 'Speed'] = d.Dist / d.Time
 
         return df.reset_index()
+
+    @staticmethod
+    def compute_distance_between_centrosomes(df):
+        cent_list = df.groupby('Centrosome').size().index
+        if len(cent_list) != 2:
+            ds = pd.DataFrame()
+            ds['Frame'] = np.NaN
+            ds['Time'] = np.NaN
+            ds['DistCentr'] = np.NaN
+            return ds
+        # we accept just 1 value per (frame,centrosome)
+        if df.groupby(['Frame', 'Time', 'Centrosome']).size().max() > 1:
+            ds = pd.DataFrame()
+            ds['Frame'] = np.NaN
+            ds['Time'] = np.NaN
+            ds['DistCentr'] = np.NaN
+            return ds
+
+        dc = df.set_index(['Frame', 'Time', 'Centrosome']).unstack()
+        ddx = dc.CNx[cent_list[0]] - dc.CNx[cent_list[1]]
+        ddy = dc.CNy[cent_list[0]] - dc.CNy[cent_list[1]]
+        ds = pd.DataFrame()
+        ds['DistCentr'] = np.sqrt(ddx ** 2 + ddy ** 2)
+
+        return ds.reset_index()
 
     def add_stats(self, _ndf):
         # get time of contact
@@ -133,16 +156,16 @@ class DataFrameFromImagej(object):
 
         # get time of contact
         time_contact, frame_contact, dist_contact = self.get_contact_time(nuclei_df, self.d_threshold)
-        # hack: get two distances before dt_before_contact and store them in an independent dataframe
-        if time_contact is not None:
-            frame_before = frame_contact - self.dt_before_contact / self.t_per_frame
-            if frame_before < 0:
-                frame_before = 0
-            dists_before_contact = list(
-                nuclei_df[nuclei_df['Frame'] == frame_before]['Dist'])
 
-        in_yticks = list()
-        in_yticks_lbl = list()
+        # plot distance between centrosomes
+        dsf = DataFrameFromImagej.compute_distance_between_centrosomes(nuclei_df)
+        dsf = dsf.set_index('Time').sort_index()
+        try:
+            dsf.DistCentr.plot(ax=ax3, label='Dist N%d' % (nucleus_id), marker='o', sharex=True)
+            ax3.axvline(x=time_contact, color='dimgray', linestyle='--')
+        except:
+            pass
+
         for [(lblCentr), _df], k in zip(nuclei_df.groupby(['Centrosome']),
                                         range(len(nuclei_df.groupby(['Centrosome'])))):
             track = _df.set_index('Time').sort_index()
@@ -155,21 +178,9 @@ class DataFrameFromImagej(object):
                 ax1.axvline(x=time_contact, color='dimgray', linestyle='--')
                 ax1.axvline(x=time_contact - self.dt_before_contact, color='lightgray', linestyle='--')
 
-                i_n = track.InsideNuclei + 2 * k
-                in_yticks.append(2 * k)
-                in_yticks.append(2 * k + 1)
-                in_yticks_lbl.append('Out')
-                in_yticks_lbl.append('Inside')
-                i_n.plot(ax=ax3, label='N%d-C%d' % (nucleus_id, lblCentr), marker='o', ylim=[-0.5, 2 * k + 1.5],
-                         sharex=True)
-            else:
-                track.InsideNuclei.plot(ax=ax3, label='N%d-C%d' % (nucleus_id, lblCentr), color=(0, 0, 0, 0),
-                                        sharex=True)
-
         ax1.legend()
         ax2.legend()
-        ax3.set_yticks(in_yticks)
-        ax3.set_yticklabels(in_yticks_lbl)
+        ax3.legend()
 
         if filename is None:
             plt.show()
@@ -203,6 +214,9 @@ class DataFrameFromImagej(object):
 
         # apply filters
         df = self.df_csv
+        # drop thing we won't need
+        df = df.drop(['InsideNuclei', 'ValidCentroid'], axis=1)
+
         # filter non wanted centrosomes
         if centrosome_exclusion_dict is not None:
             for nuId in centrosome_exclusion_dict.keys():
@@ -232,9 +246,7 @@ class DataFrameFromImagej(object):
 
         print self.centrosome_replacements
 
-        # compute characteristics
-        df['CNx'] = df.NuclX - df.CentX
-        df['CNy'] = df.NuclY - df.CentY
+        # re-scale time
         df['Time'] /= 60.0
 
         nuclei_data = list()
@@ -494,7 +506,7 @@ if __name__ == '__main__':
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {2:[[201,202,203]]}
                      }, {
                          'name': 'centr-pc-223-table.csv',
                          'nuclei_list': [5, 6, 7],
@@ -580,7 +592,7 @@ if __name__ == '__main__':
                               'nuclei_list': [4],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {},
-                              'centrosome_exclusion_dict': {4: [402]},
+                              'centrosome_exclusion_dict': {4: [402, 403]},
                               'centrosome_equivalence_dict': {}
                           }, {
                               'name': 'centr-dyn-107-table.csv',
