@@ -1,3 +1,4 @@
+import os
 import re
 import pandas as pd
 import numpy as np
@@ -28,6 +29,9 @@ class DataFrameFromImagej(object):
         self.d_threshold = 1.0  # um before 1 frame of contact
         self.centrosome_replacements = dict()
 
+        if not os.path.exists('out/img'):
+            os.makedirs('out/img')
+
     @staticmethod
     def get_contact_time(df, threshold):
         # get all distances less than a threshold, order them by time and pick the earlier one
@@ -41,8 +45,12 @@ class DataFrameFromImagej(object):
             if dsr.size > 0:
                 dsr = dsr.set_index('DistCentr').sort_index()
                 frame = list(dsr['Frame'])[0] + 1  # take next frame
-                time = list(df[df['Frame'] == frame]['Time'])[0]
-                dist = list(dsf[dsf['Frame'] == frame]['DistCentr'])[0]
+                time = list(df[df['Frame'] == frame]['Time'])
+                if len(time) > 0:
+                    time = time[0]
+                    dist = list(dsf[dsf['Frame'] == frame]['DistCentr'])[0]
+                else:
+                    time = dist = np.NaN
 
                 if not np.isnan(dist):
                     frame -= 1
@@ -322,8 +330,35 @@ class DataFrameFromImagej(object):
         return htmlout
 
 
-if __name__ == '__main__':
+def box_beeswarm_plot(data, filename=None, ylim=None):
+    plt.figure(10)
+    data['Dist'] = data.Dist.astype(np.float64)  # fixes a bug of seaborn
+    sns.boxplot(data=data, y='Dist', x='Type')
+    ax = sns.swarmplot(data=data, y='Dist', x='Type')
+    for i, artist in enumerate(ax.artists):
+        artist.set_facecolor('None')
 
+    if ylim is not None:
+        _axis = ax.axis()
+        ax.axis([_axis[0],_axis[1],ylim[0],ylim[1]])
+
+    # render text
+    cat = data['Type'].unique()
+    for c, x in zip(cat, range(len(cat) + 1)):
+        d = data[data['Type'] == c]['Dist']
+        if len(d) > 0:
+            _max_y = ax.axis()[3]
+            count = d.count()
+            mean = d.mean()
+            ax.text(x, _max_y - 2.0, '$\mu=%0.3f$' % mean, ha='center')
+            ax.text(x, _max_y - 4.0, '$n=%d$' % count, ha='center')
+
+    if filename is not None:
+        plt.savefig('out/img/%s.svg' % filename, format='svg')
+    plt.close(10)
+
+
+if __name__ == '__main__':
     pc_to_process = {'path': '/Users/Fabio/lab/PC/data/',
                      'files': [{
                          'name': 'centr-pc-0-table.csv',
@@ -546,6 +581,7 @@ if __name__ == '__main__':
                      }
                      ]}
 
+    _yl = [-5, 35]  # limits in y axis for boxplots
     html = '<h3></h3>'
     stats = pd.DataFrame()
     cond = pc_to_process
@@ -560,25 +596,11 @@ if __name__ == '__main__':
         stats = dfij.stats
     html_pc = html
 
-    plt.figure(10)
     sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
-    sdata['Dist'] = sdata.Dist.astype(np.float64)  # fixes a bug of seaborn
-    sns.boxplot(data=sdata, y='Dist', x='Type', whis=np.inf)
-    ax = sns.swarmplot(data=sdata, y='Dist', x='Type')
-    for i, artist in enumerate(ax.artists):
-        artist.set_facecolor('None')
-    plt.savefig('out/img/beeswarm_boxplot_pc_snapshot.svg', format='svg')
-    plt.close(10)
+    box_beeswarm_plot(sdata, filename='beeswarm_boxplot_pc_snapshot', ylim=_yl)
 
-    plt.figure(11)
     sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
-    sdata['Dist'] = sdata.Dist.astype(np.float64)  # fixes a bug of seaborn
-    sns.boxplot(data=sdata, y='Dist', x='Type', whis=np.inf)
-    ax = sns.swarmplot(data=sdata, y='Dist', x='Type')
-    for i, artist in enumerate(ax.artists):
-        artist.set_facecolor('None')
-    plt.savefig('out/img/beeswarm_boxplot_pc_contact.svg', format='svg')
-    plt.close(11)
+    box_beeswarm_plot(sdata, filename='beeswarm_boxplot_pc_contact', ylim=_yl)
 
     dyndic1_to_process = {'path': '/Users/Fabio/lab/Dyn/data/',
                           'files': [{
@@ -706,78 +728,123 @@ if __name__ == '__main__':
                           },
                           ]}
 
+    dyncdk1as_to_process = {'path': '/Users/Fabio/lab/DynCDK1as/data/',
+                            'files': [{
+                                'name': 'centr-dyncdk1as-002-table.csv',
+                                'nuclei_list': [1, 2, 3, 6, 9],
+                                'max_time_dict': {},
+                                'centrosome_inclusion_dict': {},
+                                'centrosome_exclusion_dict': {6: [602, 603], 9: [903]},
+                                'centrosome_equivalence_dict': {1: [[100, 102]], 6: [[600, 604, 605]],
+                                                                9: [[901, 902]]}
+                            }, {
+                                'name': 'centr-dyncdk1as-003-table.csv',
+                                'nuclei_list': [],
+                                'max_time_dict': {},
+                                'centrosome_inclusion_dict': {},
+                                'centrosome_exclusion_dict': {},
+                                'centrosome_equivalence_dict': {}
+                            }, {
+                                'name': 'centr-dyncdk1as-005-table.csv',
+                                'nuclei_list': [2],
+                                'max_time_dict': {},
+                                'centrosome_inclusion_dict': {},
+                                'centrosome_exclusion_dict': {},
+                                'centrosome_equivalence_dict': {}
+                            }, {
+                                'name': 'centr-dyncdk1as-007-table.csv',
+                                'nuclei_list': [6],
+                                'max_time_dict': {},
+                                'centrosome_inclusion_dict': {},
+                                'centrosome_exclusion_dict': {},
+                                'centrosome_equivalence_dict': {}
+                            }, {
+                                'name': 'centr-dyncdk1as-008-table.csv',
+                                'nuclei_list': [6, 7],
+                                'max_time_dict': {},
+                                'centrosome_inclusion_dict': {},
+                                'centrosome_exclusion_dict': {},
+                                'centrosome_equivalence_dict': {}
+                            }, {
+                                'name': 'centr-dyncdk1as-011-table.csv',
+                                'nuclei_list': [4, 5],
+                                'max_time_dict': {},
+                                'centrosome_inclusion_dict': {},
+                                'centrosome_exclusion_dict': {},
+                                'centrosome_equivalence_dict': {4: [[400, 401]]}
+                            },
+                            ]}
+
     html = '<h3></h3>'
     stats = pd.DataFrame()
-    cond = dyndic1_to_process
-    for f in cond['files'][0:]:
-        print f['name']
-        dfij = DataFrameFromImagej(cond['path'] + f['name'], stats_df=stats)
-        html += dfij.html_centrosomes_report(nuclei_list=f['nuclei_list'], max_time_dict=f['max_time_dict'],
-                                             centrosome_inclusion_dict=f['centrosome_inclusion_dict'],
-                                             centrosome_exclusion_dict=f['centrosome_exclusion_dict'],
-                                             centrosome_equivalence_dict=f['centrosome_equivalence_dict'])
+    merged_conditions = [dyndic1_to_process, dyncdk1as_to_process]
+    for cond in merged_conditions:
+        for f in cond['files'][0:]:
+            print f['name']
+            dfij = DataFrameFromImagej(cond['path'] + f['name'], stats_df=stats)
+            html += dfij.html_centrosomes_report(nuclei_list=f['nuclei_list'], max_time_dict=f['max_time_dict'],
+                                                 centrosome_inclusion_dict=f['centrosome_inclusion_dict'],
+                                                 centrosome_exclusion_dict=f['centrosome_exclusion_dict'],
+                                                 centrosome_equivalence_dict=f['centrosome_equivalence_dict'])
 
-        stats = dfij.stats
+            stats = dfij.stats
     html_dyndic1 = html
 
-    plt.figure(10)
     sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
-    sdata['Dist'] = sdata.Dist.astype(np.float64)
-    sns.boxplot(data=sdata, y='Dist', x='Type', whis=np.inf)
-    ax = sns.swarmplot(data=sdata, y='Dist', x='Type')
-    for i, artist in enumerate(ax.artists):
-        artist.set_facecolor('None')
-    plt.savefig('out/img/beeswarm_boxplot_dyndic1_snapshot.svg', format='svg')
-    plt.close(10)
+    box_beeswarm_plot(sdata, filename='beeswarm_boxplot_dyndic1_snapshot', ylim=_yl)
 
-    plt.figure(11)
     sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
-    sdata['Dist'] = sdata.Dist.astype(np.float64)
-    sns.boxplot(data=sdata, y='Dist', x='Type', whis=np.inf)
-    ax = sns.swarmplot(data=sdata, y='Dist', x='Type')
-    for i, artist in enumerate(ax.artists):
-        artist.set_facecolor('None')
-    plt.savefig('out/img/beeswarm_boxplot_dyndic1_contact.svg', format='svg')
-    plt.close(11)
+    box_beeswarm_plot(sdata, filename='beeswarm_boxplot_dyndic1_contact', ylim=_yl)
 
     master_template = """<!DOCTYPE html>
-                <html>
-                <head lang="en">
-                    <meta charset="UTF-8">
-                    <title>{{ title }}</title>
-                </head>
-                <body>
-                    <h1>Centrosome Data Report - {{report_date}}</h1>
+            <html>
+            <head lang="en">
+                <meta charset="UTF-8">
+                <title>{{ title }}</title>
+            </head>
+            <body>
+                <h1>Centrosome Data Report - {{report_date}}</h1>
 
-                    <h2>Condition: Positive Control ({{pc_n}} tracks)</h2>
-                    <h2>Brief</h2>
-                    <div class="container">
-                    <h3>Distance from nuclei center at initial time and 100 mins after</h3>
-                        <img src="img/beeswarm_boxplot_pc_snapshot.svg">
-                    <h3>Distance from nuclei center at time of contact</h3>
-                        <img src="img/beeswarm_boxplot_pc_contact.svg">
-                    </div>
-                    {{ nuclei_data_pc_html }}
+                <h2>Condition: Positive Control ({{pc_n}} tracks)</h2>
+                <h2>Brief</h2>
+                <div class="container">
+                <h3>Distance from nuclei center at time of contact</h3>
+                    <img src="img/beeswarm_boxplot_pc_contact.svg">
+                <h3>Distance from nuclei center at initial time and 100 mins after</h3>
+                    <img src="img/beeswarm_boxplot_pc_snapshot.svg">
+                </div>
 
-                    <h2>Condition: DynH1 & DIC1 ({{dyndic1_n}} tracks)</h2>
-                    <h2>Brief</h2>
-                    <div class="container">
-                    <h3>Distance from nuclei center at initial time and 100 mins after</h3>
-                        <img src="img/beeswarm_boxplot_dyndic1_snapshot.svg">
-                    <h3>Distance from nuclei center at time of contact</h3>
-                        <img src="img/beeswarm_boxplot_dyndic1_contact.svg">
-                    </div>
-                    {{ nuclei_data_dyndic1_html }}
-                </body>
-                </html>
-                """
+                <h2>Condition: DynH1, DIC1 & DynCDK1as ({{dyndic1_n}} tracks)</h2>
+                <h2>Brief</h2>
+                <div class="container">
+                <h3>Distance from nuclei center at time of contact</h3>
+                    <img src="img/beeswarm_boxplot_dyndic1_contact.svg">
+                <h3>Distance from nuclei center at initial time and 100 mins after</h3>
+                    <img src="img/beeswarm_boxplot_dyndic1_snapshot.svg">
+                </div>
+
+                </br>
+                <h2>Condition: Positive Control ({{pc_n}} tracks)</h2>
+                <h2>Track Detail</h2>
+                {{ nuclei_data_pc_html }}
+
+
+                <h2>Condition: DynH1, DIC1 & DynCDK1as ({{dyndic1_n}} tracks)</h2>
+                <h2>Track Detail</h2>
+                {{ nuclei_data_dyndic1_html }}
+            </body>
+            </html>
+            """
     templ = j2.Template(master_template)
+    pc_tracks = len(np.concatenate([np.array(n['nuclei_list']) for n in pc_to_process['files']]))
+    dyn_tracks = len(np.concatenate([np.array(n['nuclei_list']) for n in dyndic1_to_process['files']]))
+    dyn_tracks += len(np.concatenate([np.array(n['nuclei_list']) for n in dyncdk1as_to_process['files']]))
     htmlout = templ.render(
         {'title': 'Centrosomes report',
          'report_date': time.strftime("%d/%m/%Y"), 'nuclei_data_pc_html': html_pc,
-         'pc_n': len(np.concatenate([np.array(n['nuclei_list']) for n in pc_to_process['files']])),
+         'pc_n': pc_tracks,
          'nuclei_data_dyndic1_html': html_dyndic1,
-         'dyndic1_n': len(np.concatenate([np.array(n['nuclei_list']) for n in dyndic1_to_process['files']]))})
+         'dyndic1_n': dyn_tracks})
 
     with codecs.open('out/index.html', "w", "utf-8") as text_file:
         text_file.write(htmlout)
