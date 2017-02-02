@@ -10,9 +10,6 @@ import pdfkit
 import time
 
 sns.set_style("white")
-# sns.set_style("dark")
-# plt.style.use('default')
-# plt.style.use('seaborn-white')
 print(plt.style.available)
 
 
@@ -117,32 +114,57 @@ class DataFrameFromImagej(object):
                 min_dist = min(dists_before_contact)
                 time_before = _ndf[_ndf['Frame'] == frame_before]['Time'].unique()[0]
         else:
-            return
+            frame_before = time_before = min_dist = max_dist = np.NaN
+
+        ini_frame = _ndf.set_index('Frame').sort_index().index[0]
+        ini_time = _ndf[_ndf['Frame'] == ini_frame]['Time'].unique()[0]
+        ini_dist_min = min(_ndf[_ndf['Frame'] == ini_frame]['Dist'])
+        int_time = 100
+        int_frame = _ndf[(_ndf['Time'] >= int_time) & (_ndf['Time'] < int_time + 5)]['Frame'].unique()[0]
+        int_time = _ndf[_ndf['Frame'] == int_frame]['Time'].unique()[0]
+        int_dist_min = min(_ndf[_ndf['Frame'] == int_frame]['Dist'])
 
         df_rowc = pd.DataFrame({'Tag': self.fname,
                                 'Nuclei': _ndf['Nuclei'].unique()[0],
                                 'Frame': [frame_contact],
                                 'Time': [time_contact],
-                                'Stat': 'Distance',
+                                'Stat': 'Contact',
                                 'Type': 'Contact',
                                 'Dist': [dist_contact]})
         df_row1 = pd.DataFrame({'Tag': self.fname,
                                 'Nuclei': _ndf['Nuclei'].unique()[0],
                                 'Frame': [frame_before],
                                 'Time': [time_before],
-                                'Stat': 'Distance',
+                                'Stat': 'Contact',
                                 'Type': 'Away',
                                 'Dist': [max_dist]})
         df_row2 = pd.DataFrame({'Tag': self.fname,
                                 'Nuclei': _ndf['Nuclei'].unique()[0],
                                 'Frame': [frame_before],
                                 'Time': [time_before],
-                                'Stat': 'Distance',
+                                'Stat': 'Contact',
                                 'Type': 'Close',
                                 'Dist': [min_dist]})
+        df_row_ini = pd.DataFrame({'Tag': self.fname,
+                                   'Nuclei': _ndf['Nuclei'].unique()[0],
+                                   'Frame': [ini_frame],
+                                   'Time': [ini_time],
+                                   'Stat': 'Snapshot',
+                                   'Type': 'Initial',
+                                   'Dist': [ini_dist_min]})
+        df_row_int = pd.DataFrame({'Tag': self.fname,
+                                   'Nuclei': _ndf['Nuclei'].unique()[0],
+                                   'Frame': [int_time],
+                                   'Time': [int_frame],
+                                   'Stat': 'Snapshot',
+                                   'Type': '100min',
+                                   'Dist': [int_dist_min]})
+
         self.stats = self.stats.append(df_row1, ignore_index=True)
         self.stats = self.stats.append(df_row2, ignore_index=True)
         self.stats = self.stats.append(df_rowc, ignore_index=True)
+        self.stats = self.stats.append(df_row_ini, ignore_index=True)
+        self.stats = self.stats.append(df_row_int, ignore_index=True)
 
     def plot_nucleus_dataframe(self, nuclei_df, filename=None):
         nucleus_id = nuclei_df['Nuclei'].min()
@@ -506,7 +528,7 @@ if __name__ == '__main__':
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {2:[[201,202,203]]}
+                         'centrosome_equivalence_dict': {2: [[201, 202, 203]]}
                      }, {
                          'name': 'centr-pc-223-table.csv',
                          'nuclei_list': [5, 6, 7],
@@ -527,7 +549,7 @@ if __name__ == '__main__':
     html = '<h3></h3>'
     stats = pd.DataFrame()
     cond = pc_to_process
-    for f in cond['files']:
+    for f in cond['files'][0:]:
         print f['name']
         dfij = DataFrameFromImagej(cond['path'] + f['name'], stats_df=stats)
         html += dfij.html_centrosomes_report(nuclei_list=f['nuclei_list'], max_time_dict=f['max_time_dict'],
@@ -538,24 +560,25 @@ if __name__ == '__main__':
         stats = dfij.stats
     html_pc = html
 
-    try:
-        plt.figure(10)
-        ax = sns.swarmplot(data=stats[stats['Stat'] == 'Distance'], y='Dist', x='Type')
-        plt.savefig('out/img/beeswarm_pc.svg', format='svg')
-        plt.close(10)
+    plt.figure(10)
+    sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
+    sdata['Dist'] = sdata.Dist.astype(np.float64)  # fixes a bug of seaborn
+    sns.boxplot(data=sdata, y='Dist', x='Type', whis=np.inf)
+    ax = sns.swarmplot(data=sdata, y='Dist', x='Type')
+    for i, artist in enumerate(ax.artists):
+        artist.set_facecolor('None')
+    plt.savefig('out/img/beeswarm_boxplot_pc_snapshot.svg', format='svg')
+    plt.close(10)
 
-        plt.figure(11)
-        sns.boxplot(data=stats[stats['Stat'] == 'Distance'], y='Dist', x='Type', whis=np.inf)
-        ax = sns.swarmplot(data=stats[stats['Stat'] == 'Distance'], y='Dist', x='Type')
-        for i, artist in enumerate(ax.artists):
-            artist.set_facecolor('None')
-        plt.savefig('out/img/beeswarm_boxplot_pc.svg', format='svg')
-        plt.close(11)
-    except:
-        pass
-
-    # print stats_dataframe[stats_dataframe['Type'] == 'Contact']
-    # print stats_dataframe
+    plt.figure(11)
+    sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
+    sdata['Dist'] = sdata.Dist.astype(np.float64)  # fixes a bug of seaborn
+    sns.boxplot(data=sdata, y='Dist', x='Type', whis=np.inf)
+    ax = sns.swarmplot(data=sdata, y='Dist', x='Type')
+    for i, artist in enumerate(ax.artists):
+        artist.set_facecolor('None')
+    plt.savefig('out/img/beeswarm_boxplot_pc_contact.svg', format='svg')
+    plt.close(11)
 
     dyndic1_to_process = {'path': '/Users/Fabio/lab/Dyn/data/',
                           'files': [{
@@ -686,7 +709,7 @@ if __name__ == '__main__':
     html = '<h3></h3>'
     stats = pd.DataFrame()
     cond = dyndic1_to_process
-    for f in cond['files']:
+    for f in cond['files'][0:]:
         print f['name']
         dfij = DataFrameFromImagej(cond['path'] + f['name'], stats_df=stats)
         html += dfij.html_centrosomes_report(nuclei_list=f['nuclei_list'], max_time_dict=f['max_time_dict'],
@@ -696,20 +719,26 @@ if __name__ == '__main__':
 
         stats = dfij.stats
     html_dyndic1 = html
-    try:
-        plt.figure(10)
-        ax = sns.swarmplot(data=stats[stats['Stat'] == 'Distance'], y='Dist', x='Type')
-        plt.savefig('out/img/beeswarm_dyndic1.svg', format='svg')
-        plt.close(10)
-        plt.figure(11)
-        sns.boxplot(data=stats[stats['Stat'] == 'Distance'], y='Dist', x='Type', whis=np.inf)
-        ax = sns.swarmplot(data=stats[stats['Stat'] == 'Distance'], y='Dist', x='Type')
-        for i, artist in enumerate(ax.artists):
-            artist.set_facecolor('None')
-        plt.savefig('out/img/beeswarm_boxplot_dyndic1.svg', format='svg')
-        plt.close(11)
-    except:
-        pass
+
+    plt.figure(10)
+    sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
+    sdata['Dist'] = sdata.Dist.astype(np.float64)
+    sns.boxplot(data=sdata, y='Dist', x='Type', whis=np.inf)
+    ax = sns.swarmplot(data=sdata, y='Dist', x='Type')
+    for i, artist in enumerate(ax.artists):
+        artist.set_facecolor('None')
+    plt.savefig('out/img/beeswarm_boxplot_dyndic1_snapshot.svg', format='svg')
+    plt.close(10)
+
+    plt.figure(11)
+    sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
+    sdata['Dist'] = sdata.Dist.astype(np.float64)
+    sns.boxplot(data=sdata, y='Dist', x='Type', whis=np.inf)
+    ax = sns.swarmplot(data=sdata, y='Dist', x='Type')
+    for i, artist in enumerate(ax.artists):
+        artist.set_facecolor('None')
+    plt.savefig('out/img/beeswarm_boxplot_dyndic1_contact.svg', format='svg')
+    plt.close(11)
 
     master_template = """<!DOCTYPE html>
                 <html>
@@ -721,16 +750,22 @@ if __name__ == '__main__':
                     <h1>Centrosome Data Report - {{report_date}}</h1>
 
                     <h2>Condition: Positive Control ({{pc_n}} tracks)</h2>
-                    <h3>Brief</h3>
+                    <h2>Brief</h2>
                     <div class="container">
-                        <img src="img/beeswarm_boxplot_pc.svg">
+                    <h3>Distance from nuclei center at initial time and 100 mins after</h3>
+                        <img src="img/beeswarm_boxplot_pc_snapshot.svg">
+                    <h3>Distance from nuclei center at time of contact</h3>
+                        <img src="img/beeswarm_boxplot_pc_contact.svg">
                     </div>
                     {{ nuclei_data_pc_html }}
 
                     <h2>Condition: DynH1 & DIC1 ({{dyndic1_n}} tracks)</h2>
-                    <h3>Brief</h3>
+                    <h2>Brief</h2>
                     <div class="container">
-                        <img src="img/beeswarm_boxplot_dyndic1.svg">
+                    <h3>Distance from nuclei center at initial time and 100 mins after</h3>
+                        <img src="img/beeswarm_boxplot_dyndic1_snapshot.svg">
+                    <h3>Distance from nuclei center at time of contact</h3>
+                        <img src="img/beeswarm_boxplot_dyndic1_contact.svg">
                     </div>
                     {{ nuclei_data_dyndic1_html }}
                 </body>
