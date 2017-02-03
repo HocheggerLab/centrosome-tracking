@@ -26,7 +26,7 @@ class DataFrameFromImagej(object):
 
         self.dt_before_contact = 30
         self.t_per_frame = 5
-        self.d_threshold = 1.0  # um before 1 frame of contact
+        self.d_threshold = 3.5  # um before 1 frame of contact
         self.centrosome_replacements = dict()
 
         if not os.path.exists('out/img'):
@@ -40,25 +40,13 @@ class DataFrameFromImagej(object):
             return 0, 0, 0
         elif len(cent_list) == 2:
             dsf = DataFrameFromImagej.compute_distance_between_centrosomes(df)
-            dsr = dsf[dsf['DistCentr'] < threshold * 10]
+            dsr = dsf[dsf['DistCentr'] == 0]
 
             if dsr.size > 0:
                 dsr = dsr.set_index('DistCentr').sort_index()
-                frame = list(dsr['Frame'])[0] + 1  # take next frame
-                time = list(df[df['Frame'] == frame]['Time'])
-                if len(time) > 0:
-                    time = time[0]
-                    dist = list(dsf[dsf['Frame'] == frame]['DistCentr'])[0]
-                else:
-                    time = dist = np.NaN
-
-                if not np.isnan(dist):
-                    frame -= 1
-                    time = list(df[df['Frame'] == frame]['Time'])[0]
-                    dist = list(dsf[dsf['Frame'] == frame]['DistCentr'])[0]
-
-                    if dist > threshold:
-                        frame = time = dist = None
+                frame = list(dsr['Frame'])[0]
+                time = list(dsr['Time'])[0]
+                dist = list(dsf[dsf['Frame'] == frame]['DistCentr'])[0]
 
                 return time, frame, dist
 
@@ -67,9 +55,8 @@ class DataFrameFromImagej(object):
     @staticmethod
     def compute_velocity(df):
         df = df.set_index('Frame').sort_index()
-        df['CNx'] = df.NuclX - df.CentX
-        df['CNy'] = df.NuclY - df.CentY
-        df = df.drop(['NuclX', 'NuclY', 'CentX', 'CentY'], axis=1)
+        df['CNx'] = df['NuclX'] - df['CentX']
+        df['CNy'] = df['NuclY'] - df['CentY']
         for c_i in df.groupby('Centrosome').groups.keys():
             dc = df[df['Centrosome'] == c_i]
             d = dc[['CNx', 'CNy', 'Time']].diff()
@@ -84,14 +71,8 @@ class DataFrameFromImagej(object):
     @staticmethod
     def compute_distance_between_centrosomes(df):
         cent_list = df.groupby('Centrosome').size().index
-        if len(cent_list) != 2:
-            ds = pd.DataFrame()
-            ds['Frame'] = np.NaN
-            ds['Time'] = np.NaN
-            ds['DistCentr'] = np.NaN
-            return ds
-        # we accept just 1 value per (frame,centrosome)
-        if df.groupby(['Frame', 'Time', 'Centrosome']).size().max() > 1:
+        if (len(cent_list) != 2) | (df.groupby(['Frame', 'Time', 'Centrosome']).size().max() > 1):
+            # we accept just 1 value per (frame,centrosome)
             ds = pd.DataFrame()
             ds['Frame'] = np.NaN
             ds['Time'] = np.NaN
@@ -99,14 +80,49 @@ class DataFrameFromImagej(object):
             return ds
 
         dc = df.set_index(['Frame', 'Time', 'Centrosome']).unstack()
-        ddx = dc.CNx[cent_list[0]] - dc.CNx[cent_list[1]]
-        ddy = dc.CNy[cent_list[0]] - dc.CNy[cent_list[1]]
+        ddx = dc['CNx'][cent_list[0]] - dc['CNx'][cent_list[1]]
+        ddy = dc['CNy'][cent_list[0]] - dc['CNy'][cent_list[1]]
         ds = pd.DataFrame()
         ds['DistCentr'] = np.sqrt(ddx ** 2 + ddy ** 2)
 
         return ds.reset_index()
 
+    @staticmethod
+    def interpolate_data(df):
+        if df.groupby(['Frame', 'Time', 'Centrosome']).size().max() > 1:
+            # we accept just 1 value per (frame,centrosome)
+            return df, df.isnull()
+        else:
+            u = df.set_index(['Time', 'Centrosome']).unstack('Centrosome')
+            umask = u.isnull()  # true for interpolated values
+            u = u.interpolate()
+            # u[umask][['CNx', 'CNy', 'Dist', 'Speed']].plot(marker='x')  # interpolated
+            # u[~umask][['CNx', 'CNy', 'Dist', 'Speed']].plot(marker='o')
+            # u[['CNx', 'CNy', 'Dist', 'Speed']].plot(marker='o')
+
+            return u.stack().reset_index(), umask.stack().reset_index()
+
+    def join_tracks(self, df, cn, cm):
+        u = df[df['Centrosome'].isin([cn, cm])]
+        # search for sup{lny}
+        supdn = u.groupby('Centrosome')['Time'].max()
+        # get the time of the minimum of the two values
+        tc = supdn[supdn == supdn.min()].values[0]
+        d = DataFrameFromImagej.compute_distance_between_centrosomes(u)
+
+        s = u.set_index(['Time', 'Centrosome']).unstack('Centrosome')
+
+        mask = s.isnull().stack().reset_index()
+        if (d[d['Time'] == tc]['DistCentr'] < self.d_threshold).bool():
+            s[s.index > tc] = s[s.index > tc].transpose().fillna(method='ffill').transpose()
+            u = s.stack()
+
+        return u.reset_index(), mask
+
     def add_stats(self, _ndf):
+        if _ndf.groupby(['Frame', 'Time', 'Centrosome']).size().max() > 1:
+            return
+
         # get time of contact
         time_contact, frame_contact, dist_contact = self.get_contact_time(_ndf, self.d_threshold)
         # hack: get two distances before dt_before_contact and store them in an independent dataframe
@@ -124,9 +140,14 @@ class DataFrameFromImagej(object):
         else:
             frame_before = time_before = min_dist = max_dist = np.NaN
 
-        ini_frame = _ndf.set_index('Frame').sort_index().index[0]
-        ini_time = _ndf[_ndf['Frame'] == ini_frame]['Time'].unique()[0]
+        # pick the first item with both non NaN's in the series
+        _dfi = _ndf.set_index(['Frame', 'Time', 'Centrosome'])
+        _udfi = _dfi['Dist'].unstack()
+        _udfi['valid'] = ~ _udfi[_udfi.columns[0]].isnull() & ~ _udfi[_udfi.columns[1]].isnull()
+        ini_frame = _udfi[_udfi['valid']].index[0][0]
+        ini_time = _udfi[_udfi['valid']].index[0][1]
         ini_dist_min = min(_ndf[_ndf['Frame'] == ini_frame]['Dist'])
+
         int_time = 100
         int_frame = _ndf[(_ndf['Time'] >= int_time) & (_ndf['Time'] < int_time + 5)]['Frame'].unique()[0]
         int_time = _ndf[_ndf['Frame'] == int_frame]['Time'].unique()[0]
@@ -174,7 +195,7 @@ class DataFrameFromImagej(object):
         self.stats = self.stats.append(df_row_ini, ignore_index=True)
         self.stats = self.stats.append(df_row_int, ignore_index=True)
 
-    def plot_nucleus_dataframe(self, nuclei_df, filename=None):
+    def plot_nucleus_dataframe(self, nuclei_df, mask, filename=None):
         nucleus_id = nuclei_df['Nuclei'].min()
 
         plt.figure(5)
@@ -191,7 +212,13 @@ class DataFrameFromImagej(object):
         dsf = DataFrameFromImagej.compute_distance_between_centrosomes(nuclei_df)
         dsf = dsf.set_index('Time').sort_index()
         try:
-            dsf.DistCentr.plot(ax=ax3, label='Dist N%d' % (nucleus_id), marker='o', sharex=True)
+            color = sns.color_palette()[-1]
+            tmask = mask.set_index(['Time', 'Centrosome'])['CNx'].unstack().transpose().all()
+            dsf['DistCentr'].plot(ax=ax3, label='Dist N%d' % (nucleus_id), marker=None, sharex=True, c=color)
+            dsf[tmask]['DistCentr'].plot(ax=ax3, label='Original', marker='o', linewidth=0, sharex=True,
+                                         c=color)
+            dsf[~tmask]['DistCentr'].plot(ax=ax3, label='Gen', marker='<', linewidth=0, sharex=True,
+                                          c=color)
             ax3.axvline(x=time_contact, color='dimgray', linestyle='--')
         except:
             pass
@@ -200,8 +227,18 @@ class DataFrameFromImagej(object):
                                         range(len(nuclei_df.groupby(['Centrosome'])))):
             track = _df.set_index('Time').sort_index()
 
-            track.Dist.plot(ax=ax1, label='N%d-C%d' % (nucleus_id, lblCentr), marker='o', sharex=True)
-            track.Speed.plot(ax=ax2, label='N%d-C%d' % (nucleus_id, lblCentr), sharex=True)
+            tmask = mask[mask['Centrosome'] == lblCentr].set_index(['Time'])['CNx']
+
+            color = sns.color_palette()[k]
+            track['Dist'].plot(ax=ax1, label='N%d-C%d' % (nucleus_id, lblCentr), marker=None, sharex=True, c=color)
+            track['Speed'].plot(ax=ax2, label='N%d-C%d' % (nucleus_id, lblCentr), sharex=True, c=color)
+
+            try:
+                track['Dist'][tmask].plot(ax=ax1, label='Original', marker='o', linewidth=0, sharex=True, c=color)
+                track['Dist'][~tmask].plot(ax=ax1, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
+                track['Speed'][~tmask].plot(ax=ax2, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
+            except:
+                pass
 
             # plot time of contact
             if time_contact is not None:
@@ -219,7 +256,7 @@ class DataFrameFromImagej(object):
         plt.close(5)
 
     @staticmethod
-    def join_tracks(df, cn, cm):
+    def merge_tracks(df, cn, cm):
         # makes the operation df(Cn) <- df(Cm)
         # that is, to replace all Cn with Cm
         cmnuclei = df.ix[df['Centrosome'] == cm, 'Nuclei'].unique()[0]
@@ -238,13 +275,14 @@ class DataFrameFromImagej(object):
                                 centrosome_exclusion_dict=None,
                                 centrosome_inclusion_dict=None,
                                 centrosome_equivalence_dict=None,
+                                joined_tracks=None,
                                 nuclei_equivalence_dict=None,
                                 max_time_dict=None):
         htmlout = '<h3>Filename: %s.avi</h3>' % self.fname
 
         # apply filters
         df = self.df_csv
-        # drop thing we won't need
+        # drop things we won't need
         df = df.drop(['InsideNuclei', 'ValidCentroid'], axis=1)
 
         # filter non wanted centrosomes
@@ -266,7 +304,7 @@ class DataFrameFromImagej(object):
                     ceq = dict()
                     for cn in cneq:
                         if cn != min_cm:
-                            df = self.join_tracks(df, cn, min_cm)
+                            df = self.merge_tracks(df, cn, min_cm)
                             ceq[cn] = min_cm
                     centr_repl.append(ceq.copy())
                 self.centrosome_replacements[nuId] = centr_repl
@@ -308,7 +346,28 @@ class DataFrameFromImagej(object):
                 nuclei_data.append(nuc_item)
 
                 filtered_nuc_df = self.compute_velocity(filtered_nuc_df)
-                self.plot_nucleus_dataframe(filtered_nuc_df, 'out/%s' % nuc_item['centrosomes_img'])
+
+                # join tracks if asked
+                if joined_tracks is not None:
+                    if nucleusID in joined_tracks.keys():
+                        for centId in joined_tracks[nucleusID]:
+                            filtered_nuc_df, jmask = self.join_tracks(filtered_nuc_df, centId[0], centId[1])
+
+                filtered_nuc_df, imask = self.interpolate_data(filtered_nuc_df)
+
+                # compute mas as logical AND of joined track mask and interpolated data mask
+                im = imask.set_index(['Time', 'Centrosome'])
+                try:
+                    jm = jmask.set_index(['Time', 'Centrosome'])
+                    mask = (~im & ~jm).reset_index()
+                except NameError:  # jm not defined
+                    mask = (~im).reset_index()
+
+                # compute velocity again with interpolated data
+                filtered_nuc_df = self.compute_velocity(filtered_nuc_df)
+                filtered_nuc_df = filtered_nuc_df.drop(['NuclX', 'NuclY', 'CentX', 'CentY'], axis=1)
+
+                self.plot_nucleus_dataframe(filtered_nuc_df, mask, 'out/%s' % nuc_item['centrosomes_img'])
                 self.add_stats(filtered_nuc_df)
 
         template = """
@@ -331,31 +390,32 @@ class DataFrameFromImagej(object):
 
 
 def box_beeswarm_plot(data, filename=None, ylim=None):
-    plt.figure(10)
-    data['Dist'] = data.Dist.astype(np.float64)  # fixes a bug of seaborn
-    sns.boxplot(data=data, y='Dist', x='Type')
-    ax = sns.swarmplot(data=data, y='Dist', x='Type')
-    for i, artist in enumerate(ax.artists):
-        artist.set_facecolor('None')
+    if len(data) > 0:
+        plt.figure(10)
+        data['Dist'] = data.Dist.astype(np.float64)  # fixes a bug of seaborn
+        sns.boxplot(data=data, y='Dist', x='Type')
+        ax = sns.swarmplot(data=data, y='Dist', x='Type')
+        for i, artist in enumerate(ax.artists):
+            artist.set_facecolor('None')
 
-    if ylim is not None:
-        _axis = ax.axis()
-        ax.axis([_axis[0],_axis[1],ylim[0],ylim[1]])
+        if ylim is not None:
+            _axis = ax.axis()
+            ax.axis([_axis[0], _axis[1], ylim[0], ylim[1]])
 
-    # render text
-    cat = data['Type'].unique()
-    for c, x in zip(cat, range(len(cat) + 1)):
-        d = data[data['Type'] == c]['Dist']
-        if len(d) > 0:
-            _max_y = ax.axis()[3]
-            count = d.count()
-            mean = d.mean()
-            ax.text(x, _max_y - 2.0, '$\mu=%0.3f$' % mean, ha='center')
-            ax.text(x, _max_y - 4.0, '$n=%d$' % count, ha='center')
+        # render text
+        cat = data['Type'].unique()
+        for c, x in zip(cat, range(len(cat) + 1)):
+            d = data[data['Type'] == c]['Dist']
+            if len(d) > 0:
+                _max_y = ax.axis()[3]
+                count = d.count()
+                mean = d.mean()
+                ax.text(x, _max_y - 2.0, '$\mu=%0.3f$' % mean, ha='center')
+                ax.text(x, _max_y - 4.0, '$n=%d$' % count, ha='center')
 
-    if filename is not None:
-        plt.savefig('out/img/%s.svg' % filename, format='svg')
-    plt.close(10)
+        if filename is not None:
+            plt.savefig('out/img/%s.svg' % filename, format='svg')
+        plt.close(10)
 
 
 if __name__ == '__main__':
@@ -366,21 +426,24 @@ if __name__ == '__main__':
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {2: [[200, 201]]}
                      }, {
                          'name': 'centr-pc-1-table.csv',
                          'nuclei_list': [1, 2, 4],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {4: [500]},
                          'centrosome_exclusion_dict': {4: [402]},
-                         'centrosome_equivalence_dict': {1: [[100, 102, 103]]}
+                         'centrosome_equivalence_dict': {1: [[100, 102, 103]]},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-3-table.csv',
                          'nuclei_list': [5],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-4-table.csv',
                          # 'nuclei_list': [7],
@@ -388,7 +451,8 @@ if __name__ == '__main__':
                          'max_time_dict': {7: 115},
                          'centrosome_inclusion_dict': {7: [0]},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                          # }, {
                          #     'name': 'centr-pc-5-table.csv',
                          #     'nuclei_list': [],
@@ -396,132 +460,151 @@ if __name__ == '__main__':
                          #     'centrosome_inclusion_dict': {},
                          #     'centrosome_exclusion_dict': {},
                          #     'centrosome_equivalence_dict': {}
+                         # 'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-10-table.csv',
                          'nuclei_list': [3],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-12-table.csv',
                          'nuclei_list': [1],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {1: [102]},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-14-table.csv',
                          'nuclei_list': [2],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {2: [205]},
-                         'centrosome_equivalence_dict': {2: [[200, 203], [201, 202, 204]]}
+                         'centrosome_equivalence_dict': {2: [[200, 203], [201, 202, 204]]},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-17-table.csv',
                          'nuclei_list': [1, 2],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {1: [104, 105]},
-                         'centrosome_equivalence_dict': {1: [[100, 102, 103]]}
+                         'centrosome_equivalence_dict': {1: [[100, 102, 103]]},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-18-table.csv',
                          'nuclei_list': [3, 4],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {4: [402, 403]},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-200-table.csv',
                          'nuclei_list': [1, 5],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-201-table.csv',
                          'nuclei_list': [10],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {10: [[1000, 1002]]}
+                         'centrosome_equivalence_dict': {10: [[1000, 1002]]},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-202-table.csv',
                          'nuclei_list': [1, 5],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {5: [[500, 502]]}
+                         'centrosome_equivalence_dict': {5: [[500, 502]]},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-203-table.csv',
                          'nuclei_list': [6],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-204-table.csv',
                          'nuclei_list': [7],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-205-table.csv',
                          'nuclei_list': [4],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-207-table.csv',
                          'nuclei_list': [7],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-209-table.csv',
                          'nuclei_list': [5],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-210-table.csv',
                          'nuclei_list': [3, 6],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-211-table.csv',
                          'nuclei_list': [3],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-212-table.csv',
                          'nuclei_list': [4],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {4: [[400, 402]]}
+                         'centrosome_equivalence_dict': {4: [[400, 402]]},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-213-table.csv',
                          'nuclei_list': [1, 2],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-214-table.csv',
                          'nuclei_list': [5],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {5: [600]},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {5: [[500, 502]]}
+                         'centrosome_equivalence_dict': {5: [[500, 502]]},
+                         'joined_tracks': {2: [[200, 201]]}
                          # }, {
                          #     'name': 'centr-pc-216-table.csv',
                          #     'nuclei_list': [],
@@ -529,20 +612,23 @@ if __name__ == '__main__':
                          #     'centrosome_inclusion_dict': {},
                          #     'centrosome_exclusion_dict': {},
                          # 'centrosome_equivalence_dict': {}
+                         # 'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-218-table.csv',
                          'nuclei_list': [4],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {4: [[400, 402]]}
+                         'centrosome_equivalence_dict': {4: [[400, 402]]},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-219-table.csv',
                          'nuclei_list': [4],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {4: [[400, 402], [401, 403]]}
+                         'centrosome_equivalence_dict': {4: [[400, 402], [401, 403]]},
+                         'joined_tracks': {}
                          # }, {
                          #     'name': 'centr-pc-220-table.csv',
                          #     'nuclei_list': [],
@@ -550,34 +636,39 @@ if __name__ == '__main__':
                          #     'centrosome_inclusion_dict': {},
                          #     'centrosome_exclusion_dict': {},
                          # 'centrosome_equivalence_dict': {}
+                         # 'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-221-table.csv',
                          'nuclei_list': [2],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {2: [[201, 202]]}
+                         'centrosome_equivalence_dict': {2: [[201, 202]]},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-222-table.csv',
                          'nuclei_list': [2],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {2: [[201, 202, 203]]}
+                         'centrosome_equivalence_dict': {2: [[201, 202, 203]]},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-223-table.csv',
                          'nuclei_list': [5, 6, 7],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {5: [[500, 502]], 7: [[701, 702, 703]]}
+                         'centrosome_equivalence_dict': {5: [[500, 502]], 7: [[701, 702, 703]]},
+                         'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-224-table.csv',
                          'nuclei_list': [4, 6],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {}
+                         'centrosome_equivalence_dict': {},
+                         'joined_tracks': {}
                      }
                      ]}
 
@@ -591,7 +682,8 @@ if __name__ == '__main__':
         html += dfij.html_centrosomes_report(nuclei_list=f['nuclei_list'], max_time_dict=f['max_time_dict'],
                                              centrosome_inclusion_dict=f['centrosome_inclusion_dict'],
                                              centrosome_exclusion_dict=f['centrosome_exclusion_dict'],
-                                             centrosome_equivalence_dict=f['centrosome_equivalence_dict'])
+                                             centrosome_equivalence_dict=f['centrosome_equivalence_dict'],
+                                             joined_tracks=f['joined_tracks'])
 
         stats = dfij.stats
     html_pc = html
@@ -610,7 +702,8 @@ if __name__ == '__main__':
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {4: [0, 1]},
                               'centrosome_exclusion_dict': {4: [400]},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                               # }, {
                               #     'name': 'centr-dyn-102-table.csv',
                               #     'nuclei_list': [3],
@@ -618,6 +711,7 @@ if __name__ == '__main__':
                               #     'centrosome_inclusion_dict': {},
                               #     'centrosome_exclusion_dict': {},
                               #     'centrosome_equivalence_dict': {3:[]}
+                              # 'joined_tracks': {}
                               # }, {
                               #     'name': 'centr-dyn-103-table.csv',
                               #     'nuclei_list': [],
@@ -625,6 +719,7 @@ if __name__ == '__main__':
                               #     'centrosome_inclusion_dict': {},
                               #     'centrosome_exclusion_dict': {},
                               #     'centrosome_equivalence_dict': {}
+                              # 'joined_tracks': {}
                               # }, {
                               #     'name': 'centr-dyn-104-table.csv',
                               #     'nuclei_list': [],
@@ -632,27 +727,31 @@ if __name__ == '__main__':
                               #     'centrosome_inclusion_dict': {},
                               #     'centrosome_exclusion_dict': {},
                               #     'centrosome_equivalence_dict': {}
+                              # 'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-105-table.csv',
                               'nuclei_list': [4],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {},
                               'centrosome_exclusion_dict': {4: [402, 403]},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-107-table.csv',
                               'nuclei_list': [8],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {8: [0, 3]},
                               'centrosome_exclusion_dict': {},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-109-table.csv',
                               'nuclei_list': [4, 5],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {4: [200]},
                               'centrosome_exclusion_dict': {4: [401], 5: [502]},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                               # }, {
                               #     'name': 'centr-dyn-110-table.csv',
                               #     'nuclei_list': [],
@@ -660,27 +759,31 @@ if __name__ == '__main__':
                               #     'centrosome_inclusion_dict': {},
                               #     'centrosome_exclusion_dict': {},
                               #     'centrosome_equivalence_dict': {}
+                              # 'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-112-table.csv',
                               'nuclei_list': [3],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {3: [200]},
                               'centrosome_exclusion_dict': {},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-203-table.csv',
                               'nuclei_list': [2],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {},
                               'centrosome_exclusion_dict': {2: [200, 203, 204, 205, 206, 207]},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-204-table.csv',
                               'nuclei_list': [3],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {3: [101]},
                               'centrosome_exclusion_dict': {},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-205-table.csv',
                               # 'nuclei_list': [4],
@@ -688,7 +791,8 @@ if __name__ == '__main__':
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {4: [0, 301]},
                               'centrosome_exclusion_dict': {},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-207-table.csv',
                               # 'nuclei_list': [2, 3],
@@ -696,35 +800,40 @@ if __name__ == '__main__':
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {2: [0, 301]},
                               'centrosome_exclusion_dict': {2: [200]},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-208-table.csv',
                               'nuclei_list': [1],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {},
                               'centrosome_exclusion_dict': {},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-209-table.csv',
                               'nuclei_list': [3],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {},
                               'centrosome_exclusion_dict': {},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-210-table.csv',
                               'nuclei_list': [2, 3, 4],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {},
                               'centrosome_exclusion_dict': {4: [402]},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           }, {
                               'name': 'centr-dyn-213-table.csv',
                               'nuclei_list': [4],
                               'max_time_dict': {},
                               'centrosome_inclusion_dict': {},
                               'centrosome_exclusion_dict': {},
-                              'centrosome_equivalence_dict': {}
+                              'centrosome_equivalence_dict': {},
+                              'joined_tracks': {}
                           },
                           ]}
 
@@ -736,42 +845,48 @@ if __name__ == '__main__':
                                 'centrosome_inclusion_dict': {},
                                 'centrosome_exclusion_dict': {6: [602, 603], 9: [903]},
                                 'centrosome_equivalence_dict': {1: [[100, 102]], 6: [[600, 604, 605]],
-                                                                9: [[901, 902]]}
+                                                                9: [[901, 902]]},
+                                'joined_tracks': {}
                             }, {
                                 'name': 'centr-dyncdk1as-003-table.csv',
                                 'nuclei_list': [],
                                 'max_time_dict': {},
                                 'centrosome_inclusion_dict': {},
                                 'centrosome_exclusion_dict': {},
-                                'centrosome_equivalence_dict': {}
+                                'centrosome_equivalence_dict': {},
+                                'joined_tracks': {}
                             }, {
                                 'name': 'centr-dyncdk1as-005-table.csv',
                                 'nuclei_list': [2],
                                 'max_time_dict': {},
                                 'centrosome_inclusion_dict': {},
                                 'centrosome_exclusion_dict': {},
-                                'centrosome_equivalence_dict': {}
+                                'centrosome_equivalence_dict': {},
+                                'joined_tracks': {}
                             }, {
                                 'name': 'centr-dyncdk1as-007-table.csv',
                                 'nuclei_list': [6],
                                 'max_time_dict': {},
                                 'centrosome_inclusion_dict': {},
                                 'centrosome_exclusion_dict': {},
-                                'centrosome_equivalence_dict': {}
+                                'centrosome_equivalence_dict': {},
+                                'joined_tracks': {}
                             }, {
                                 'name': 'centr-dyncdk1as-008-table.csv',
                                 'nuclei_list': [6, 7],
                                 'max_time_dict': {},
                                 'centrosome_inclusion_dict': {},
                                 'centrosome_exclusion_dict': {},
-                                'centrosome_equivalence_dict': {}
+                                'centrosome_equivalence_dict': {},
+                                'joined_tracks': {}
                             }, {
                                 'name': 'centr-dyncdk1as-011-table.csv',
                                 'nuclei_list': [4, 5],
                                 'max_time_dict': {},
                                 'centrosome_inclusion_dict': {},
                                 'centrosome_exclusion_dict': {},
-                                'centrosome_equivalence_dict': {4: [[400, 401]]}
+                                'centrosome_equivalence_dict': {4: [[400, 401]]},
+                                'joined_tracks': {}
                             },
                             ]}
 
@@ -785,8 +900,8 @@ if __name__ == '__main__':
             html += dfij.html_centrosomes_report(nuclei_list=f['nuclei_list'], max_time_dict=f['max_time_dict'],
                                                  centrosome_inclusion_dict=f['centrosome_inclusion_dict'],
                                                  centrosome_exclusion_dict=f['centrosome_exclusion_dict'],
-                                                 centrosome_equivalence_dict=f['centrosome_equivalence_dict'])
-
+                                                 centrosome_equivalence_dict=f['centrosome_equivalence_dict'],
+                                                 joined_tracks=f['joined_tracks'])
             stats = dfij.stats
     html_dyndic1 = html
 
