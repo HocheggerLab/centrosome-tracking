@@ -26,7 +26,7 @@ class DataFrameFromImagej(object):
 
         self.dt_before_contact = 30
         self.t_per_frame = 5
-        self.d_threshold = 3.5  # um before 1 frame of contact
+        self.d_threshold = 1.0  # um before 1 frame of contact
         self.centrosome_replacements = dict()
 
         if not os.path.exists('out/img'):
@@ -40,7 +40,7 @@ class DataFrameFromImagej(object):
             return 0, 0, 0
         elif len(cent_list) == 2:
             dsf = DataFrameFromImagej.compute_distance_between_centrosomes(df)
-            dsr = dsf[dsf['DistCentr'] == 0]
+            dsr = dsf[dsf['DistCentr'] < threshold]
 
             if dsr.size > 0:
                 dsr = dsr.set_index('DistCentr').sort_index()
@@ -296,19 +296,6 @@ class DataFrameFromImagej(object):
                 for centId in centrosome_inclusion_dict[nuId]:
                     df.loc[df['Centrosome'] == centId, 'Nuclei'] = nuId
 
-        if centrosome_equivalence_dict is not None:
-            for nuId in centrosome_equivalence_dict.keys():
-                centr_repl = list()
-                for cneq in centrosome_equivalence_dict[nuId]:
-                    min_cm = min(cneq)
-                    ceq = dict()
-                    for cn in cneq:
-                        if cn != min_cm:
-                            df = self.merge_tracks(df, cn, min_cm)
-                            ceq[cn] = min_cm
-                    centr_repl.append(ceq.copy())
-                self.centrosome_replacements[nuId] = centr_repl
-
         # merge with nuclei data
         df = df.merge(self.df_nuclei_csv)
 
@@ -324,24 +311,35 @@ class DataFrameFromImagej(object):
                     filtered_nuc_df = filtered_nuc_df[filtered_nuc_df['Time'] <= max_time_dict[nucleusID]]
                 exp_id = re.search('centr-(.+?)-table.csv', self.path_csv).group(1)
 
+                # get centrosome list before manipulation
+                centrosome_list = sorted(filtered_nuc_df['Centrosome'].unique())
+
+                if centrosome_equivalence_dict is not None:
+                    if nucleusID in centrosome_equivalence_dict.keys():
+                        centr_repl = list()
+                        for cneq in centrosome_equivalence_dict[nucleusID]:
+                            min_cm = min(cneq)
+                            ceq = dict()
+                            for cn in cneq:
+                                if cn != min_cm:
+                                    filtered_nuc_df = self.merge_tracks(filtered_nuc_df, cn, min_cm)
+                                    ceq[cn] = min_cm
+                            centr_repl.append(ceq.copy())
+                        self.centrosome_replacements[nucleusID] = centr_repl
+
                 c_tags = ''
-                if nucleusID in self.centrosome_replacements.keys():
-                    for equivs in self.centrosome_replacements[nucleusID]:
-                        centrs = set(equivs.keys())
-                        for ct in centrs:
-                            c_tags += 'C%d was merged with (' % ct
-                            for set_r in self.centrosome_replacements[nucleusID]:
-                                for r in set_r:
-                                    c_tags += 'C%d,' % r
-                                c_tags = c_tags[:-1] + ') '
-                        print c_tags
+                if nucleusID in centrosome_equivalence_dict:
+                    for equivs in centrosome_equivalence_dict[nucleusID]:
+                        min_c = min(equivs)
+                        rest_c = set(equivs) - set([min_c])
+                        c_tags += ' C%d was merged with (%s),' % (min_c, ''.join('C%d,' % c for c in rest_c)[0:-1])
+                print c_tags[0:-1] + '.'
 
                 nuc_item = {'filename': self.path_csv,
                             'exp_id': exp_id,
                             'nuclei_id': '%d ' % nucleusID,
                             'nuclei_centrosomes_tags': ''.join(
-                                ['C%d, ' % cnId for cnId in sorted(filtered_nuc_df['Centrosome'].unique())])[:-2]
-                                                       + '. ' + c_tags,
+                                ['C%d, ' % cnId for cnId in centrosome_list])[:-2] + '. ' + c_tags,
                             'centrosomes_img': 'img/%s-nuc_%d.svg' % (exp_id, nucleusID)}
                 nuclei_data.append(nuc_item)
 
