@@ -18,8 +18,8 @@ class DataFrameFromImagej(object):
     def __init__(self, filename, stats_df):
         self.path_csv = filename
         self.df_csv = pd.read_csv(self.path_csv)
-        self.fname = re.search('lab/(.+?)-table.csv', self.path_csv).group(1)
-        self.path_csv_nuclei = re.search('(.*lab/)', self.path_csv).group(1) + self.fname + '-nuclei.csv'
+        self.fname = re.search('data/(.+?)-table.csv', self.path_csv).group(1)
+        self.path_csv_nuclei = re.search('(.*data/)', self.path_csv).group(1) + self.fname + '-nuclei.csv'
 
         self.df_nuclei_csv = pd.read_csv(self.path_csv_nuclei)
         self.stats = stats_df
@@ -331,6 +331,7 @@ class DataFrameFromImagej(object):
         # re-scale time
         df['Time'] /= 60.0
 
+        df_filtered_nucs = pd.DataFrame()
         nuclei_data = list()
         for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
             if nucleusID in nuclei_list:
@@ -390,10 +391,26 @@ class DataFrameFromImagej(object):
 
                 # compute velocity again with interpolated data
                 filtered_nuc_df = self.compute_velocity(filtered_nuc_df)
-                filtered_nuc_df = filtered_nuc_df.drop(['NuclX', 'NuclY', 'CentX', 'CentY'], axis=1)
 
                 self.plot_nucleus_dataframe(filtered_nuc_df, mask, 'out/%s' % nuc_item['centrosomes_img'])
                 self.add_stats(filtered_nuc_df)
+
+                # process dataframe for returning it
+                # determine which centrosome if further away
+                if filtered_nuc_df.groupby(['Frame', 'Centrosome']).size().max() <= 1:
+                    # we accept just 1 value per (frame,centrosome)
+                    a = filtered_nuc_df.set_index(['Frame', 'Centrosome']).sort_index().unstack('Centrosome')['Dist']
+                    timeamask = ~(a.isnull().transpose().any())
+                    both_centr_fst_time = timeamask[timeamask].index[0]
+                    a = a[a.index == both_centr_fst_time].stack().reset_index()
+
+                    filtered_nuc_df.loc[filtered_nuc_df['Centrosome'] == a.max()['Centrosome'], 'Far'] = True
+                    filtered_nuc_df.loc[filtered_nuc_df['Centrosome'] == a.min()['Centrosome'], 'Far'] = False
+
+                    filtered_nuc_df['exp'] = self.fname
+
+                    filtered_nuc_df = filtered_nuc_df.drop(['NuclX', 'NuclY', 'CentX', 'CentY', 'CNx', 'CNy'], axis=1)
+                    df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
 
         template = """
                 {% for nuc_item in nuclei_list %}
@@ -411,7 +428,79 @@ class DataFrameFromImagej(object):
             """
         templ = j2.Template(template)
         htmlout += templ.render({'nuclei_list': nuclei_data})
-        return htmlout
+        return htmlout, df_filtered_nucs
+
+
+def subreport(conditions):
+    html = '<h3></h3>'
+    data = pd.DataFrame()
+    stats = pd.DataFrame()
+    for cond in conditions:
+        for f in cond['files'][0:]:
+            print f['name']
+            dfij = DataFrameFromImagej(cond['path'] + f['name'], stats_df=stats)
+            _html, _data = dfij.html_centrosomes_report(nuclei_list=f['nuclei_list'], max_time_dict=f['max_time_dict'],
+                                                        centrosome_inclusion_dict=f['centrosome_inclusion_dict'],
+                                                        centrosome_exclusion_dict=f['centrosome_exclusion_dict'],
+                                                        centrosome_equivalence_dict=f['centrosome_equivalence_dict'],
+                                                        joined_tracks=f['joined_tracks'])
+            html += _html
+            data = data.append(_data)
+            stats = dfij.stats
+    return html, stats, data
+
+
+def plot_distance(data, filename=None):
+    data.loc[data.index, 'Time'] = data.loc[data.index, 'Time'].round()
+    # data = data.set_index('Time').sort_index()
+    data = data.set_index('Frame').sort_index()
+    data.index *= 5  # hack: compute mean using frame data, but plot it converting x axis into time
+
+    plt.figure(20)
+    plt.clf()
+    gs = matplotlib.gridspec.GridSpec(4, 1)
+    ax1 = plt.subplot(gs[0:2, 0])
+    ax2 = plt.subplot(gs[2, 0])
+    ax3 = plt.subplot(gs[3, 0])
+
+    data.reset_index().plot(ax=ax1, kind='scatter', x='Frame', y='Dist', sharex=True, c='k', alpha=0.4)
+    ax1.set_xlim(0, data.index.max())
+    ax1.set_ylabel('both $[\mu m]$')
+    ylim_gbl = ax1.get_ylim()
+
+    axi = ax2
+    d = data[data['Far']]
+    t = d.index.unique()
+    mean = d['Dist'].mean(level='Frame')
+    stddev = d['Dist'].std(level='Frame')
+    d.reset_index().plot(ax=axi, kind='scatter', x='Frame', y='Dist', sharex=True, c='k', alpha=0.4, marker='.')
+    mean.plot(ax=axi, c='k')
+    # axi.fill_between(t, mean + 1.5 * stddev, mean - 1.5 * stddev, alpha=0.2, color='k')
+    axi.fill_between(t, mean + 1.0 * stddev, mean - 1.0 * stddev, alpha=0.2, color='k')
+    axi.set_xlim(0, data.index.max())
+    axi.set_ylim(ylim_gbl)
+    axi.set_ylabel('far $[\mu m]$')
+
+    axi = ax3
+    nearmsk = data['Far'].map(lambda x: not x)
+    d = data[nearmsk]
+    t = d.index.unique()
+    mean = d['Dist'].mean(level='Frame')
+    stddev = d['Dist'].std(level='Frame')
+    d.reset_index().plot(ax=axi, kind='scatter', x='Frame', y='Dist', sharex=True, c='k', alpha=0.4, marker='.')
+    mean.plot(ax=axi, c='k')
+    # axi.fill_between(t, mean + 1.5 * stddev, mean - 1.5 * stddev, alpha=0.2, color='k')
+    axi.fill_between(t, mean + 1.0 * stddev, mean - 1.0 * stddev, alpha=0.2, color='k')
+    axi.set_xlim(0, data.index.max())
+    axi.set_ylim(ylim_gbl)
+    axi.set_ylabel('close $[\mu m]$')
+
+    # hack: compute mean using frame data, but plot it converting x axis into time
+    axi.set_xlabel('Time $[min]$')
+
+    if filename is not None:
+        plt.savefig('out/img/%s.svg' % filename, format='svg')
+    plt.close(20)
 
 
 def box_beeswarm_plot(data, filename=None, ylim=None):
@@ -508,7 +597,7 @@ if __name__ == '__main__':
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {2: [205]},
-                         'centrosome_equivalence_dict': {2: [[201, 202, 203],[200, 204]]},
+                         'centrosome_equivalence_dict': {2: [[201, 202, 203], [200, 204]]},
                          'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-17-table.csv',
@@ -698,24 +787,12 @@ if __name__ == '__main__':
                      ]}
 
     _yl = [-5, 35]  # limits in y axis for boxplots
-    html = '<h3></h3>'
-    stats = pd.DataFrame()
-    cond = pc_to_process
-    for f in cond['files'][0:]:
-        print f['name']
-        dfij = DataFrameFromImagej(cond['path'] + f['name'], stats_df=stats)
-        html += dfij.html_centrosomes_report(nuclei_list=f['nuclei_list'], max_time_dict=f['max_time_dict'],
-                                             centrosome_inclusion_dict=f['centrosome_inclusion_dict'],
-                                             centrosome_exclusion_dict=f['centrosome_exclusion_dict'],
-                                             centrosome_equivalence_dict=f['centrosome_equivalence_dict'],
-                                             joined_tracks=f['joined_tracks'])
 
-        stats = dfij.stats
-    html_pc = html
+    html_pc, stats, data = subreport([pc_to_process])
+    plot_distance(data, filename='distance_all_pc')
 
     sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
     box_beeswarm_plot(sdata, filename='beeswarm_boxplot_pc_snapshot', ylim=_yl)
-
     sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
     box_beeswarm_plot(sdata, filename='beeswarm_boxplot_pc_contact', ylim=_yl)
 
@@ -760,7 +837,7 @@ if __name__ == '__main__':
                               'centrosome_inclusion_dict': {},
                               'centrosome_exclusion_dict': {4: [402, 403]},
                               'centrosome_equivalence_dict': {},
-                              'joined_tracks': {}
+                              'joined_tracks': {4: [[400, 401]]}
                           }, {
                               'name': 'centr-dyn-107-table.csv',
                               'nuclei_list': [8],
@@ -915,24 +992,11 @@ if __name__ == '__main__':
                             },
                             ]}
 
-    html = '<h3></h3>'
-    stats = pd.DataFrame()
-    merged_conditions = [dyndic1_to_process, dyncdk1as_to_process]
-    for cond in merged_conditions:
-        for f in cond['files'][0:]:
-            print f['name']
-            dfij = DataFrameFromImagej(cond['path'] + f['name'], stats_df=stats)
-            html += dfij.html_centrosomes_report(nuclei_list=f['nuclei_list'], max_time_dict=f['max_time_dict'],
-                                                 centrosome_inclusion_dict=f['centrosome_inclusion_dict'],
-                                                 centrosome_exclusion_dict=f['centrosome_exclusion_dict'],
-                                                 centrosome_equivalence_dict=f['centrosome_equivalence_dict'],
-                                                 joined_tracks=f['joined_tracks'])
-            stats = dfij.stats
-    html_dyndic1 = html
+    html_dyndic1, stats, data = subreport([dyndic1_to_process, dyncdk1as_to_process])
+    plot_distance(data, filename='distance_all_dyndic1')
 
     sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
     box_beeswarm_plot(sdata, filename='beeswarm_boxplot_dyndic1_snapshot', ylim=_yl)
-
     sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
     box_beeswarm_plot(sdata, filename='beeswarm_boxplot_dyndic1_contact', ylim=_yl)
 
@@ -953,6 +1017,9 @@ if __name__ == '__main__':
                 <h3>Distance from nuclei center at initial time and 100 mins after</h3>
                     <img src="img/beeswarm_boxplot_pc_snapshot.svg">
                 </div>
+                <h3>Distance of centrosomes from nuclei center over time</h3>
+                    <img src="img/distance_all_pc.svg">
+                </div>
 
                 <h2>Condition: DynH1, DIC1 & DynCDK1as ({{dyndic1_n}} tracks)</h2>
                 <h2>Brief</h2>
@@ -961,6 +1028,9 @@ if __name__ == '__main__':
                     <img src="img/beeswarm_boxplot_dyndic1_contact.svg">
                 <h3>Distance from nuclei center at initial time and 100 mins after</h3>
                     <img src="img/beeswarm_boxplot_dyndic1_snapshot.svg">
+                </div>
+                <h3>Distance of centrosomes from nuclei center over time</h3>
+                    <img src="img/distance_all_dyndic1.svg">
                 </div>
 
                 </br>
