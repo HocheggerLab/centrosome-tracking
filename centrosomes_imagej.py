@@ -309,8 +309,6 @@ class DataFrameFromImagej(object):
 
         # apply filters
         df = self.df_csv
-        # drop things we won't need
-        df = df.drop(['InsideNuclei', 'ValidCentroid'], axis=1)
 
         # filter non wanted centrosomes
         if centrosome_exclusion_dict is not None:
@@ -409,7 +407,7 @@ class DataFrameFromImagej(object):
 
                     filtered_nuc_df['exp'] = self.fname
 
-                    filtered_nuc_df = filtered_nuc_df.drop(['NuclX', 'NuclY', 'CentX', 'CentY', 'CNx', 'CNy'], axis=1)
+                    # filtered_nuc_df = filtered_nuc_df.drop(['NuclX', 'NuclY', 'CentX', 'CentY', 'CNx', 'CNy'], axis=1)
                     df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
 
         template = """
@@ -790,6 +788,7 @@ if __name__ == '__main__':
 
     html_pc, stats, data = subreport([pc_to_process])
     plot_distance(data, filename='distance_all_pc')
+    data.to_pickle('out/dataframe_pc.pandas')
 
     sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
     box_beeswarm_plot(sdata, filename='beeswarm_boxplot_pc_snapshot', ylim=_yl)
@@ -994,6 +993,7 @@ if __name__ == '__main__':
 
     html_dyndic1, stats, data = subreport([dyndic1_to_process, dyncdk1as_to_process])
     plot_distance(data, filename='distance_all_dyndic1')
+    data.to_pickle('out/dataframe_dyn.pandas')
 
     sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
     box_beeswarm_plot(sdata, filename='beeswarm_boxplot_dyndic1_snapshot', ylim=_yl)
