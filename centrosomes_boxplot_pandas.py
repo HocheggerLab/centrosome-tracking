@@ -15,7 +15,8 @@ sns.set_style("white")
 
 def preprocess_df(df):
     p = df[df['ValidCentroid'] == 1]
-    p.loc[p.index, 'InsideNuclei'] = p.loc[p.index, 'InsideNuclei'].map(lambda i: 'Yes' if i == 1 else 'No')
+    p.loc[p.index, 'WhereInNuclei'] = p.loc[p.index, 'WhereInNuclei'].map(
+        lambda i: 'Inside' if i == 0 else 'Touching' if i == 1  else 'Outside')
     return p
 
 
