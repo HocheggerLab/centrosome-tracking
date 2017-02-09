@@ -66,9 +66,8 @@ class DataFrameFromImagej(object):
         df['CNy'] = df['NuclY'] - df['CentY']
         for c_i in df.groupby('Centrosome').groups.keys():
             dc = df[df['Centrosome'] == c_i]
-            d = dc[['CNx', 'CNy', 'Time']].diff()
-
-            d['Dist'] = np.sqrt(d.CNx ** 2 + d.CNy ** 2)  # relative to nuclei centroid
+            dc['Dist'] = np.sqrt(dc.CNx ** 2 + dc.CNy ** 2)  # relative to nuclei centroid
+            d = dc[['CNx', 'CNy', 'Dist', 'Time']].diff()
 
             df.loc[df['Centrosome'] == c_i, 'Dist'] = np.sqrt(dc.CNx ** 2 + dc.CNy ** 2)  # relative to nuclei centroid
             df.loc[df['Centrosome'] == c_i, 'Speed'] = d.Dist / d.Time
@@ -84,6 +83,7 @@ class DataFrameFromImagej(object):
             ds['Frame'] = np.NaN
             ds['Time'] = np.NaN
             ds['DistCentr'] = np.NaN
+            ds['SpeedCentr'] = np.NaN
             return ds
 
         dc = df.set_index(['Frame', 'Time', 'Centrosome']).unstack()
@@ -91,6 +91,10 @@ class DataFrameFromImagej(object):
         ddy = dc['CNy'][cent_list[0]] - dc['CNy'][cent_list[1]]
         ds = pd.DataFrame()
         ds['DistCentr'] = np.sqrt(ddx ** 2 + ddy ** 2)
+
+        ds = ds.reset_index().set_index('Frame')
+        d = ds.diff()
+        ds['SpeedCentr'] = d.DistCentr / d.Time
 
         return ds.reset_index()
 
@@ -223,10 +227,12 @@ class DataFrameFromImagej(object):
 
         plt.figure(5)
         plt.clf()
-        gs = matplotlib.gridspec.GridSpec(4, 1)
+        gs = matplotlib.gridspec.GridSpec(6, 1)
         ax1 = plt.subplot(gs[0:2, 0])
         ax2 = plt.subplot(gs[2, 0])
         ax3 = plt.subplot(gs[3, 0])
+        ax4 = plt.subplot(gs[4, 0])
+        ax5 = plt.subplot(gs[5, 0])
 
         # get time of contact
         time_contact, frame_contact, dist_contact = self.get_contact_time(nuclei_df, self.d_threshold)
@@ -238,16 +244,21 @@ class DataFrameFromImagej(object):
             color = sns.color_palette()[-1]
             tmask = mask.set_index(['Time', 'Centrosome'])['Frame'].unstack().transpose().all()
             dsf['DistCentr'].plot(ax=ax3, label='Dist N%d' % (nucleus_id), marker=None, sharex=True, c=color)
-            dsf[tmask]['DistCentr'].plot(ax=ax3, label='Original', marker='o', linewidth=0, sharex=True,
-                                         c=color)
+            dsf[tmask]['DistCentr'].plot(ax=ax3, label='Original', marker='o', linewidth=0, sharex=True, c=color)
+
+            ax4.axhline(y=0, color='k', linestyle='--', linewidth=0.1)
+            dsf['SpeedCentr'].plot(ax=ax4, label='Dist N%d' % (nucleus_id), marker=None, sharex=True, c=color)
+            dsf[tmask]['SpeedCentr'].plot(ax=ax4, label='Original', marker='o', linewidth=0, sharex=True, c=color)
+
             if len(dsf[~tmask]['DistCentr']) > 0:
-                dsf[~tmask]['DistCentr'].plot(ax=ax3, label='Gen', marker='<', linewidth=0, sharex=True,
-                                              c=color)
-            ax3.axvline(x=time_contact, color='dimgray', linestyle='--')
+                dsf[~tmask]['DistCentr'].plot(ax=ax3, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
+                dsf[~tmask]['SpeedCentr'].plot(ax=ax4, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
         except Exception as e:
             print 'Error printing in try block: ' + str(e)
             pass
 
+        in_yticks = list()
+        in_yticks_lbl = list()
         for [(lblCentr), _df], k in zip(nuclei_df.groupby(['Centrosome']),
                                         range(len(nuclei_df.groupby(['Centrosome'])))):
             track = _df.set_index('Time').sort_index()
@@ -258,6 +269,7 @@ class DataFrameFromImagej(object):
             track['Dist'].plot(ax=ax1, label='N%d-C%d' % (nucleus_id, lblCentr), marker=None, sharex=True, c=color)
             track['Speed'].plot(ax=ax2, label='N%d-C%d' % (nucleus_id, lblCentr), sharex=True, c=color)
 
+            ax2.axhline(y=0, color='k', linestyle='--', linewidth=0.1)
             if len(tmask) > 0:
                 if len(track['Dist'][tmask]) > 0:
                     track['Dist'][tmask].plot(ax=ax1, label='Original', marker='o', linewidth=0, sharex=True, c=color)
@@ -271,10 +283,32 @@ class DataFrameFromImagej(object):
             if time_contact is not None:
                 ax1.axvline(x=time_contact, color='dimgray', linestyle='--')
                 ax1.axvline(x=time_contact - self.dt_before_contact, color='lightgray', linestyle='--')
+                ax2.axvline(x=time_contact, color='dimgray', linestyle='--')
+                ax3.axvline(x=time_contact, color='dimgray', linestyle='--')
+                ax4.axvline(x=time_contact, color='dimgray', linestyle='--')
+                ax5.axvline(x=time_contact, color='dimgray', linestyle='--')
+
+                i_n = track.InsideNuclei + 2 * k
+                in_yticks.append(2 * k)
+                in_yticks.append(2 * k + 1)
+                in_yticks_lbl.append('Out')
+                in_yticks_lbl.append('Inside')
+                i_n.plot(ax=ax5, label='N%d-C%d' % (nucleus_id, lblCentr), marker='o', ylim=[-0.5, 2 * k + 1.5],
+                         sharex=True)
+            else:
+                track['InsideNuclei'].plot(ax=ax5, label='N%d-C%d' % (nucleus_id, lblCentr), color=(0, 0, 0, 0),
+                                           sharex=True)
 
         ax1.legend()
         ax2.legend()
         ax3.legend()
+        ax4.legend()
+        ax1.set_ylabel('Dist to Nuclei $[\mu m]$')
+        ax2.set_ylabel('Speed $[\\frac{\mu m}{min}]$')
+        ax3.set_ylabel('Between $[\mu m]$')
+        ax3.set_ylabel('Speed $[\mu m]$')
+        ax5.set_yticks(in_yticks)
+        ax5.set_yticklabels(in_yticks_lbl)
 
         if filename is None:
             plt.show()
@@ -1011,6 +1045,12 @@ if __name__ == '__main__':
 
                 <h2>Condition: Positive Control ({{pc_n}} tracks)</h2>
                 <h2>Brief</h2>
+                <div class="container">
+                    <img src="img/beeswarm_vel_inout_NE.svg">
+                    <img src="img/beeswarm_vel_tcon_NE.svg">
+                    <img src="img/beeswarm_vel_farnear.svg">
+                </div>
+
                 <div class="container">
                 <h3>Distance from nuclei center at time of contact</h3>
                     <img src="img/beeswarm_boxplot_pc_contact.svg">
