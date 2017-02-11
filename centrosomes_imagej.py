@@ -39,7 +39,7 @@ class DataFrameFromImagej(object):
         if len(cent_list) <= 1:
             return 0, 0, 0
         elif len(cent_list) == 2:
-            dsf = DataFrameFromImagej.compute_distance_between_centrosomes(df)
+            dsf = DataFrameFromImagej.compute_distance_velocity_acceleration_between_centrosomes(df)
             dsr = dsf[dsf['DistCentr'] < threshold]
 
             if dsr.size > 0:
@@ -60,7 +60,7 @@ class DataFrameFromImagej(object):
         return None, None, None
 
     @staticmethod
-    def compute_velocity(df):
+    def compute_velocity_acceleration(df):
         df = df.set_index('Frame').sort_index()
         df['CNx'] = df['NuclX'] - df['CentX']
         df['CNy'] = df['NuclY'] - df['CentY']
@@ -71,11 +71,12 @@ class DataFrameFromImagej(object):
 
             df.loc[df['Centrosome'] == c_i, 'Dist'] = np.sqrt(dc.CNx ** 2 + dc.CNy ** 2)  # relative to nuclei centroid
             df.loc[df['Centrosome'] == c_i, 'Speed'] = d.Dist / d.Time
+            df.loc[df['Centrosome'] == c_i, 'Acc'] = d.Dist.diff() / d.Time
 
         return df.reset_index()
 
     @staticmethod
-    def compute_distance_between_centrosomes(df):
+    def compute_distance_velocity_acceleration_between_centrosomes(df):
         cent_list = df.groupby('Centrosome').size().index
         if (len(cent_list) != 2) | (df.groupby(['Frame', 'Time', 'Centrosome']).size().max() > 1):
             # we accept just 1 value per (frame,centrosome)
@@ -84,6 +85,7 @@ class DataFrameFromImagej(object):
             ds['Time'] = np.NaN
             ds['DistCentr'] = np.NaN
             ds['SpeedCentr'] = np.NaN
+            ds['AccCentr'] = np.NaN
             return ds
 
         dc = df.set_index(['Frame', 'Time', 'Centrosome']).unstack()
@@ -95,6 +97,7 @@ class DataFrameFromImagej(object):
         ds = ds.reset_index().set_index('Frame')
         d = ds.diff()
         ds['SpeedCentr'] = d.DistCentr / d.Time
+        ds['AccCentr'] = d.DistCentr.diff() / d.Time
 
         return ds.reset_index()
 
@@ -225,20 +228,22 @@ class DataFrameFromImagej(object):
     def plot_nucleus_dataframe(self, nuclei_df, mask, filename=None):
         nucleus_id = nuclei_df['Nuclei'].min()
 
-        plt.figure(5)
+        plt.figure(5, figsize=[13, 7])
         plt.clf()
-        gs = matplotlib.gridspec.GridSpec(6, 1)
+        gs = matplotlib.gridspec.GridSpec(6, 2)
         ax1 = plt.subplot(gs[0:2, 0])
         ax2 = plt.subplot(gs[2, 0])
+        ax22 = plt.subplot(gs[2, 1])
         ax3 = plt.subplot(gs[3, 0])
         ax4 = plt.subplot(gs[4, 0])
+        ax42 = plt.subplot(gs[4, 1])
         ax5 = plt.subplot(gs[5, 0])
 
         # get time of contact
         time_contact, frame_contact, dist_contact = self.get_contact_time(nuclei_df, self.d_threshold)
 
         # plot distance between centrosomes
-        dsf = DataFrameFromImagej.compute_distance_between_centrosomes(nuclei_df)
+        dsf = DataFrameFromImagej.compute_distance_velocity_acceleration_between_centrosomes(nuclei_df)
         dsf = dsf.set_index('Time').sort_index()
         try:
             color = sns.color_palette()[-1]
@@ -247,12 +252,17 @@ class DataFrameFromImagej(object):
             dsf[tmask]['DistCentr'].plot(ax=ax3, label='Original', marker='o', linewidth=0, sharex=True, c=color)
 
             ax4.axhline(y=0, color='k', linestyle='--', linewidth=0.1)
+            ax42.axhline(y=0, color='k', linestyle='--', linewidth=0.1)
             dsf['SpeedCentr'].plot(ax=ax4, label='Dist N%d' % (nucleus_id), marker=None, sharex=True, c=color)
             dsf[tmask]['SpeedCentr'].plot(ax=ax4, label='Original', marker='o', linewidth=0, sharex=True, c=color)
+
+            dsf['AccCentr'].plot(ax=ax42, label='Dist N%d' % (nucleus_id), marker=None, sharex=True, c=color)
+            dsf[tmask]['AccCentr'].plot(ax=ax42, label='Original', marker='o', linewidth=0, sharex=True, c=color)
 
             if len(dsf[~tmask]['DistCentr']) > 0:
                 dsf[~tmask]['DistCentr'].plot(ax=ax3, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
                 dsf[~tmask]['SpeedCentr'].plot(ax=ax4, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
+                dsf[~tmask]['AccCentr'].plot(ax=ax42, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
         except Exception as e:
             print 'Error printing in try block: ' + str(e)
             pass
@@ -268,14 +278,17 @@ class DataFrameFromImagej(object):
             color = sns.color_palette()[k]
             track['Dist'].plot(ax=ax1, label='N%d-C%d' % (nucleus_id, lblCentr), marker=None, sharex=True, c=color)
             track['Speed'].plot(ax=ax2, label='N%d-C%d' % (nucleus_id, lblCentr), sharex=True, c=color)
+            track['Acc'].plot(ax=ax22, label='N%d-C%d' % (nucleus_id, lblCentr), sharex=True, c=color)
 
             ax2.axhline(y=0, color='k', linestyle='--', linewidth=0.1)
+            ax22.axhline(y=0, color='k', linestyle='--', linewidth=0.1)
             if len(tmask) > 0:
                 if len(track['Dist'][tmask]) > 0:
                     track['Dist'][tmask].plot(ax=ax1, label='Original', marker='o', linewidth=0, sharex=True, c=color)
                 if len(track['Dist'][~tmask]) > 0:
                     track['Dist'][~tmask].plot(ax=ax1, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
                     track['Speed'][~tmask].plot(ax=ax2, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
+                    track['Acc'][~tmask].plot(ax=ax22, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
             else:
                 track['Dist'].plot(ax=ax1, label='Original', marker='o', linewidth=0, sharex=True, c=color)
 
@@ -304,10 +317,15 @@ class DataFrameFromImagej(object):
         ax4.legend()
         ax1.set_ylabel('Dist to Nuclei $[\mu m]$')
         ax2.set_ylabel('Speed $[\\frac{\mu m}{min}]$')
+        ax22.set_ylabel('Accel $[\\frac{\mu m}{min^2}]$')
         ax3.set_ylabel('Between $[\mu m]$')
         ax4.set_ylabel('Speed $[\\frac{\mu m}{min}]$')
+        ax42.set_ylabel('Accel $[\\frac{\mu m}{min^2}]$')
         ax5.set_yticks(in_yticks)
         ax5.set_yticklabels(in_yticks_lbl)
+
+        ax22.set_ylim([-0.5, 0.5])
+        ax42.set_ylim([-0.5, 0.5])
 
         if filename is None:
             plt.show()
@@ -421,7 +439,7 @@ class DataFrameFromImagej(object):
                     mask = (~im).reset_index()
 
                 # compute velocity again with interpolated data
-                filtered_nuc_df = self.compute_velocity(filtered_nuc_df)
+                filtered_nuc_df = self.compute_velocity_acceleration(filtered_nuc_df)
 
                 self.plot_nucleus_dataframe(filtered_nuc_df, mask, 'out/%s' % nuc_item['centrosomes_img'])
                 self.add_stats(filtered_nuc_df)
@@ -824,6 +842,39 @@ if __name__ == '__main__':
     plot_distance(data, filename='distance_all_pc')
     data.to_pickle('out/dataframe_pc.pandas')
 
+    df_d_to_nuclei_centr = pd.DataFrame([
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 2.9],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 5.8],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 3.3],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 8.9],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 5.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 3.3],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 5.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 1.8],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 6.9],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 8.7],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 6.2],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 2.0],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 7.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 7.8],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 1.3],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 10.4],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 5.6],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 7.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 9.8],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 8.7],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 6.4],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 7.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 4.9],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 5.0],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 0.7],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 15.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 8.2],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 4.0],
+        ['manual', 0, 0, 0, 'Contact', 'Cell', 3.3],
+    ], columns=['Tag', 'Nuclei', 'Frame', 'Time', 'Stat', 'Type', 'Dist'])
+    stats =  stats.append(df_d_to_nuclei_centr)
+
     sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
     box_beeswarm_plot(sdata, filename='beeswarm_boxplot_pc_snapshot', ylim=_yl)
     sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
@@ -1019,7 +1070,7 @@ if __name__ == '__main__':
                                 'nuclei_list': [4, 10],
                                 'max_time_dict': {},
                                 'centrosome_inclusion_dict': {},
-                                'centrosome_exclusion_dict': {10:[1002]},
+                                'centrosome_exclusion_dict': {10: [1002]},
                                 'centrosome_equivalence_dict': {4: [[401, 402]]},
                                 'joined_tracks': {}
                             },
