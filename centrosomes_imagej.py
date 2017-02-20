@@ -580,6 +580,18 @@ def box_beeswarm_plot(data, filename=None, ylim=None):
             plt.savefig('out/img/%s.svg' % filename, format='svg')
         plt.close(10)
 
+        # p-values
+        from scipy.stats import ttest_ind
+        pmat = list()
+        for c1 in cat:
+            d1 = data[data['Type'] == c1]['Dist']
+            for c2 in cat:
+                d2 = data[data['Type'] == c2]['Dist']
+                s, p = ttest_ind(d1, d2)
+                pmat.append(p)
+        pmat = np.array(pmat).reshape(len(cat), len(cat))
+        np.savetxt('out/img/%s-pvalues.txt' % filename, pmat, header=','.join(cat),fmt='%.4e')
+
 
 if __name__ == '__main__':
     _yl = [-5, 35]  # limits in y axis for boxplots
@@ -841,7 +853,6 @@ if __name__ == '__main__':
     html_pc, stats, data = subreport([pc_to_process])
     plot_distance(data, filename='distance_all_pc')
     data.to_pickle('out/dataframe_pc.pandas')
-
     df_d_to_nuclei_centr = pd.DataFrame([
         ['manual', 0, 0, 0, 'Contact', 'Cell', 2.9],
         ['manual', 0, 0, 0, 'Contact', 'Cell', 5.8],
@@ -873,7 +884,8 @@ if __name__ == '__main__':
         ['manual', 0, 0, 0, 'Contact', 'Cell', 4.0],
         ['manual', 0, 0, 0, 'Contact', 'Cell', 3.3],
     ], columns=['Tag', 'Nuclei', 'Frame', 'Time', 'Stat', 'Type', 'Dist'])
-    stats =  stats.append(df_d_to_nuclei_centr)
+    stats = stats.append(df_d_to_nuclei_centr)
+    stats.to_pickle('out/stats_pc.pandas')
 
     sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
     box_beeswarm_plot(sdata, filename='beeswarm_boxplot_pc_snapshot', ylim=_yl)
@@ -1079,6 +1091,7 @@ if __name__ == '__main__':
     html_dyndic1, stats, data = subreport([dyndic1_to_process, dyncdk1as_to_process])
     plot_distance(data, filename='distance_all_dyndic1')
     data.to_pickle('out/dataframe_dyn.pandas')
+    stats.to_pickle('out/stats_dyn.pandas')
 
     sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
     box_beeswarm_plot(sdata, filename='beeswarm_boxplot_dyndic1_snapshot', ylim=_yl)
