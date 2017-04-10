@@ -552,49 +552,7 @@ def plot_distance(data, filename=None):
     plt.close(20)
 
 
-def box_beeswarm_plot(data, filename=None, ylim=None):
-    if len(data) > 0:
-        plt.figure(10)
-        data['Dist'] = data.Dist.astype(np.float64)  # fixes a bug of seaborn
-        sns.boxplot(data=data, y='Dist', x='Type')
-        ax = sns.swarmplot(data=data, y='Dist', x='Type')
-        for i, artist in enumerate(ax.artists):
-            artist.set_facecolor('None')
-
-        if ylim is not None:
-            _axis = ax.axis()
-            ax.axis([_axis[0], _axis[1], ylim[0], ylim[1]])
-
-        # render text
-        cat = data['Type'].unique()
-        for c, x in zip(cat, range(len(cat) + 1)):
-            d = data[data['Type'] == c]['Dist']
-            if len(d) > 0:
-                _max_y = ax.axis()[3]
-                count = d.count()
-                mean = d.mean()
-                ax.text(x, _max_y - 2.0, '$\mu=%0.3f$' % mean, ha='center')
-                ax.text(x, _max_y - 4.0, '$n=%d$' % count, ha='center')
-
-        if filename is not None:
-            plt.savefig('out/img/%s.svg' % filename, format='svg')
-        plt.close(10)
-
-        # p-values
-        from scipy.stats import ttest_ind
-        pmat = list()
-        for c1 in cat:
-            d1 = data[data['Type'] == c1]['Dist']
-            for c2 in cat:
-                d2 = data[data['Type'] == c2]['Dist']
-                s, p = ttest_ind(d1, d2)
-                pmat.append(p)
-        pmat = np.array(pmat).reshape(len(cat), len(cat))
-        np.savetxt('out/img/%s-pvalues.txt' % filename, pmat, header=','.join(cat),fmt='%.4e')
-
-
 if __name__ == '__main__':
-    _yl = [-5, 35]  # limits in y axis for boxplots
     html_pc = html_dyndic1 = ''
 
     pc_to_process = {'path': '/Users/Fabio/lab/PC/data/',
@@ -613,7 +571,7 @@ if __name__ == '__main__':
                          'centrosome_inclusion_dict': {4: [500]},
                          'centrosome_exclusion_dict': {4: [402]},
                          'centrosome_equivalence_dict': {1: [[100, 102, 103]]},
-                         'joined_tracks': {4: [[400, 401]]}
+                         'joined_tracks': {2: [[200, 201]], 4: [[400, 401]]}
                      }, {
                          'name': 'centr-pc-3-table.csv',
                          'nuclei_list': [5],
@@ -660,8 +618,8 @@ if __name__ == '__main__':
                          'nuclei_list': [2],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
-                         'centrosome_exclusion_dict': {2: [205]},
-                         'centrosome_equivalence_dict': {2: [[200, 202, 203], [201, 204]]},
+                         'centrosome_exclusion_dict': {2: [202, 203, 204, 205]},
+                         'centrosome_equivalence_dict': {},
                          'joined_tracks': {}
                      }, {
                          'name': 'centr-pc-17-table.csv',
@@ -684,9 +642,9 @@ if __name__ == '__main__':
                          'nuclei_list': [1, 5],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
-                         'centrosome_exclusion_dict': {5: [502]},
+                         'centrosome_exclusion_dict': {5: [500]},
                          'centrosome_equivalence_dict': {},
-                         'joined_tracks': {1: [[100, 101]], 5: [[500, 501]]}
+                         'joined_tracks': {1: [[100, 101]], 5: [[501, 502]]}
                      }, {
                          'name': 'centr-pc-201-table.csv',
                          'nuclei_list': [10],
@@ -732,9 +690,9 @@ if __name__ == '__main__':
                          'nuclei_list': [7],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
-                         'centrosome_exclusion_dict': {7: [702]},
+                         'centrosome_exclusion_dict': {7: [700]},
                          'centrosome_equivalence_dict': {},
-                         'joined_tracks': {7: [[700, 701]]}
+                         'joined_tracks': {7: [[701, 702]]}
                      }, {
                          'name': 'centr-pc-209-table.csv',
                          'nuclei_list': [5],
@@ -781,7 +739,7 @@ if __name__ == '__main__':
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {5: [[501, 502]]},
+                         'centrosome_equivalence_dict': {},
                          'joined_tracks': {5: [[500, 501]]}
                          # }, {
                          #     'name': 'centr-pc-216-table.csv',
@@ -797,7 +755,7 @@ if __name__ == '__main__':
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
                          'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {4: [[400, 402]]},
+                         'centrosome_equivalence_dict': {4: [[401, 402]]},
                          'joined_tracks': {4: [[400, 401]]}
                      }, {
                          'name': 'centr-pc-219-table.csv',
@@ -836,9 +794,9 @@ if __name__ == '__main__':
                          'nuclei_list': [5, 6, 7],
                          'max_time_dict': {},
                          'centrosome_inclusion_dict': {},
-                         'centrosome_exclusion_dict': {},
-                         'centrosome_equivalence_dict': {5: [[501, 502]], 7: [[701, 702, 703]]},
-                         'joined_tracks': {6: [[600, 601]], 7: [[700, 701]]}
+                         'centrosome_exclusion_dict': {50: [502]},
+                         'centrosome_equivalence_dict': {5: [[500, 502]], 7: [[701, 702, 703]]},
+                         'joined_tracks': {50: [[500, 501]], 6: [[600, 601]], 7: [[700, 701]]}
                      }, {
                          'name': 'centr-pc-224-table.csv',
                          'nuclei_list': [4],
@@ -849,10 +807,6 @@ if __name__ == '__main__':
                          'joined_tracks': {4: [[400, 401]]}
                      }
                      ]}
-
-    html_pc, stats, data = subreport([pc_to_process])
-    plot_distance(data, filename='distance_all_pc')
-    data.to_pickle('out/dataframe_pc.pandas')
     df_d_to_nuclei_centr = pd.DataFrame([
         ['manual', 0, 0, 0, 'Contact', 'Cell', 2.9],
         ['manual', 0, 0, 0, 'Contact', 'Cell', 5.8],
@@ -884,13 +838,12 @@ if __name__ == '__main__':
         ['manual', 0, 0, 0, 'Contact', 'Cell', 4.0],
         ['manual', 0, 0, 0, 'Contact', 'Cell', 3.3],
     ], columns=['Tag', 'Nuclei', 'Frame', 'Time', 'Stat', 'Type', 'Dist'])
+
+    html_pc, stats, data = subreport([pc_to_process])
+    plot_distance(data, filename='distance_all_pc')
+    data.to_pickle('out/dataframe_pc.pandas')
     stats = stats.append(df_d_to_nuclei_centr)
     stats.to_pickle('out/stats_pc.pandas')
-
-    sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
-    box_beeswarm_plot(sdata, filename='beeswarm_boxplot_pc_snapshot', ylim=_yl)
-    sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
-    box_beeswarm_plot(sdata, filename='beeswarm_boxplot_pc_contact', ylim=_yl)
 
     dyndic1_to_process = {'path': '/Users/Fabio/lab/Dyn/data/',
                           'files': [{
@@ -978,10 +931,10 @@ if __name__ == '__main__':
                               'name': 'centr-dyn-204-table.csv',
                               'nuclei_list': [3],
                               'max_time_dict': {},
-                              'centrosome_inclusion_dict': {3: [102]},
+                              'centrosome_inclusion_dict': {3: [103]},
                               'centrosome_exclusion_dict': {},
                               'centrosome_equivalence_dict': {},
-                              'joined_tracks': {3: [[102, 300]]}
+                              'joined_tracks': {3: [[103, 300]]}
                           }, {
                               'name': 'centr-dyn-205-table.csv',
                               # 'nuclei_list': [4],
@@ -1038,12 +991,12 @@ if __name__ == '__main__':
     dyncdk1as_to_process = {'path': '/Users/Fabio/lab/DynCDK1as/data/',
                             'files': [{
                                 'name': 'centr-dyncdk1as-002-table.csv',
-                                'nuclei_list': [1, 2, 3, 6, 9],
+                                'nuclei_list': [1, 2, 3, 6, 90],
                                 'max_time_dict': {},
                                 'centrosome_inclusion_dict': {},
                                 'centrosome_exclusion_dict': {6: [602, 603], 9: [903]},
                                 'centrosome_equivalence_dict': {1: [[100, 102]], 6: [[601, 604, 605]],
-                                                                9: [[900, 902]]},
+                                                                90: [[900, 902]]},
                                 'joined_tracks': {}
                             }, {
                                 'name': 'centr-dyncdk1as-003-table.csv',
@@ -1092,11 +1045,6 @@ if __name__ == '__main__':
     plot_distance(data, filename='distance_all_dyndic1')
     data.to_pickle('out/dataframe_dyn.pandas')
     stats.to_pickle('out/stats_dyn.pandas')
-
-    sdata = stats[(stats['Stat'] == 'Snapshot') & (stats['Dist'].notnull())][['Dist', 'Type']]
-    box_beeswarm_plot(sdata, filename='beeswarm_boxplot_dyndic1_snapshot', ylim=_yl)
-    sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
-    box_beeswarm_plot(sdata, filename='beeswarm_boxplot_dyndic1_contact', ylim=_yl)
 
     master_template = """<!DOCTYPE html>
             <html>
