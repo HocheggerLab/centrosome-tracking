@@ -14,54 +14,6 @@ class heavy_planar_elastica():
         self.gamma = 0.1
         self.Ye = 1
 
-        self.fig = plt.figure()
-        self.ax1 = self.fig.add_subplot(121)
-        self.ax2 = self.fig.add_subplot(122)
-        self.picking = False
-        self.connect()
-
-        self.ax1.set_xlabel('s')
-        self.ax1.set_ylabel('M(s)')
-        self.ax2.set_xlabel('x [um]')
-        self.ax2.set_ylabel('y [um]')
-
-    def connect(self):
-        self.cidpress = self.fig.canvas.mpl_connect('pick_event', self.on_pick)
-        self.cidrelease = self.fig.canvas.mpl_connect('button_release_event', self.on_release)
-        self.cidmotion = self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
-
-    def disconnect(self):
-        'disconnect all the stored connection ids'
-        self.fig.figure.canvas.mpl_disconnect(self.cidpress)
-        self.fig.figure.canvas.mpl_disconnect(self.cidrelease)
-        self.fig.figure.canvas.mpl_disconnect(self.cidmotion)
-
-    def on_pick(self, event):
-        self.picking = True
-        mevent = event.mouseevent
-        # print('pickevent: x=%d, y=%d, xdata=%f, ydata=%f' % (mevent.x, mevent.y, mevent.xdata, mevent.ydata))
-        self.Xe = mevent.ydata
-
-    def on_motion(self, event):
-        'on motion we will move the rect if the mouse is over us'
-        if not self.picking: return
-        # print('motionevent: picking=%f, event.xdata=%f, event.ydata=%f' % (self.picking, event.xdata, event.ydata))
-
-        self.Xe = self.x_plot[0]
-        self.Ye = event.ydata
-
-        self.update_plot()
-        self.fig.canvas.draw()
-
-    def on_release(self, event):
-        if not self.picking: return
-        self.picking = False
-        self.Ye *= -1
-        self.update_ode()
-        self.update_ode_plot()
-        self.update_plot()
-        self.fig.canvas.draw()
-
     def f(self, s, x, m0):
         k = x[3] / self.E
         return [-cos(x[2]), -sin(x[2]), -k, self.F * sin(x[2] + self.gamma)]
@@ -88,27 +40,91 @@ class heavy_planar_elastica():
         self.Ye = self.y_plot[0]
         print 'm0=%0.2f' % self.res.p[0]
 
-    def update_ode_plot(self):
-        self.ax1.plot(self.s_plot, self.M_plot, label='b_a')
-        self.ax2.plot(self.x_plot, self.y_plot, label='%0.1f' % self.res.p[0])
-        self.ax2.legend()
 
-    def update_plot(self):
-        self.pick_point.set_ydata([self.Ye, self.Ye])
-        self.pick_point.set_xdata([self.Xe, self.Xe])
-        self.ax2.draw_artist(self.pick_point)
 
-    def initial_plot(self):
-        px = (self.Xe, self.Xe)
-        py = (self.Ye, self.Ye)
-        self.pick_point = plt.Line2D(px, py, marker='.', markersize=10, markerfacecolor='r', picker=5)
-        self.ax2.add_line(self.pick_point)
 
-        self.update_ode_plot()
-        plt.show()
+class hpe_artist(plt.Artist):
+    def __init__(self, elasticaModel):
+        plt.Artist.__init__(self)
+        self.model = elasticaModel
 
+global picking, fiber
+picking = False
+fiber = heavy_planar_elastica()
+
+
+def on_pick(event):
+    global picking
+    picking = True
+    mevent = event.mouseevent
+    # print('pickevent: x=%d, y=%d, xdata=%f, ydata=%f' % (mevent.x, mevent.y, mevent.xdata, mevent.ydata))
+    fiber.Xe = mevent.ydata
+
+
+def on_motion(event):
+    global picking
+    'on motion we will move the rect if the mouse is over us'
+    if not picking: return
+    # print('motionevent: picking=%f, event.xdata=%f, event.ydata=%f' % (picking, event.xdata, event.ydata))
+    fiber.Xe = fiber.x_plot[0]
+    fiber.Ye = event.ydata
+
+    update_plot(ax1,ax2)
+    fig.canvas.draw()
+
+
+def on_release(event):
+    global picking
+    if not picking: return
+    picking = False
+    fiber.Ye *= -1
+    fiber.update_ode()
+    update_ode_plot(ax1,ax2)
+    update_plot(ax1,ax2)
+    fig.canvas.draw()
+
+def update_ode_plot(ax1,ax2):
+    global fiber
+    ax1.plot(fiber.s_plot, fiber.M_plot, label='b_a')
+    ax2.plot(fiber.x_plot, fiber.y_plot, label='%0.1f' % fiber.res.p[0])
+    ax2.legend()
+
+def update_plot(ax1,ax2):
+    global fiber
+    fiber.pick_point.set_ydata([fiber.Ye, fiber.Ye])
+    fiber.pick_point.set_xdata([fiber.Xe, fiber.Xe])
+    ax2.draw_artist(fiber.pick_point)
+
+def initial_plot():
+    global fiber
+    px = (fiber.Xe, fiber.Xe)
+    py = (fiber.Ye, fiber.Ye)
+    fiber.pick_point = plt.Line2D(px, py, marker='.', markersize=10, markerfacecolor='r', picker=5)
 
 if __name__ == '__main__':
-    fiber = heavy_planar_elastica()
+    global picking, fiber
+    fig = plt.figure()
+    ax1 = fig.add_subplot(121)
+    ax2 = fig.add_subplot(122)
+
     fiber.update_ode()
-    fiber.initial_plot()
+    initial_plot()
+    ax2.add_line(fiber.pick_point)
+    update_ode_plot(ax1,ax2)
+
+    ax1.set_xlabel('s')
+    ax1.set_ylabel('M(s)')
+    ax2.set_xlabel('x [um]')
+    ax2.set_ylabel('y [um]')
+
+    # connect all
+    cidpress = fig.canvas.mpl_connect('pick_event', on_pick)
+    cidrelease = fig.canvas.mpl_connect('button_release_event', on_release)
+    cidmotion = fig.canvas.mpl_connect('motion_notify_event', on_motion)
+
+    plt.show()
+
+    # disconnect all the stored connection ids
+    # fig.figure.canvas.mpl_disconnect(cidpress)
+    # fig.figure.canvas.mpl_disconnect(cidrelease)
+    # fig.figure.canvas.mpl_disconnect(cidmotion)
