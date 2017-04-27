@@ -13,8 +13,9 @@ class HeavyPlanarElastica():
         self.F = 0.1
         self.gamma = 0.1
         self.endY = 1
+        self.m0 = None
 
-    def f(self, s, x, m0):
+    def f(self, s, x, p):
         k = x[3] / self.E
         return [-cos(x[2]), -sin(x[2]), -k, self.F * sin(x[2] + self.gamma)]
 
@@ -31,73 +32,163 @@ class HeavyPlanarElastica():
 
         # Now we are ready to run the solver.
         self.res = solve_bvp(self.f, self.bc, s, y_a, p=[1], verbose=0)
-        print 'm0 = %0.2f' % self.res.p[0]
+        self.m0 = self.res.p[0]
 
 
 class HeavyPlanarElasticaDrawObject_xy(plt.Artist):
-    def __init__(self, axes, elasticaModel):
+    def __init__(self, axes, elasticaModel, xini=0, yini=0):
         plt.Artist.__init__(self)
         self.picking = False
         self.fiber = elasticaModel
+        self.fiber_line = None
+
+        self.Xoffset = xini
+        self._Yoffset = -yini
         self.Xe = 1
         self.Ye = 1
         self.ax = axes
 
-        self.ax.set_xlabel('x [um]')
-        self.ax.set_ylabel('y [um]')
+        self.ax.set_xlabel('$x [\mu m]$')
+        self.ax.set_ylabel('$y [\mu m]$')
+
+        self._initial_plot()
+        self._connect()
+
+    @property
+    def Yoffset(self):
+        print 'Yoffset getter'
+        return self._Yoffset
+
+    @Yoffset.setter
+    def Yoffset(self, value):
+        print 'Yoffset setter'
+        self._Yoffset = -value
 
     def on_pick(self, event):
-        self.picking = True
-        mevent = event.mouseevent
-        # print('pickevent: x=%d, y=%d, xdata=%f, ydata=%f' % (mevent.x, mevent.y, mevent.xdata, mevent.ydata))
-        self.Ye = mevent.ydata
+        if self.pick_end_point == event.artist:
+            self.picking = True
+            mevent = event.mouseevent
+            print('fiber pick: x=%d, y=%d, xdata=%f, ydata=%f' % (mevent.x, mevent.y, mevent.xdata, mevent.ydata))
+            self.Ye = mevent.ydata
 
     def on_motion(self, event):
         if not self.picking: return
-        # print('motionevent: picking=%f, event.xdata=%f, event.ydata=%f' % (picking, event.xdata, event.ydata))
+        # print('fiber motion: picking=%f, event.xdata=%f, event.ydata=%f' % (self.picking, event.xdata, event.ydata))
         self.Ye = event.ydata
         self._update_picker_point()
         self.ax.figure.canvas.draw()
 
     def on_release(self, event):
         if not self.picking: return
+        print('fiber release.')
         self.picking = False
-        self.Ye *= -1
-
-        self.fiber.endY = self.Ye
-
+        self.Ye = -event.ydata
+        self.fiber.endY = self.Ye - self.Yoffset
         self.update_plot()
 
     def _update_ode_plot(self):
         self.fiber.update_ode()
 
         s_plot = np.linspace(0, self.fiber.L, 100)
-        x_plot = self.fiber.res.sol(s_plot)[0]
-        y_plot = -self.fiber.res.sol(s_plot)[1]
+        x_plot = self.fiber.res.sol(s_plot)[0] + self.Xoffset
+        y_plot = -self.fiber.res.sol(s_plot)[1] - self.Yoffset
 
         self.Xe = x_plot[0]
         self.Ye = y_plot[0]
+        print 'xe = %0.2f, ye = %0.2f, m0 = %0.2f' % (self.Xe, self.Ye, self.fiber.m0)
 
-        self.ax.plot(x_plot, y_plot, label='%0.1f' % self.fiber.res.p[0])
-        self.ax.legend()
+        if self.fiber_line is None:
+            self.fiber_line, = self.ax.plot(x_plot, y_plot, label='fiber')
+        else:
+            self.fiber_line.set_data (x_plot,y_plot)
+
+        self.ax.set_aspect('equal', 'datalim')
+
 
     def _update_picker_point(self):
-        self.pick_point.set_ydata([self.Ye, self.Ye])
-        self.pick_point.set_xdata([self.Xe, self.Xe])
-        self.ax.draw_artist(self.pick_point)
+        self.pick_end_point.center = (self.Xe, self.Ye)
+        self.ax.draw_artist(self.pick_end_point)
 
     def update_plot(self):
         self._update_ode_plot()
         self._update_picker_point()
         self.ax.figure.canvas.draw()
 
-    def initial_plot(self):
+    def _initial_plot(self):
         self._update_ode_plot()
 
-        px = (self.Xe, self.Xe)
-        py = (self.Ye, self.Ye)
-        self.pick_point = plt.Line2D(px, py, marker='.', markersize=10, markerfacecolor='r', picker=5)
-        self.ax.add_line(self.pick_point)
+        self.pick_end_point = plt.Circle((self.Xe, self.Ye), radius=0.05, fc='r', picker=5)
+        self.ax.add_artist(self.pick_end_point)
+
+    def _connect(self):
+        self.cidpress = self.ax.figure.canvas.mpl_connect('pick_event', self.on_pick)
+        self.cidrelease = self.ax.figure.canvas.mpl_connect('button_release_event', self.on_release)
+        self.cidmotion = self.ax.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
+
+    def _disconnect(self):
+        self.ax.figure.canvas.mpl_disconnect(self.cidpress)
+        self.ax.figure.canvas.mpl_disconnect(self.cidrelease)
+        self.ax.figure.canvas.mpl_disconnect(self.cidmotion)
+
+
+class Aster():
+    def __init__(self, axes):
+        self.picking = False
+        self.ax = axes
+        self.fibers = []
+
+        self.Xi = 0
+        self.Yi = 0
+        self.pick_ini_point = plt.Circle((self.Xi, self.Yi), radius=0.05, fc='b', picker=5)
+        self.ax.add_artist(self.pick_ini_point)
+
+        self._connect()
+
+    def add_fiber(self, fiber):
+        hpe_xy = HeavyPlanarElasticaDrawObject_xy(self.ax, fiber, xini=self.Xi, yini=self.Yi)
+        self.fibers.append(hpe_xy)
+
+    def _update_picker_point(self):
+        self.pick_ini_point.center = (self.Xi, self.Yi)
+        self.ax.draw_artist(self.pick_ini_point)
+        self.ax.figure.canvas.draw()
+
+    def _connect(self):
+        self.cidpress = self.ax.figure.canvas.mpl_connect('pick_event', self.on_pick)
+        self.cidrelease = self.ax.figure.canvas.mpl_connect('button_release_event', self.on_release)
+        self.cidmotion = self.ax.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
+
+    def _disconnect(self):
+        self.ax.figure.canvas.mpl_disconnect(self.cidpress)
+        self.ax.figure.canvas.mpl_disconnect(self.cidrelease)
+        self.ax.figure.canvas.mpl_disconnect(self.cidmotion)
+
+    def on_pick(self, event):
+        if self.pick_ini_point == event.artist:
+            self.picking = True
+            mevent = event.mouseevent
+            print('aster pick: x=%d, y=%d, xdata=%f, ydata=%f' % (mevent.x, mevent.y, mevent.xdata, mevent.ydata))
+            self.Xi = mevent.xdata
+            self.Yi = mevent.ydata
+
+    def on_motion(self, event):
+        if not self.picking: return
+        # print('aster motion: x=%f, y=%f, xdata=%f, ydata=%f' % (event.x, event.y, event.xdata, event.ydata))
+        self.Xi = event.xdata
+        self.Yi = event.ydata
+        self._update_picker_point()
+
+    def on_release(self, event):
+        if not self.picking: return
+        print('aster release.')
+        self.picking = False
+        self.Xi = event.xdata
+        self.Yi = event.ydata
+        for fib in self.fibers:
+            fib.Xoffset=event.xdata
+            fib.Yoffset=event.ydata
+            fib.update_plot()
+        self._update_picker_point()
 
 
 if __name__ == '__main__':
@@ -107,17 +198,7 @@ if __name__ == '__main__':
     # ax2 = fig.add_subplot(122)
     ax = fig.gca()
 
-    fiber_draw = HeavyPlanarElasticaDrawObject_xy(ax, fiber)
-    fiber_draw.initial_plot()
-
-    # connect all
-    cidpress = fig.canvas.mpl_connect('pick_event', fiber_draw.on_pick)
-    cidrelease = fig.canvas.mpl_connect('button_release_event', fiber_draw.on_release)
-    cidmotion = fig.canvas.mpl_connect('motion_notify_event', fiber_draw.on_motion)
+    centrosome = Aster(ax)
+    centrosome.add_fiber(fiber)
 
     plt.show()
-
-    # disconnect all the stored connection ids
-    fig.canvas.mpl_disconnect(cidpress)
-    fig.canvas.mpl_disconnect(cidrelease)
-    fig.canvas.mpl_disconnect(cidmotion)
