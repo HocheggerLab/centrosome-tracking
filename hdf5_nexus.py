@@ -1,11 +1,12 @@
-import pandas as pd
-import numpy as np
-import h5py
+import argparse
 import datetime
-import tifffile as tf
 import os
 import re
-import argparse
+
+import h5py
+import numpy as np
+import tifffile as tf
+
 import dataframe_from_imagej as ijdf
 
 
@@ -30,8 +31,6 @@ class LabHDF5NeXusFile():
             f.attrs['NeXus_version'] = '4.3.0'
             f.attrs['HDF5_Version'] = h5py.version.hdf5_version
             f.attrs['h5py_version'] = h5py.version.version
-
-        print "wrote file:", self.filename
 
     def addExperiment(self, group, experimentTag, timestamp=None, tags=None):
         with h5py.File(self.filename, "a") as f:
@@ -96,20 +95,9 @@ class LabHDF5NeXusFile():
                             ch.attrs['CLASS'] = np.string_('IMAGE')
                             ch.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
                             ch.attrs['IMAGE_VERSION'] = np.string_('1.2')
-
-                            # rgb = nxframe.create_dataset('rgb',
-                            #                              data=np.reshape(p1a[channels * i:channels * i + 3],
-                            #                                              (sizeX, sizeY, channels)).astype(np.uint8),
-                            #                              dtype=np.uint8)
-                            # rgb.attrs['CLASS'] = np.string_('IMAGE')
-                            # rgb.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_TRUECOLOR')
-                            # rgb.attrs['IMAGE_VERSION'] = np.string_('1.2')
-                            # rgb.attrs['INTERLACE_MODE'] = np.string_('INTERLACE_PIXEL')
-
         f.close()
 
     def addMeasurements(self, csvpath, experimentTag, run):
-
         with h5py.File(self.filename, "a") as f:
             nxmeas = f['%s/%s/measurements' % (experimentTag, run)]
 
@@ -128,6 +116,7 @@ class LabHDF5NeXusFile():
                 sy = nxnucl.create_dataset('sample_y', data=ny, dtype=ny.dtype)
 
             dfct = dfc.df_csv.set_index('Frame').sort_index()
+
             for (centrID), filt_centr_df in dfct.groupby('Centrosome'):
                 nucID = filt_centr_df['Nuclei'].unique()[0]
                 nxcid = nxmeas.create_group('centrosomes/C%03d' % centrID)
@@ -140,34 +129,58 @@ class LabHDF5NeXusFile():
                 sx = nxcid.create_dataset('sample_x', data=cx, dtype=cx.dtype)
                 sy = nxcid.create_dataset('sample_y', data=cy, dtype=cy.dtype)
 
-                self.associateCentrosomeWithNuclei(centrID, nucID, experimentTag, run)
+            visitedCentrosomes = []
+            for (centrID), filt_centr_df in dfct.groupby('Centrosome'):
+                centrosomesOfNuclei = dfct[dfct['Nuclei'] == nucID].groupby('Centrosome')
+                if len(centrosomesOfNuclei.groups) >= 2:
+                    for i, ((centrID), filt_centr_df) in enumerate(centrosomesOfNuclei):
+                        if centrID not in visitedCentrosomes:
+                            visitedCentrosomes.append(centrID)
+                            nucID = filt_centr_df['Nuclei'].unique()[0]
+                            self.associateCentrosomeWithNuclei(centrID, nucID, experimentTag, run, i % 2)
 
-    def associateCentrosomeWithNuclei(self, centrID, nucID, experimentTag, run):
+    def associateCentrosomeWithNuclei(self, centrID, nucID, experimentTag, run, centrosomeGroup=1):
         with h5py.File(self.filename, "a") as f:
             # link centrosome to current nuclei selection
             source_cpos_addr = '%s/%s/measurements/centrosomes/C%03d/pos' % (experimentTag, run, centrID)
-            # source_centrx_addr = '%s/%s/measurements/centrosomes/C%03d/sample_x' % (experimentTag, run, centrID)
-            # source_centry_addr = '%s/%s/measurements/centrosomes/C%03d/sample_y' % (experimentTag, run, centrID)
+            source_npos_addr = '%s/%s/measurements/nuclei/N%02d/pos' % (experimentTag, run, nucID)
             nxcpos = f[source_cpos_addr]
-            # nxcxid = f[source_centrx_addr]
-            # nxcyid = f[source_centry_addr]
-
 
             target_addr = '%s/%s/selection/N%02d' % (experimentTag, run, nucID)
             if target_addr not in f:
                 nxnuc_ = f.create_group(target_addr)
-                source_npos_addr = '%s/%s/measurements/nuclei/N%02d/pos' % (experimentTag, run, nucID)
+                nxnuc_.create_group('A')
+                nxnuc_.create_group('B')
                 nxnpos = f[source_npos_addr]
                 nxnuc_['pos'] = nxnpos
 
-            nxnuc_ = f[target_addr]
-            nxnuc_cid = nxnuc_.create_group('C%03d' % centrID)
-            nxnuc_cid['pos'] = nxcpos
-            # nxnuc_cid['sample_x'] = nxcxid
-            # nxnuc_cid['sample_y'] = nxcyid
+            cstr = 'A' if centrosomeGroup == 0 else 'B'
+            nxnuc_ = f['%s/%s' % (target_addr, cstr)]
+            nxnuc_['C%03d' % centrID] = nxcpos
 
-    def moveAssociation(self, ofCentrosome, fromNuclei, toNuclei):
-        pass
+    def deleteAssociation(self, ofCentrosome, withNuclei, experimentTag, run):
+        with h5py.File(self.filename, "a") as f:
+            centosomesA = f['%s/%s/selection/N%02d/A' % (experimentTag, run, withNuclei)]
+            centosomesB = f['%s/%s/selection/N%02d/B' % (experimentTag, run, withNuclei)]
+            if ofCentrosome in centosomesA:
+                del centosomesA[ofCentrosome]
+            if ofCentrosome in centosomesB:
+                del centosomesB[ofCentrosome]
+
+    def moveAssociation(self, ofCentrosome, fromNuclei, toNuclei, centrosomeGroup, experimentTag, run):
+        self.deleteAssociation(ofCentrosome, fromNuclei, experimentTag, run)
+        self.associateCentrosomeWithNuclei(ofCentrosome, toNuclei, experimentTag, run)
+
+    def isCentrosomeAssociated(self, centrosome, experimentTag, run):
+        with h5py.File(self.filename, "r") as f:
+            nuclei_list = f['%s/%s/measurements/nuclei' % (experimentTag, run)]
+            sel = f['%s/%s/selection' % (experimentTag, run)]
+            for nuclei in nuclei_list:
+                if nuclei in sel:
+                    nuc = sel[nuclei]
+                    if centrosome in nuc['A'] or centrosome in nuc['B']:
+                        return True
+        return False
 
     def addProcessed(self, experimentTag, run):
         pass
@@ -200,11 +213,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Creates an HDF5 file for experiments storage.')
     parser.add_argument('input', metavar='I', type=str, help='input directory where the files are')
-    # parser.add_argument('take', metavar='T', type=str, help='group number for images taken in the same session')
-    # parser.add_argument('output', metavar='O', type=str, help='output file')
     args = parser.parse_args()
 
     # Create hdf5 file if it doesn't exist
-    hdf5 = LabHDF5NeXusFile(filename='centrosomes.nexus.hdf5')
+    hdf5 = LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5', rewrite=True)
 
     process_dir(args.input, hdf5)

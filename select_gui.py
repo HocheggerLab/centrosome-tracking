@@ -1,43 +1,12 @@
 import os
-import re
-import h5py
-# import cv2
-import skimage
-import skimage.color
-import skimage.exposure
-import skimage.io
 
-import pandas as pd
+import h5py
 import numpy as np
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import Qt
-from PyQt4.QtGui import QImage, QPixmap, QLabel, QPainter, QBrush, QPen, QColor
+from PyQt4.QtGui import QAbstractItemView, QBrush, QColor, QPainter, QPen, QPixmap
 
-
-class RenderedCentrosomeQLabel(QtGui.QLabel):
-    def __init__(self, parent, df=None):
-        QtGui.QLabel.__init__(self, parent)
-        self.selected = True
-        self._df = df
-
-    def mouseReleaseEvent(self, ev):
-        self.emit(QtCore.SIGNAL('clicked()'))
-
-    def paintEvent(self, event):
-        QtGui.QLabel.paintEvent(self, event)
-        painter = QtGui.QPainter(self)
-        if not self.selected:
-            painter.setOpacity(0.5)
-            ovrl = QtGui.QPixmap(300, 300)
-            ovrl.fill(QtGui.QColor(255, 0, 0))
-            painter.drawPixmap(0, 0, ovrl)
-        if self._df is not None:
-            painter.setPen(QtGui.QColor(255, 255, 255))
-            painter.setOpacity(1.0)
-            painter.drawText(130, 0, 'circ: %0.2f' % self._df['circ'].values[0])
-            painter.drawText(130, 15, 'signal: %0.2f' % self._df['sig1_mean'].values[0])
-            painter.drawText(130, 30, 'sig2: %0.2f' % self._df['sig2_mean'].values[0])
-            painter.drawText(130, 45, 'sig2 outer ring: %0.2f' % self._df['sig2_out_mean'].values[0])
+import hdf5_nexus as hdf
 
 
 class ExperimentsList(QtGui.QWidget):
@@ -54,6 +23,7 @@ class ExperimentsList(QtGui.QWidget):
         self.frame = 0
         self.nucleiSelected = None
         self.hdf5file = path
+        self.centrosomeDropped = False
 
         self.populateExperiments()
 
@@ -86,6 +56,7 @@ class ExperimentsList(QtGui.QWidget):
         self.populateFramesList()
         self.renderFrame()
         self.populateNuclei()
+        self.populateCentrosomes()
 
     def populateFramesList(self):
         model = QtGui.QStandardItemModel()
@@ -117,9 +88,11 @@ class ExperimentsList(QtGui.QWidget):
                     conditem.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
                 else:
                     conditem.setData(QtCore.QVariant(Qt.Unchecked), Qt.CheckStateRole)
+                conditem.setCheckable(True)
                 model.appendRow(conditem)
         QtCore.QObject.connect(self.nucleiListView.selectionModel(),
                                QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.nucleiChange)
+        model.itemChanged.connect(self.nucleiTickChange)
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
     def nucleiChange(self, current, previous):
@@ -127,27 +100,88 @@ class ExperimentsList(QtGui.QWidget):
         self.populateCentrosomes()
         self.renderFrame()
 
+    @QtCore.pyqtSlot('QStandardItem')
+    def nucleiTickChange(self, item):
+        self.nucleiSelected = int(item.text()[1:])
+        with h5py.File(self.hdf5file, 'a') as f:
+            sel = f['%s/%s/selection' % (self.condition, self.run)]
+            del sel['N%02d' % self.nucleiSelected]
+
+        self.populateNuclei()
+        self.populateCentrosomes()
+        self.renderFrame()
+
     def populateCentrosomes(self):
         model = QtGui.QStandardItemModel()
+        modelA = QtGui.QStandardItemModel()
+        modelB = QtGui.QStandardItemModel()
+
         self.centrosomeListView.setModel(model)
+        self.centrosomeListView.setDragEnabled(True)
+        self.centrosomeListView.setDragDropMode(QAbstractItemView.InternalMove)
+
+        self.centrosomeListView_A.setModel(modelA)
+        self.centrosomeListView_A.setAcceptDrops(True)
+        # self.centrosomeListView_A.setDropIndicatorShown(True)
+        self.centrosomeListView_B.setModel(modelB)
+        self.centrosomeListView_B.setAcceptDrops(True)
         with h5py.File(self.hdf5file, "r") as f:
-            centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)]
-            sel = f['%s/%s/selection/N%02d' % (self.condition, self.run, self.nucleiSelected)]
-            for cntrID in centrosome_list:
-                cntr = centrosome_list[cntrID]
-                cfxy = cntr['pos'].value
-                cnt_frames = cfxy.T[0]
+            centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)].keys()
+            sel = f['%s/%s/selection' % (self.condition, self.run)]
+            if 'N%02d' % self.nucleiSelected in sel:
+                sel = sel['N%02d' % self.nucleiSelected]
+                for cntrID in centrosome_list:
+                    centrInA = cntrID in sel['A']
+                    centrInB = cntrID in sel['B']
 
-                if self.frame in cnt_frames:
-                    conditem = QtGui.QStandardItem(cntrID)
-                    if cntrID in sel:
-                        conditem.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
-                    else:
-                        conditem.setData(QtCore.QVariant(Qt.Unchecked), Qt.CheckStateRole)
-                    model.appendRow(conditem)
+                    item = QtGui.QStandardItem(cntrID)
+                    if centrInA:
+                        item.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
+                        item.setCheckable(True)
+                        modelA.appendRow(item)
+                    elif centrInB:
+                        item.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
+                        item.setCheckable(True)
+                        modelB.appendRow(item)
 
-        QtCore.QObject.connect(self.centrosomeListView.selectionModel(),
-                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.nucleiChange)
+        hlab = hdf.LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5')
+        for cntrID in centrosome_list:
+            if not hlab.isCentrosomeAssociated(cntrID, self.condition, self.run):
+                item = QtGui.QStandardItem(cntrID)
+                model.appendRow(item)
+
+        QtCore.QObject.connect(modelA, QtCore.SIGNAL('itemChanged(QStandardItem)'), self.centrosomeTickChange)
+        modelA.itemChanged.connect(self.centrosomeTickChange)
+        modelB.itemChanged.connect(self.centrosomeTickChange)
+
+        QtCore.QObject.connect(modelA, QtCore.SIGNAL("rowsInserted(QModelIndex,int,int)"), self.centrosomeADrop)
+        QtCore.QObject.connect(modelB, QtCore.SIGNAL("rowsInserted(QModelIndex,int,int)"), self.centrosomeBDrop)
+
+    @QtCore.pyqtSlot('QStandardItem')
+    def centrosomeTickChange(self, item):
+        self.centrosomeSelected = str(item.text())
+        if self.centrosomeDropped:
+            self.centrosomeDropped = False
+            hlab = hdf.LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5')
+            c = int(self.centrosomeSelected[1:])
+            hlab.associateCentrosomeWithNuclei(c, self.nucleiSelected, self.condition, self.run, self.centrosomeGroup)
+        elif item.checkState() == QtCore.Qt.Unchecked:
+            hlab = hdf.LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5')
+            hlab.deleteAssociation(self.centrosomeSelected, self.nucleiSelected, self.condition, self.run)
+
+        self.populateNuclei()
+        self.populateCentrosomes()
+        self.renderFrame()
+
+    @QtCore.pyqtSlot('QModelIndex,int,int')
+    def centrosomeADrop(self, item, start, end):
+        self.centrosomeDropped = True
+        self.centrosomeGroup = 0
+
+    @QtCore.pyqtSlot('QModelIndex,int,int')
+    def centrosomeBDrop(self, item, start, end):
+        self.centrosomeDropped = True
+        self.centrosomeGroup = 1
 
     def renderFrame(self):
         with h5py.File(self.hdf5file, "r") as f:
@@ -162,7 +196,7 @@ class ExperimentsList(QtGui.QWidget):
             self.movieImgLabel.setPixmap(self.imagePixmap)
 
     def drawMeasurements(self):
-        print 'drawMeasurements call'
+        # print 'drawMeasurements call'
         with h5py.File(self.hdf5file, "r") as f:
             nuclei_list = f['%s/%s/measurements/nuclei' % (self.condition, self.run)]
             centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)]
@@ -207,15 +241,18 @@ class ExperimentsList(QtGui.QWidget):
                     for nucID in sel:
                         flagIsSelectedNuclei = int(nucID[1:]) == self.nucleiSelected
 
+                        centrInA = cntrID in sel['%s/A' % nucID]
+                        centrInB = cntrID in sel['%s/B' % nucID]
                         painter.setBrush(QColor('transparent'))
-                        if self.nucleiSelected is None or (
-                                            self.nucleiSelected is not None and flagIsSelectedNuclei and cntrID in sel[
-                                    nucID]):
+                        if self.nucleiSelected is None:
                             painter.setPen(QPen(QBrush(QColor('green')), 2))
-                            painter.drawEllipse(cx - 5, cy - 5, 10, 10)
-                        # else:
-                        #     painter.setPen(QPen(QBrush(QColor('gray')), 2))
-                        #     painter.drawEllipse(cx - 5, cy - 5, 10, 10)
+                        elif flagIsSelectedNuclei and centrInA:
+                            painter.setPen(QPen(QBrush(QColor('orange')), 2))
+                        elif flagIsSelectedNuclei and centrInB:
+                            painter.setPen(QPen(QBrush(QColor('red')), 2))
+                        else:
+                            painter.setPen(QPen(QBrush(QColor('gray')), 2))
+                        painter.drawEllipse(cx - 5, cy - 5, 10, 10)
 
                         painter.setPen(QPen(QBrush(QColor('white')), 2))
                         painter.drawText(cx + 10, cy + 5, cntrID)
@@ -234,22 +271,12 @@ if __name__ == '__main__':
     print('PyQt version:', PYQT_VERSION_STR)
     print('Working dir:', os.getcwd())
     print('Base dir:', base_path)
-    print skimage.io.available_plugins
     os.chdir(base_path)
 
     app = QtGui.QApplication(sys.argv)
 
-    folders = ExperimentsList('centrosomes.nexus.hdf5')
+    folders = ExperimentsList('/Users/Fabio/centrosomes.nexus.hdf5')
     # folders.setGeometry(1200, 100, 900, 800)
     folders.show()
-
-    # imgWindow = ImagesWindow(path, df_sel)
-    # sa = QtGui.QScrollArea()
-    # sa.setGeometry(700, 100, 910, 900)
-    # sa.setWidgetResizable(True)
-    # sa.setWidget(imgWindow)
-    # sa.show()
-    # QtCore.QObject.connect(folders, QtCore.SIGNAL('fileSelected(QString)'), imgWindow.applyFilter)
-    # QtCore.QObject.connect(app, QtCore.SIGNAL('aboutToQuit()'), closing)
 
     sys.exit(app.exec_())
