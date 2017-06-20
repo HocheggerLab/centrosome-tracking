@@ -10,7 +10,7 @@ import dataframe_from_imagej as ijdf
 
 
 class LabHDF5NeXusFile():
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, rewrite=False):
         if filename is None:
             self.filename = "fabio_data_hochegger_lab.nexus.hdf5"
         else:
@@ -19,7 +19,8 @@ class LabHDF5NeXusFile():
         timestamp = datetime.datetime.now().isoformat()
 
         # create the HDF5 NeXus file
-        with h5py.File(self.filename, "w") as f:
+        openflag = 'a' if (os.path.isfile(self.filename) or rewrite) else 'w'
+        with h5py.File(self.filename, openflag) as f:
             # point to the default data to be plotted
             f.attrs['default'] = 'entry'
             # give the HDF5 root some more attributes
@@ -52,6 +53,8 @@ class LabHDF5NeXusFile():
             nxentry_proc = nxentry.create_group('processed')
 
     def addTiffSequence(self, tiffpath, experimentTag, run):
+        print "adding tiff:", tiffpath
+
         # open the HDF5 NeXus file
         f = h5py.File(self.filename, "a")
 
@@ -71,7 +74,8 @@ class LabHDF5NeXusFile():
                 if tif.pages[0].resolution_unit == 'centimeter':
                     # asuming square pixels
                     xr = tif.pages[0].x_resolution
-                    res = float(xr[0]) / float(xr[1])
+                    res = float(xr[0]) / float(xr[1])  # pixels per cm
+                    res = res / 1e4  # pixels per um
 
                 if sizeT > 1:
                     p1a = tif.pages[0].asarray()
@@ -105,24 +109,69 @@ class LabHDF5NeXusFile():
         f.close()
 
     def addMeasurements(self, csvpath, experimentTag, run):
-        dfij = ijdf.DataFrameFromImagej(csvpath)
-        dft = dfij.df_csv.set_index('Frame').sort_index()
 
         with h5py.File(self.filename, "a") as f:
             nxmeas = f['%s/%s/measurements' % (experimentTag, run)]
-            for (nucID), filt_nuc_df in dft.groupby('Nuclei'):
+
+            dfc = ijdf.DataFrameFromImagej(csvpath)
+            dfnt = dfc.df_nuclei_csv.set_index('Frame').sort_index()
+            for (nucID), filt_nuc_df in dfnt.groupby('Nuclei'):
                 nxnucl = nxmeas.create_group('nuclei/N%02d' % nucID)
-                # nxcentr = nxnucl.create_group('centrosomes')
-                for (centrID), filt_centr_df in filt_nuc_df.groupby('Centrosome'):
-                    nxcid = nxnucl.create_group('C%03d' % centrID)
-                    nxcid.attrs['NX_class'] = 'NXdata'
-                    cx = filt_centr_df['CentX']
-                    cy = filt_centr_df['CentY']
-                    sx = nxcid.create_dataset('sample_x', data=cx, dtype=cx.dtype)
-                    sy = nxcid.create_dataset('sample_y', data=cy, dtype=cy.dtype)
+                nxnucl.attrs['NX_class'] = 'NXdata'
+                nxnucl.attrs['Nuclei'] = 'N%02d' % nucID
+                nx = filt_nuc_df['NuclX']
+                ny = filt_nuc_df['NuclY']
+                fn = filt_nuc_df.reset_index()
+                p = nxnucl.create_dataset('pos', data=fn[['Frame', 'NuclX', 'NuclY']], dtype=nx.dtype)
+                fr = nxnucl.create_dataset('frame', data=fn['Frame'], dtype=nx.dtype)
+                sx = nxnucl.create_dataset('sample_x', data=nx, dtype=nx.dtype)
+                sy = nxnucl.create_dataset('sample_y', data=ny, dtype=ny.dtype)
+
+            dfct = dfc.df_csv.set_index('Frame').sort_index()
+            for (centrID), filt_centr_df in dfct.groupby('Centrosome'):
+                nucID = filt_centr_df['Nuclei'].unique()[0]
+                nxcid = nxmeas.create_group('centrosomes/C%03d' % centrID)
+                nxcid.attrs['NX_class'] = 'NXdata'
+                cx = filt_centr_df['CentX']
+                cy = filt_centr_df['CentY']
+                cn = filt_centr_df.reset_index()
+                p = nxcid.create_dataset('pos', data=cn[['Frame', 'CentX', 'CentY']], dtype=cx.dtype)
+                p = nxcid.create_dataset('frame', data=cn['Frame'], dtype=cx.dtype)
+                sx = nxcid.create_dataset('sample_x', data=cx, dtype=cx.dtype)
+                sy = nxcid.create_dataset('sample_y', data=cy, dtype=cy.dtype)
+
+                self.associateCentrosomeWithNuclei(centrID, nucID, experimentTag, run)
+
+    def associateCentrosomeWithNuclei(self, centrID, nucID, experimentTag, run):
+        with h5py.File(self.filename, "a") as f:
+            # link centrosome to current nuclei selection
+            source_cpos_addr = '%s/%s/measurements/centrosomes/C%03d/pos' % (experimentTag, run, centrID)
+            # source_centrx_addr = '%s/%s/measurements/centrosomes/C%03d/sample_x' % (experimentTag, run, centrID)
+            # source_centry_addr = '%s/%s/measurements/centrosomes/C%03d/sample_y' % (experimentTag, run, centrID)
+            nxcpos = f[source_cpos_addr]
+            # nxcxid = f[source_centrx_addr]
+            # nxcyid = f[source_centry_addr]
+
+
+            target_addr = '%s/%s/selection/N%02d' % (experimentTag, run, nucID)
+            if target_addr not in f:
+                nxnuc_ = f.create_group(target_addr)
+                source_npos_addr = '%s/%s/measurements/nuclei/N%02d/pos' % (experimentTag, run, nucID)
+                nxnpos = f[source_npos_addr]
+                nxnuc_['pos'] = nxnpos
+
+            nxnuc_ = f[target_addr]
+            nxnuc_cid = nxnuc_.create_group('C%03d' % centrID)
+            nxnuc_cid['pos'] = nxcpos
+            # nxnuc_cid['sample_x'] = nxcxid
+            # nxnuc_cid['sample_y'] = nxcyid
+
+    def moveAssociation(self, ofCentrosome, fromNuclei, toNuclei):
+        pass
 
     def addProcessed(self, experimentTag, run):
         pass
+
 
 def process_dir(path, hdf5f):
     condition = os.path.abspath(args.input).split('/')[-1]
