@@ -59,20 +59,14 @@ class ExperimentsList(QtGui.QWidget):
         self.populateCentrosomes()
 
     def populateFramesList(self):
-        model = QtGui.QStandardItemModel()
-        self.frameListView.setModel(model)
         with h5py.File(self.hdf5file, "r") as f:
             sel = f['%s/%s/raw' % (self.condition, self.run)]
-            for fr in range(len(sel)):
-                # nuc = sel[nucID]
-                conditem = QtGui.QStandardItem('%d' % fr)
-                model.appendRow(conditem)
-        QtCore.QObject.connect(self.frameListView.selectionModel(),
-                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.frameChange)
+            self.frameHSlider.setMaximum(len(sel) - 1)
+        QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('valueChanged(int)'), self.frameSliderChange)
 
-    @QtCore.pyqtSlot('QModelIndex, QModelIndex')
-    def frameChange(self, current, previous):
-        self.frame = int(current.data().toString())
+    @QtCore.pyqtSlot('int')
+    def frameSliderChange(self, value):
+        self.frame = value
         self.renderFrame()
 
     def populateNuclei(self):
