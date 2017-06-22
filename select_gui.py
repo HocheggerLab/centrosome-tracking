@@ -1,12 +1,16 @@
 import os
 
 import h5py
+import matplotlib.pyplot as plt
+
 import numpy as np
+import pandas as pd
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import QAbstractItemView, QBrush, QColor, QPainter, QPen, QPixmap
 
 import hdf5_nexus as hdf
+from dataframe_from_imagej import DataFrameFromImagej as dfij
 
 
 class ExperimentsList(QtGui.QWidget):
@@ -46,26 +50,39 @@ class ExperimentsList(QtGui.QWidget):
         # select first row
         self.experimentsTreeView.setCurrentIndex(model.index(0, 1))
         QtCore.QObject.connect(self.experimentsTreeView.selectionModel(),
-                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.expChange)
+                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.onExpChange)
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
-    def expChange(self, current, previous):
-        self.condition = current.parent().data().toString()
-        self.run = current.data().toString()
+    def onExpChange(self, current, previous):
+        self.condition = str(current.parent().data().toString())
+        self.run = str(current.data().toString())
         self.frame = 0
-        self.populateFramesList()
-        self.renderFrame()
-        self.populateNuclei()
-        self.populateCentrosomes()
+        if len(self.condition)>0:
+            self.populateFramesList()
+            self.renderFrame()
+            self.populateNuclei()
+            self.populateCentrosomes()
+            self.mplDistance.clear()
+        else:
+            self.nucleiListView.model().clear()
+            self.centrosomeListView.model().clear()
+            self.centrosomeListView_A.model().clear()
+            self.centrosomeListView_B.model().clear()
+
+            imgarr = np.zeros(shape=(512, 512), dtype=np.uint32)
+            qtimage = QtGui.QImage(imgarr.data, imgarr.shape[1], imgarr.shape[0], imgarr.strides[0],
+                                   QtGui.QImage.Format_RGB32)
+            qtpixmap = QtGui.QPixmap(qtimage)
+            self.movieImgLabel.setPixmap(qtpixmap)
 
     def populateFramesList(self):
         with h5py.File(self.hdf5file, "r") as f:
             sel = f['%s/%s/raw' % (self.condition, self.run)]
             self.frameHSlider.setMaximum(len(sel) - 1)
-        QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('valueChanged(int)'), self.frameSliderChange)
+        QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('valueChanged(int)'), self.onFrameSliderChange)
 
     @QtCore.pyqtSlot('int')
-    def frameSliderChange(self, value):
+    def onFrameSliderChange(self, value):
         self.frame = value
         self.renderFrame()
 
@@ -85,17 +102,18 @@ class ExperimentsList(QtGui.QWidget):
                 conditem.setCheckable(True)
                 model.appendRow(conditem)
         QtCore.QObject.connect(self.nucleiListView.selectionModel(),
-                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.nucleiChange)
-        model.itemChanged.connect(self.nucleiTickChange)
+                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.onNucleiChange)
+        model.itemChanged.connect(self.onNucleiTickChange)
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
-    def nucleiChange(self, current, previous):
+    def onNucleiChange(self, current, previous):
         self.nucleiSelected = int(current.data().toString()[1:])
         self.populateCentrosomes()
         self.renderFrame()
+        self.plotTracksOfNuclei(self.nucleiSelected)
 
     @QtCore.pyqtSlot('QStandardItem')
-    def nucleiTickChange(self, item):
+    def onNucleiTickChange(self, item):
         self.nucleiSelected = int(item.text()[1:])
         with h5py.File(self.hdf5file, 'a') as f:
             sel = f['%s/%s/selection' % (self.condition, self.run)]
@@ -104,6 +122,15 @@ class ExperimentsList(QtGui.QWidget):
         self.populateNuclei()
         self.populateCentrosomes()
         self.renderFrame()
+
+    def plotTracksOfNuclei(self, nuclei):
+        # with h5py.File(self.hdf5file, "r") as f:
+        #     if 'pandas_dataframe' in f['%s/%s/selection' % (self.condition, self.run)]:
+        df = pd.read_hdf(self.hdf5file, key='%s/%s/selection/pandas_dataframe' % (self.condition, self.run))
+        self.mplDistance.canvas.ax.cla()
+        dfij.plot_distance_to_nucleus(df[df['Nuclei'] == nuclei], self.mplDistance.canvas.ax)
+        self.mplDistance.canvas.draw()
+
 
     def populateCentrosomes(self):
         model = QtGui.QStandardItemModel()
@@ -122,7 +149,7 @@ class ExperimentsList(QtGui.QWidget):
         with h5py.File(self.hdf5file, "r") as f:
             centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)].keys()
             sel = f['%s/%s/selection' % (self.condition, self.run)]
-            if 'N%02d' % self.nucleiSelected in sel:
+            if self.nucleiSelected is not None and 'N%02d' % self.nucleiSelected in sel:
                 sel = sel['N%02d' % self.nucleiSelected]
                 for cntrID in centrosome_list:
                     centrInA = cntrID in sel['A']
@@ -144,36 +171,39 @@ class ExperimentsList(QtGui.QWidget):
                 item = QtGui.QStandardItem(cntrID)
                 model.appendRow(item)
 
-        QtCore.QObject.connect(modelA, QtCore.SIGNAL('itemChanged(QStandardItem)'), self.centrosomeTickChange)
-        modelA.itemChanged.connect(self.centrosomeTickChange)
-        modelB.itemChanged.connect(self.centrosomeTickChange)
+        QtCore.QObject.connect(modelA, QtCore.SIGNAL('itemChanged(QStandardItem)'), self.onCentrosomeTickChange)
+        modelA.itemChanged.connect(self.onCentrosomeTickChange)
+        modelB.itemChanged.connect(self.onCentrosomeTickChange)
 
-        QtCore.QObject.connect(modelA, QtCore.SIGNAL("rowsInserted(QModelIndex,int,int)"), self.centrosomeADrop)
-        QtCore.QObject.connect(modelB, QtCore.SIGNAL("rowsInserted(QModelIndex,int,int)"), self.centrosomeBDrop)
+        QtCore.QObject.connect(modelA, QtCore.SIGNAL("rowsInserted(QModelIndex,int,int)"), self.onCentrosomeADrop)
+        QtCore.QObject.connect(modelB, QtCore.SIGNAL("rowsInserted(QModelIndex,int,int)"), self.onCentrosomeBDrop)
 
     @QtCore.pyqtSlot('QStandardItem')
-    def centrosomeTickChange(self, item):
+    def onCentrosomeTickChange(self, item):
         self.centrosomeSelected = str(item.text())
         if self.centrosomeDropped:
             self.centrosomeDropped = False
             hlab = hdf.LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5')
             c = int(self.centrosomeSelected[1:])
             hlab.associateCentrosomeWithNuclei(c, self.nucleiSelected, self.condition, self.run, self.centrosomeGroup)
+            hlab.processSelection(self.condition, self.run)
         elif item.checkState() == QtCore.Qt.Unchecked:
             hlab = hdf.LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5')
             hlab.deleteAssociation(self.centrosomeSelected, self.nucleiSelected, self.condition, self.run)
+            hlab.processSelection(self.condition, self.run)
 
         self.populateNuclei()
         self.populateCentrosomes()
         self.renderFrame()
+        self.plotTracksOfNuclei(self.nucleiSelected)
 
     @QtCore.pyqtSlot('QModelIndex,int,int')
-    def centrosomeADrop(self, item, start, end):
+    def onCentrosomeADrop(self, item, start, end):
         self.centrosomeDropped = True
         self.centrosomeGroup = 0
 
     @QtCore.pyqtSlot('QModelIndex,int,int')
-    def centrosomeBDrop(self, item, start, end):
+    def onCentrosomeBDrop(self, item, start, end):
         self.centrosomeDropped = True
         self.centrosomeGroup = 1
 
@@ -233,6 +263,7 @@ class ExperimentsList(QtGui.QWidget):
                     cy = cfxy[fidx][2] * self.resolution
 
                     for nucID in sel:
+                        if nucID == 'pandas_dataframe': continue
                         flagIsSelectedNuclei = int(nucID[1:]) == self.nucleiSelected
 
                         centrInA = cntrID in sel['%s/A' % nucID]

@@ -5,9 +5,10 @@ import re
 
 import h5py
 import numpy as np
+import pandas as pd
 import tifffile as tf
 
-import dataframe_from_imagej as ijdf
+from dataframe_from_imagej import DataFrameFromImagej as dfij
 
 
 class LabHDF5NeXusFile():
@@ -20,7 +21,7 @@ class LabHDF5NeXusFile():
         timestamp = datetime.datetime.now().isoformat()
 
         # create the HDF5 NeXus file
-        openflag = 'a' if (os.path.isfile(self.filename) or rewrite) else 'w'
+        openflag = 'w' if (not os.path.isfile(self.filename) or rewrite) else 'a'
         with h5py.File(self.filename, openflag) as f:
             # point to the default data to be plotted
             f.attrs['default'] = 'entry'
@@ -37,8 +38,7 @@ class LabHDF5NeXusFile():
             timestamp = timestamp if timestamp is not None else datetime.datetime.now().isoformat()
 
             gr = '%s/%s' % (group, experimentTag)
-            if gr in f:
-                del f[gr]
+            if gr in f: del f[gr]
 
             # create the NXentry experiment group
             nxentry = f.create_group(gr)
@@ -98,10 +98,10 @@ class LabHDF5NeXusFile():
         f.close()
 
     def addMeasurements(self, csvpath, experimentTag, run):
+        dfc = dfij(csvpath)
         with h5py.File(self.filename, "a") as f:
             nxmeas = f['%s/%s/measurements' % (experimentTag, run)]
 
-            dfc = ijdf.DataFrameFromImagej(csvpath)
             dfnt = dfc.df_nuclei_csv.set_index('Frame').sort_index()
             for (nucID), filt_nuc_df in dfnt.groupby('Nuclei'):
                 nxnucl = nxmeas.create_group('nuclei/N%02d' % nucID)
@@ -138,6 +138,53 @@ class LabHDF5NeXusFile():
                             visitedCentrosomes.append(centrID)
                             nucID = filt_centr_df['Nuclei'].unique()[0]
                             self.associateCentrosomeWithNuclei(centrID, nucID, experimentTag, run, i % 2)
+        dfc.merged_df.to_hdf(self.filename, '%s/%s/measurements/pandas_dataframe' % (experimentTag, run), mode='r+')
+        self.processSelection(experimentTag, run)
+
+    def getSelectionDictsForRun(self, experimentTag, run):
+        centrosome_inclusion_dict = dict()
+        centrosome_exclusion_dict = dict()
+        centrosome_equivalence_dict = dict()
+        joined_tracks = dict()
+        with h5py.File(self.filename, "a") as f:
+            select_addr = '%s/%s/selection' % (experimentTag, run)
+            sel = f[select_addr]
+            nuclei_list = [int(n[1:]) for n in sel if n != 'pandas_dataframe']
+            centrosomes_list = [int(c[1:]) for c in f['%s/%s/measurements/centrosomes' % (experimentTag, run)].keys()]
+
+            for nuclei in sel:
+                if nuclei == 'pandas_dataframe': continue
+                nid = int(nuclei[1:])
+                centrosomes_of_nuclei = [c for c in centrosomes_list if int(c / 100.0) == nid]
+                C = set(centrosomes_of_nuclei)
+                A = set([int(c[1:]) for c in sel[nuclei + '/A']])
+                B = set([int(c[1:]) for c in sel[nuclei + '/B']])
+                inclusion_list = sorted(list(A | B))
+                exclusion_list = sorted(list(C - A - B))
+                centrosome_inclusion_dict[nid] = inclusion_list
+                centrosome_exclusion_dict[nid] = exclusion_list
+                centrosome_equivalence_dict[nid] = list()
+                if len(A) > 1:
+                    centrosome_equivalence_dict[nid].append(sorted(list(A)))
+                if len(B) > 1:
+                    centrosome_equivalence_dict[nid].append(sorted(list(B)))
+        return nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict, joined_tracks
+
+    def processSelection(self, experimentTag, run):
+        nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict, joined_tracks = \
+            self.getSelectionDictsForRun(experimentTag, run)
+
+        pdhdf = pd.read_hdf(self.filename, key='%s/%s/measurements/pandas_dataframe' % (experimentTag, run))
+        proc_df = dfij.process_dataframe(
+            pdhdf, experimentTag,
+            nuclei_list=nuclei_list,
+            centrosome_exclusion_dict=centrosome_exclusion_dict,
+            centrosome_inclusion_dict=centrosome_inclusion_dict,
+            centrosome_equivalence_dict=centrosome_equivalence_dict)
+        if proc_df.empty:
+            print 'dataframe is empty'
+        else:
+            proc_df.to_hdf(self.filename, key='%s/%s/selection/pandas_dataframe' % (experimentTag, run))
 
     def associateCentrosomeWithNuclei(self, centrID, nucID, experimentTag, run, centrosomeGroup=1):
         with h5py.File(self.filename, "a") as f:
