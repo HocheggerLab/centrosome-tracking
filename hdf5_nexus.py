@@ -139,7 +139,21 @@ class LabHDF5NeXusFile():
                             nucID = filt_centr_df['Nuclei'].unique()[0]
                             self.associateCentrosomeWithNuclei(centrID, nucID, experimentTag, run, i % 2)
         dfc.merged_df.to_hdf(self.filename, '%s/%s/measurements/pandas_dataframe' % (experimentTag, run), mode='r+')
-        self.processSelection(experimentTag, run)
+        self.processSelectionForRun(experimentTag, run)
+
+    @property
+    def dataframe(self):
+        out = pd.DataFrame()
+        with h5py.File(self.filename, "r") as f:
+            for experimentTag in f:
+                for run in f['%s' % experimentTag]:
+                    if 'pandas_dataframe' in f['%s/%s/selection' % (experimentTag, run)]:
+                        df = pd.read_hdf(self.filename, key='%s/%s/selection/pandas_dataframe' % (experimentTag, run),
+                                         mode='r')
+                        df['condition'] = experimentTag
+                        df['run'] = run
+                        out = out.append(df)
+        return out
 
     def getSelectionDictsForRun(self, experimentTag, run):
         centrosome_inclusion_dict = dict()
@@ -170,17 +184,15 @@ class LabHDF5NeXusFile():
                     centrosome_equivalence_dict[nid].append(sorted(list(B)))
         return nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict, joined_tracks
 
-    def processSelection(self, experimentTag, run):
+    def processSelectionForRun(self, experimentTag, run):
         nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict, joined_tracks = \
             self.getSelectionDictsForRun(experimentTag, run)
 
         pdhdf = pd.read_hdf(self.filename, key='%s/%s/measurements/pandas_dataframe' % (experimentTag, run))
-        proc_df = dfij.process_dataframe(
-            pdhdf, experimentTag,
-            nuclei_list=nuclei_list,
-            centrosome_exclusion_dict=centrosome_exclusion_dict,
-            centrosome_inclusion_dict=centrosome_inclusion_dict,
-            centrosome_equivalence_dict=centrosome_equivalence_dict)
+        proc_df = dfij.process_dataframe(pdhdf, experimentTag, nuclei_list=nuclei_list,
+                                         centrosome_exclusion_dict=centrosome_exclusion_dict,
+                                         centrosome_inclusion_dict=centrosome_inclusion_dict,
+                                         centrosome_equivalence_dict=centrosome_equivalence_dict)
         if proc_df.empty:
             print 'dataframe is empty'
         else:

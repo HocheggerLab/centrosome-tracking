@@ -1,8 +1,6 @@
 import os
 
 import h5py
-import matplotlib.pyplot as plt
-
 import numpy as np
 import pandas as pd
 from PyQt4 import QtCore, QtGui, uic
@@ -57,7 +55,7 @@ class ExperimentsList(QtGui.QWidget):
         self.condition = str(current.parent().data().toString())
         self.run = str(current.data().toString())
         self.frame = 0
-        if len(self.condition)>0:
+        if len(self.condition) > 0:
             self.populateFramesList()
             self.renderFrame()
             self.populateNuclei()
@@ -74,6 +72,10 @@ class ExperimentsList(QtGui.QWidget):
                                    QtGui.QImage.Format_RGB32)
             qtpixmap = QtGui.QPixmap(qtimage)
             self.movieImgLabel.setPixmap(qtpixmap)
+
+            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+            df = hlab.dataframe
+            df.to_pickle('/Users/Fabio/centrosomes.%s.pandas' % self.run)
 
     def populateFramesList(self):
         with h5py.File(self.hdf5file, "r") as f:
@@ -131,7 +133,6 @@ class ExperimentsList(QtGui.QWidget):
         dfij.plot_distance_to_nucleus(df[df['Nuclei'] == nuclei], self.mplDistance.canvas.ax)
         self.mplDistance.canvas.draw()
 
-
     def populateCentrosomes(self):
         model = QtGui.QStandardItemModel()
         modelA = QtGui.QStandardItemModel()
@@ -143,7 +144,6 @@ class ExperimentsList(QtGui.QWidget):
 
         self.centrosomeListView_A.setModel(modelA)
         self.centrosomeListView_A.setAcceptDrops(True)
-        # self.centrosomeListView_A.setDropIndicatorShown(True)
         self.centrosomeListView_B.setModel(modelB)
         self.centrosomeListView_B.setAcceptDrops(True)
         with h5py.File(self.hdf5file, "r") as f:
@@ -165,7 +165,7 @@ class ExperimentsList(QtGui.QWidget):
                         item.setCheckable(True)
                         modelB.appendRow(item)
 
-        hlab = hdf.LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5')
+        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
         for cntrID in centrosome_list:
             if not hlab.isCentrosomeAssociated(cntrID, self.condition, self.run):
                 item = QtGui.QStandardItem(cntrID)
@@ -183,14 +183,14 @@ class ExperimentsList(QtGui.QWidget):
         self.centrosomeSelected = str(item.text())
         if self.centrosomeDropped:
             self.centrosomeDropped = False
-            hlab = hdf.LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5')
+            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
             c = int(self.centrosomeSelected[1:])
             hlab.associateCentrosomeWithNuclei(c, self.nucleiSelected, self.condition, self.run, self.centrosomeGroup)
-            hlab.processSelection(self.condition, self.run)
+            hlab.processSelectionForRun(self.condition, self.run)
         elif item.checkState() == QtCore.Qt.Unchecked:
-            hlab = hdf.LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5')
+            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
             hlab.deleteAssociation(self.centrosomeSelected, self.nucleiSelected, self.condition, self.run)
-            hlab.processSelection(self.condition, self.run)
+            hlab.processSelectionForRun(self.condition, self.run)
 
         self.populateNuclei()
         self.populateCentrosomes()
@@ -262,23 +262,30 @@ class ExperimentsList(QtGui.QWidget):
                     cx = cfxy[fidx][1] * self.resolution
                     cy = cfxy[fidx][2] * self.resolution
 
-                    for nucID in sel:
-                        if nucID == 'pandas_dataframe': continue
-                        flagIsSelectedNuclei = int(nucID[1:]) == self.nucleiSelected
+                    nuclei_sel = [n for n in sel if n != 'pandas_dataframe']
+                    if len(nuclei_sel) > 0:
+                        for nucID in nuclei_sel:
+                            flagIsSelectedNuclei = int(nucID[1:]) == self.nucleiSelected
 
-                        centrInA = cntrID in sel['%s/A' % nucID]
-                        centrInB = cntrID in sel['%s/B' % nucID]
+                            centrInA = cntrID in sel['%s/A' % nucID]
+                            centrInB = cntrID in sel['%s/B' % nucID]
+                            painter.setBrush(QColor('transparent'))
+                            if self.nucleiSelected is None:
+                                painter.setPen(QPen(QBrush(QColor('green')), 2))
+                            elif flagIsSelectedNuclei and centrInA:
+                                painter.setPen(QPen(QBrush(QColor('orange')), 2))
+                            elif flagIsSelectedNuclei and centrInB:
+                                painter.setPen(QPen(QBrush(QColor('red')), 2))
+                            else:
+                                painter.setPen(QPen(QBrush(QColor('gray')), 2))
+                            painter.drawEllipse(cx - 5, cy - 5, 10, 10)
+
+                            painter.setPen(QPen(QBrush(QColor('white')), 2))
+                            painter.drawText(cx + 10, cy + 5, cntrID)
+                    else:
                         painter.setBrush(QColor('transparent'))
-                        if self.nucleiSelected is None:
-                            painter.setPen(QPen(QBrush(QColor('green')), 2))
-                        elif flagIsSelectedNuclei and centrInA:
-                            painter.setPen(QPen(QBrush(QColor('orange')), 2))
-                        elif flagIsSelectedNuclei and centrInB:
-                            painter.setPen(QPen(QBrush(QColor('red')), 2))
-                        else:
-                            painter.setPen(QPen(QBrush(QColor('gray')), 2))
+                        painter.setPen(QPen(QBrush(QColor('gray')), 2))
                         painter.drawEllipse(cx - 5, cy - 5, 10, 10)
-
                         painter.setPen(QPen(QBrush(QColor('white')), 2))
                         painter.drawText(cx + 10, cy + 5, cntrID)
 

@@ -16,7 +16,7 @@
   <widget class="QLabel" name="movieImgLabel">
    <property name="geometry">
     <rect>
-     <x>220</x>
+     <x>160</x>
      <y>0</y>
      <width>512</width>
      <height>512</height>
@@ -37,7 +37,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>221</width>
+     <width>151</width>
      <height>811</height>
     </rect>
    </property>
@@ -48,7 +48,7 @@
   <widget class="QListView" name="centrosomeListView">
    <property name="geometry">
     <rect>
-     <x>310</x>
+     <x>230</x>
      <y>570</y>
      <width>51</width>
      <height>241</height>
@@ -58,7 +58,7 @@
   <widget class="QListView" name="nucleiListView">
    <property name="geometry">
     <rect>
-     <x>230</x>
+     <x>150</x>
      <y>570</y>
      <width>81</width>
      <height>241</height>
@@ -71,7 +71,7 @@
   <widget class="QLabel" name="nucleiTitleLbl">
    <property name="geometry">
     <rect>
-     <x>230</x>
+     <x>150</x>
      <y>550</y>
      <width>56</width>
      <height>13</height>
@@ -84,7 +84,7 @@
   <widget class="QLabel" name="centrosomesTitleLbl">
    <property name="geometry">
     <rect>
-     <x>300</x>
+     <x>220</x>
      <y>550</y>
      <width>91</width>
      <height>16</height>
@@ -97,7 +97,7 @@
   <widget class="QLabel" name="frameTitleLbl">
    <property name="geometry">
     <rect>
-     <x>230</x>
+     <x>150</x>
      <y>520</y>
      <width>56</width>
      <height>13</height>
@@ -110,7 +110,7 @@
   <widget class="QListView" name="centrosomeListView_A">
    <property name="geometry">
     <rect>
-     <x>360</x>
+     <x>280</x>
      <y>570</y>
      <width>71</width>
      <height>111</height>
@@ -123,7 +123,7 @@
   <widget class="QListView" name="centrosomeListView_B">
    <property name="geometry">
     <rect>
-     <x>360</x>
+     <x>280</x>
      <y>700</y>
      <width>71</width>
      <height>111</height>
@@ -136,7 +136,7 @@
   <widget class="QLabel" name="centrosomesTitleLbl_A">
    <property name="geometry">
     <rect>
-     <x>410</x>
+     <x>330</x>
      <y>550</y>
      <width>16</width>
      <height>16</height>
@@ -149,7 +149,7 @@
   <widget class="QLabel" name="centrosomesTitleLbl_B">
    <property name="geometry">
     <rect>
-     <x>410</x>
+     <x>330</x>
      <y>680</y>
      <width>16</width>
      <height>16</height>
@@ -162,7 +162,7 @@
   <widget class="QSlider" name="frameHSlider">
    <property name="geometry">
     <rect>
-     <x>230</x>
+     <x>170</x>
      <y>490</y>
      <width>481</width>
      <height>20</height>
@@ -184,9 +184,9 @@
   <widget class="MplWidget" name="mplDistance" native="true">
    <property name="geometry">
     <rect>
-     <x>420</x>
+     <x>350</x>
      <y>510</y>
-     <width>311</width>
+     <width>381</width>
      <height>311</height>
     </rect>
    </property>

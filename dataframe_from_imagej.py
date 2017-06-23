@@ -3,6 +3,7 @@ import re
 
 import jinja2 as j2
 import matplotlib
+import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -113,7 +114,8 @@ class DataFrameFromImagej(object):
 
         return u.stack().reset_index(), umask.stack().reset_index()
 
-    def join_tracks(self, df, cn, cm):
+    @staticmethod
+    def join_tracks(df, cn, cm):
         u = df[df['Centrosome'].isin([cn, cm])]
         # search for sup{lny}
         supdn = u.groupby('Centrosome')['Time'].max()
@@ -121,13 +123,11 @@ class DataFrameFromImagej(object):
         tc = supdn[supdn == supdn.min()].values[0]
 
         s = u.set_index(['Time', 'Centrosome']).unstack('Centrosome')
-        # s.index.get_level_values('Centrosome').unique() # centrosome values
         # where are the NaN's?
         nans_are_in = s['Frame'].transpose().isnull().any(axis=1)
         nans_are_in = list(nans_are_in.ix[nans_are_in].keys())[0]
 
         mask = s.isnull().stack().reset_index()
-        # if (d[d['Time'] == tc]['DistCentr'] < self.d_threshold).bool():
 
         if nans_are_in == cm:
             g = s[s.index > tc].transpose().fillna(method='ffill').transpose()
@@ -172,41 +172,41 @@ class DataFrameFromImagej(object):
         int_time = _ndf[_ndf['Frame'] == int_frame]['Time'].unique()[0]
         int_dist_min = min(_ndf[_ndf['Frame'] == int_frame]['Dist'])
 
-        df_rowc = pd.DataFrame({'Tag'   : self.fname,
+        df_rowc = pd.DataFrame({'Tag': self.fname,
                                 'Nuclei': _ndf['Nuclei'].unique()[0],
-                                'Frame' : [frame_contact],
-                                'Time'  : [time_contact],
-                                'Stat'  : 'Contact',
-                                'Type'  : 'Contact',
-                                'Dist'  : [dist_contact]})
-        df_row1 = pd.DataFrame({'Tag'   : self.fname,
+                                'Frame': [frame_contact],
+                                'Time': [time_contact],
+                                'Stat': 'Contact',
+                                'Type': 'Contact',
+                                'Dist': [dist_contact]})
+        df_row1 = pd.DataFrame({'Tag': self.fname,
                                 'Nuclei': _ndf['Nuclei'].unique()[0],
-                                'Frame' : [frame_before],
-                                'Time'  : [time_before],
-                                'Stat'  : 'Contact',
-                                'Type'  : 'Away',
-                                'Dist'  : [max_dist]})
-        df_row2 = pd.DataFrame({'Tag'   : self.fname,
+                                'Frame': [frame_before],
+                                'Time': [time_before],
+                                'Stat': 'Contact',
+                                'Type': 'Away',
+                                'Dist': [max_dist]})
+        df_row2 = pd.DataFrame({'Tag': self.fname,
                                 'Nuclei': _ndf['Nuclei'].unique()[0],
-                                'Frame' : [frame_before],
-                                'Time'  : [time_before],
-                                'Stat'  : 'Contact',
-                                'Type'  : 'Close',
-                                'Dist'  : [min_dist]})
-        df_row_ini = pd.DataFrame({'Tag'   : self.fname,
+                                'Frame': [frame_before],
+                                'Time': [time_before],
+                                'Stat': 'Contact',
+                                'Type': 'Close',
+                                'Dist': [min_dist]})
+        df_row_ini = pd.DataFrame({'Tag': self.fname,
                                    'Nuclei': _ndf['Nuclei'].unique()[0],
-                                   'Frame' : [ini_frame],
-                                   'Time'  : [ini_time],
-                                   'Stat'  : 'Snapshot',
-                                   'Type'  : 'Initial',
-                                   'Dist'  : [ini_dist_min]})
-        df_row_int = pd.DataFrame({'Tag'   : self.fname,
+                                   'Frame': [ini_frame],
+                                   'Time': [ini_time],
+                                   'Stat': 'Snapshot',
+                                   'Type': 'Initial',
+                                   'Dist': [ini_dist_min]})
+        df_row_int = pd.DataFrame({'Tag': self.fname,
                                    'Nuclei': _ndf['Nuclei'].unique()[0],
-                                   'Frame' : [int_time],
-                                   'Time'  : [int_frame],
-                                   'Stat'  : 'Snapshot',
-                                   'Type'  : '100min',
-                                   'Dist'  : [int_dist_min]})
+                                   'Frame': [int_time],
+                                   'Time': [int_frame],
+                                   'Stat': 'Snapshot',
+                                   'Type': '100min',
+                                   'Dist': [int_dist_min]})
 
         self.stats = self.stats.append(df_row1, ignore_index=True)
         self.stats = self.stats.append(df_row2, ignore_index=True)
@@ -324,40 +324,38 @@ class DataFrameFromImagej(object):
 
     # TODO: move to mplwidget
     @staticmethod
-    def plot_distance_to_nucleus(df, ax, mask=None, filename=None):
+    def plot_distance_to_nucleus(df, ax, filename=None):
         # TODO: missing global parameter use
         nucleus_id = df['Nuclei'].min()
 
         # re-scale time
-        # df['Time'] /= 60.0
+        df['Time'] /= 60.0
 
         # get time of contact
         time_contact, frame_contact, dist_contact = DataFrameFromImagej.get_contact_time(df, 1.0)  # TODO: param here
 
+        dhandles, dlabels = list(), list()
         for [(lblCentr), _df], k in zip(df.groupby(['Centrosome']), range(len(df.groupby(['Centrosome'])))):
             track = _df.set_index('Time').sort_index()
 
-            # tmask = mask[mask['Centrosome'] == lblCentr].set_index(['Time'])['Frame']
-            tmask = []
-
             color = sns.color_palette()[k]
-            track['Dist'].plot(ax=ax, label='N%d-C%d' % (nucleus_id, lblCentr), marker=None, sharex=True, c=color)
+            dlbl = 'N%d-C%d' % (nucleus_id, lblCentr)
+            track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+            dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
+            dlabels.append(dlbl)
 
-            if len(tmask) > 0:
-                if len(track['Dist'][tmask]) > 0:
-                    track['Dist'][tmask].plot(ax=ax, label='Original', marker='o', linewidth=0, c=color)
-                if len(track['Dist'][~tmask]) > 0:
-                    track['Dist'][~tmask].plot(ax=ax, label='Gen', marker='<', linewidth=0, c=color)
-            else:
-                # track['Dist'].plot(ax=ax, label='Original', marker='o', linewidth=0, c=color)
-                track['Dist'].plot(ax=ax, marker='o', linewidth=0, c=color)
+            if len(track['Dist'][track['dist_mask']]) > 0:
+                track['Dist'][track['dist_mask']].plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0,
+                                                       c=color)
+            if len(track['Dist'][~track['dist_mask']]) > 0:
+                track['Dist'][~track['dist_mask']].plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
 
             # plot time of contact
             if time_contact is not None:
                 ax.axvline(x=time_contact, color='dimgray', linestyle='--')
                 ax.axvline(x=time_contact - 30, color='lightgray', linestyle='--')  # TODO: param here
 
-        ax.legend()
+        ax.legend(dhandles, dlabels)
         ax.set_ylabel('Dist to Nuclei $[\mu m]$')
         ax.set_xlabel('Time $[min]$')
 
@@ -408,9 +406,6 @@ class DataFrameFromImagej(object):
                 if (max_time_dict is not None) and (nucleusID in max_time_dict):
                     filtered_nuc_df = filtered_nuc_df[filtered_nuc_df['Time'] <= max_time_dict[nucleusID]]
 
-                # get centrosome list before manipulation
-                centrosome_list = sorted(filtered_nuc_df['Centrosome'].unique())
-
                 if centrosome_equivalence_dict is not None:
                     if nucleusID in centrosome_equivalence_dict.keys():
                         centr_repl = list()
@@ -422,7 +417,6 @@ class DataFrameFromImagej(object):
                                     filtered_nuc_df = DataFrameFromImagej.merge_tracks(filtered_nuc_df, cn, min_cm)
                                     ceq[cn] = min_cm
                             centr_repl.append(ceq.copy())
-                            # DataFrameFromImagej.centrosome_replacements[nucleusID] = centr_repl
 
                 c_tags = ''
                 if nucleusID in centrosome_equivalence_dict:
@@ -431,14 +425,6 @@ class DataFrameFromImagej(object):
                         rest_c = set(equivs) - set([min_c])
                         c_tags += ' C%d was merged with (%s),' % (min_c, ''.join('C%d,' % c for c in rest_c)[0:-1])
                 print c_tags[0:-1] + '.'
-
-                # nuc_item = {'filename'               : self.path_csv,
-                #             'exp_id'                 : exp_id,
-                #             'nuclei_id'              : '%d ' % nucleusID,
-                #             'nuclei_centrosomes_tags': ''.join(
-                #                 ['C%d, ' % cnId for cnId in centrosome_list])[:-2] + '. ' + c_tags,
-                #             'centrosomes_img'        : 'img/%s-nuc_%d.svg' % (exp_id, nucleusID)}
-                # nuclei_data.append(nuc_item)
 
                 filtered_nuc_df, imask = DataFrameFromImagej.interpolate_data(filtered_nuc_df)
 
@@ -451,7 +437,7 @@ class DataFrameFromImagej(object):
                             filtered_nuc_df, jmask = DataFrameFromImagej.join_tracks(filtered_nuc_df, centId[0],
                                                                                      centId[1])
 
-                # compute mas as logical AND of joined track mask and interpolated data mask
+                # compute mask as logical AND of joined track mask and interpolated data mask
                 im = imask.set_index(['Time', 'Centrosome'])
                 try:
                     jm = jmask.set_index(['Time', 'Centrosome'])
@@ -461,28 +447,20 @@ class DataFrameFromImagej(object):
 
                 # compute velocity again with interpolated data
                 filtered_nuc_df = DataFrameFromImagej.compute_velocity_acceleration(filtered_nuc_df)
-                # filtered_nuc_df['gap'] = mask
+                filtered_nuc_df['dist_mask'] = mask['Dist']
+                filtered_nuc_df['speed_mask'] = mask['Speed']
+                filtered_nuc_df['acc_mask'] = mask['Acc']
                 df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
         return df_filtered_nucs
 
-    def html_centrosomes_report(self, nuclei_list=None,
-                                centrosome_exclusion_dict=None,
-                                centrosome_inclusion_dict=None,
-                                centrosome_equivalence_dict=None,
-                                joined_tracks=None,
-                                nuclei_equivalence_dict=None,
-                                max_time_dict=None):
-        htmlout = '<h3>Filename: %s.avi</h3>' % self.fname
+    @staticmethod
+    def html_centrosomes_report(df, experimentTag, run):
+        htmlout = '<h3>Experiment Group: %s, run: %s</h3>' % (experimentTag, run)
 
-        self.filtered_df = self.process_dataframe(centrosome_exclusion_dict, centrosome_inclusion_dict)
-        df = self.merged_df
-        print self.centrosome_replacements
-
-        for (nucleusID), filtered_nuc_df in self.filtered_df.groupby(['Nuclei']):
-            if nucleusID in nuclei_list:
-                mask, nuc_item = None, None
-                self.plot_nucleus_dataframe(filtered_nuc_df, mask, 'out/%s' % nuc_item['centrosomes_img'])
-                self.add_stats(filtered_nuc_df)
+        for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
+            mask, nuc_item = None, None
+            DataFrameFromImagej.plot_nucleus_dataframe(filtered_nuc_df, mask, 'out/%s' % nuc_item['centrosomes_img'])
+            DataFrameFromImagej.add_stats(filtered_nuc_df)
 
         template = """
                 {% for nuc_item in nuclei_list %}
@@ -498,7 +476,6 @@ class DataFrameFromImagej(object):
                 <div style="page-break-after: always"></div>
                 {% endfor %}
             """
-        nuclei_data = ''
         templ = j2.Template(template)
-        htmlout += templ.render({'nuclei_list': nuclei_data})
-        return htmlout, self.filtered_df
+        htmlout += templ.render({'nuclei_list': df.groupby(['Nuclei']).groups})
+        return htmlout
