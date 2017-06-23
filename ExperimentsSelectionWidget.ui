@@ -13,7 +13,7 @@
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <widget class="QLabel" name="movieImgLabel">
+  <widget class="CentrosomeImageQLabel" name="movieImgLabel">
    <property name="geometry">
     <rect>
      <x>160</x>
@@ -201,6 +201,11 @@
    <extends>QWidget</extends>
    <header>mplwidget</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>CentrosomeImageQLabel</class>
+   <extends>QLabel</extends>
+   <header>centrosome_image_qlabel</header>
   </customwidget>
  </customwidgets>
  <resources/>

@@ -12,7 +12,7 @@ from dataframe_from_imagej import DataFrameFromImagej as dfij
 
 
 class LabHDF5NeXusFile():
-    def __init__(self, filename=None, rewrite=False):
+    def __init__(self, filename=None, rewrite=False, append_data=True):
         if filename is None:
             self.filename = "fabio_data_hochegger_lab.nexus.hdf5"
         else:
@@ -21,7 +21,10 @@ class LabHDF5NeXusFile():
         timestamp = datetime.datetime.now().isoformat()
 
         # create the HDF5 NeXus file
-        openflag = 'w' if (not os.path.isfile(self.filename) or rewrite) else 'a'
+        if rewrite:
+            openflag = 'w' if (not os.path.isfile(self.filename)) else 'a'
+        if append_data:
+            openflag = 'r+'
         with h5py.File(self.filename, openflag) as f:
             # point to the default data to be plotted
             f.attrs['default'] = 'entry'
@@ -33,11 +36,11 @@ class LabHDF5NeXusFile():
             f.attrs['HDF5_Version'] = h5py.version.hdf5_version
             f.attrs['h5py_version'] = h5py.version.version
 
-    def addExperiment(self, group, experimentTag, timestamp=None, tags=None):
+    def add_experiment(self, group, experiment_tag, timestamp=None, tags=None):
         with h5py.File(self.filename, "a") as f:
             timestamp = timestamp if timestamp is not None else datetime.datetime.now().isoformat()
 
-            gr = '%s/%s' % (group, experimentTag)
+            gr = '%s/%s' % (group, experiment_tag)
             if gr in f: del f[gr]
 
             # create the NXentry experiment group
@@ -47,18 +50,22 @@ class LabHDF5NeXusFile():
             nxentry.attrs['default'] = 'processed'
 
             nxentry_raw = nxentry.create_group('raw')
+            nxentry_raw.attrs['NX_class'] = 'NXgroup'
             nxentry_meas = nxentry.create_group('measurements')
+            nxentry_meas.attrs['NX_class'] = 'NXgroup'
             nxentry_sel = nxentry.create_group('selection')
+            nxentry_sel.attrs['NX_class'] = 'NXgroup'
             nxentry_proc = nxentry.create_group('processed')
+            nxentry_proc.attrs['NX_class'] = 'NXgroup'
 
-    def addTiffSequence(self, tiffpath, experimentTag, run):
+    def add_tiff_sequence(self, tiffpath, experiment_tag, run):
         print "adding tiff:", tiffpath
 
         # open the HDF5 NeXus file
         f = h5py.File(self.filename, "a")
 
         # create the NXentry group
-        nxdata = f['%s/%s/raw' % (experimentTag, run)]
+        nxdata = f['%s/%s/raw' % (experiment_tag, run)]
         nxdata.attrs['NX_class'] = 'NXdata'
         nxdata.attrs['signal'] = 'Y'  # Y axis of default plot
         nxdata.attrs['axes'] = 'X'  # X axis of default plot
@@ -97,16 +104,16 @@ class LabHDF5NeXusFile():
                             ch.attrs['IMAGE_VERSION'] = np.string_('1.2')
         f.close()
 
-    def addMeasurements(self, csvpath, experimentTag, run):
+    def add_measurements(self, csvpath, experiment_tag, run):
         dfc = dfij(csvpath)
         with h5py.File(self.filename, "a") as f:
-            nxmeas = f['%s/%s/measurements' % (experimentTag, run)]
+            nxmeas = f['%s/%s/measurements' % (experiment_tag, run)]
 
             dfnt = dfc.df_nuclei_csv.set_index('Frame').sort_index()
-            for (nucID), filt_nuc_df in dfnt.groupby('Nuclei'):
-                nxnucl = nxmeas.create_group('nuclei/N%02d' % nucID)
+            for (nuc_id), filt_nuc_df in dfnt.groupby('Nuclei'):
+                nxnucl = nxmeas.create_group('nuclei/N%02d' % nuc_id)
                 nxnucl.attrs['NX_class'] = 'NXdata'
-                nxnucl.attrs['Nuclei'] = 'N%02d' % nucID
+                nxnucl.attrs['Nuclei'] = 'N%02d' % nuc_id
                 nx = filt_nuc_df['NuclX']
                 ny = filt_nuc_df['NuclY']
                 fn = filt_nuc_df.reset_index()
@@ -117,9 +124,9 @@ class LabHDF5NeXusFile():
 
             dfct = dfc.df_csv.set_index('Frame').sort_index()
 
-            for (centrID), filt_centr_df in dfct.groupby('Centrosome'):
-                nucID = filt_centr_df['Nuclei'].unique()[0]
-                nxcid = nxmeas.create_group('centrosomes/C%03d' % centrID)
+            for (centr_id), filt_centr_df in dfct.groupby('Centrosome'):
+                nuc_id = filt_centr_df['Nuclei'].unique()[0]
+                nxcid = nxmeas.create_group('centrosomes/C%03d' % centr_id)
                 nxcid.attrs['NX_class'] = 'NXdata'
                 cx = filt_centr_df['CentX']
                 cy = filt_centr_df['CentY']
@@ -130,41 +137,41 @@ class LabHDF5NeXusFile():
                 sy = nxcid.create_dataset('sample_y', data=cy, dtype=cy.dtype)
 
             visitedCentrosomes = []
-            for (centrID), filt_centr_df in dfct.groupby('Centrosome'):
-                centrosomesOfNuclei = dfct[dfct['Nuclei'] == nucID].groupby('Centrosome')
+            for (centr_id), filt_centr_df in dfct.groupby('Centrosome'):
+                centrosomesOfNuclei = dfct[dfct['Nuclei'] == nuc_id].groupby('Centrosome')
                 if len(centrosomesOfNuclei.groups) >= 2:
-                    for i, ((centrID), filt_centr_df) in enumerate(centrosomesOfNuclei):
-                        if centrID not in visitedCentrosomes:
-                            visitedCentrosomes.append(centrID)
-                            nucID = filt_centr_df['Nuclei'].unique()[0]
-                            self.associateCentrosomeWithNuclei(centrID, nucID, experimentTag, run, i % 2)
-        dfc.merged_df.to_hdf(self.filename, '%s/%s/measurements/pandas_dataframe' % (experimentTag, run), mode='r+')
-        self.processSelectionForRun(experimentTag, run)
+                    for i, ((centr_id), filt_centr_df) in enumerate(centrosomesOfNuclei):
+                        if centr_id not in visitedCentrosomes:
+                            visitedCentrosomes.append(centr_id)
+                            nuc_id = filt_centr_df['Nuclei'].unique()[0]
+                            self.associate_centrosome_with_nuclei(centr_id, nuc_id, experiment_tag, run, i % 2)
+        dfc.merged_df.to_hdf(self.filename, '%s/%s/measurements/pandas_dataframe' % (experiment_tag, run), mode='r+')
+        self.process_selection_for_run(experiment_tag, run)
 
     @property
     def dataframe(self):
         out = pd.DataFrame()
         with h5py.File(self.filename, "r") as f:
-            for experimentTag in f:
-                for run in f['%s' % experimentTag]:
-                    if 'pandas_dataframe' in f['%s/%s/selection' % (experimentTag, run)]:
-                        df = pd.read_hdf(self.filename, key='%s/%s/selection/pandas_dataframe' % (experimentTag, run),
+            for experiment_tag in f:
+                for run in f['%s' % experiment_tag]:
+                    if 'pandas_dataframe' in f['%s/%s/selection' % (experiment_tag, run)]:
+                        df = pd.read_hdf(self.filename, key='%s/%s/selection/pandas_dataframe' % (experiment_tag, run),
                                          mode='r')
-                        df['condition'] = experimentTag
+                        df['condition'] = experiment_tag
                         df['run'] = run
                         out = out.append(df)
         return out
 
-    def getSelectionDictsForRun(self, experimentTag, run):
+    def selectiondicts_run(self, experiment_tag, run):
         centrosome_inclusion_dict = dict()
         centrosome_exclusion_dict = dict()
         centrosome_equivalence_dict = dict()
         joined_tracks = dict()
         with h5py.File(self.filename, "a") as f:
-            select_addr = '%s/%s/selection' % (experimentTag, run)
+            select_addr = '%s/%s/selection' % (experiment_tag, run)
             sel = f[select_addr]
             nuclei_list = [int(n[1:]) for n in sel if n != 'pandas_dataframe']
-            centrosomes_list = [int(c[1:]) for c in f['%s/%s/measurements/centrosomes' % (experimentTag, run)].keys()]
+            centrosomes_list = [int(c[1:]) for c in f['%s/%s/measurements/centrosomes' % (experiment_tag, run)].keys()]
 
             for nuclei in sel:
                 if nuclei == 'pandas_dataframe': continue
@@ -184,28 +191,28 @@ class LabHDF5NeXusFile():
                     centrosome_equivalence_dict[nid].append(sorted(list(B)))
         return nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict, joined_tracks
 
-    def processSelectionForRun(self, experimentTag, run):
+    def process_selection_for_run(self, experiment_tag, run):
         nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict, joined_tracks = \
-            self.getSelectionDictsForRun(experimentTag, run)
+            self.selectiondicts_run(experiment_tag, run)
 
-        pdhdf = pd.read_hdf(self.filename, key='%s/%s/measurements/pandas_dataframe' % (experimentTag, run))
-        proc_df = dfij.process_dataframe(pdhdf, experimentTag, nuclei_list=nuclei_list,
+        pdhdf = pd.read_hdf(self.filename, key='%s/%s/measurements/pandas_dataframe' % (experiment_tag, run))
+        proc_df = dfij.process_dataframe(pdhdf, experiment_tag, nuclei_list=nuclei_list,
                                          centrosome_exclusion_dict=centrosome_exclusion_dict,
                                          centrosome_inclusion_dict=centrosome_inclusion_dict,
                                          centrosome_equivalence_dict=centrosome_equivalence_dict)
         if proc_df.empty:
             print 'dataframe is empty'
         else:
-            proc_df.to_hdf(self.filename, key='%s/%s/selection/pandas_dataframe' % (experimentTag, run))
+            proc_df.to_hdf(self.filename, key='%s/%s/selection/pandas_dataframe' % (experiment_tag, run))
 
-    def associateCentrosomeWithNuclei(self, centrID, nucID, experimentTag, run, centrosomeGroup=1):
+    def associate_centrosome_with_nuclei(self, centr_id, nuc_id, experiment_tag, run, centrosome_group=1):
         with h5py.File(self.filename, "a") as f:
             # link centrosome to current nuclei selection
-            source_cpos_addr = '%s/%s/measurements/centrosomes/C%03d/pos' % (experimentTag, run, centrID)
-            source_npos_addr = '%s/%s/measurements/nuclei/N%02d/pos' % (experimentTag, run, nucID)
+            source_cpos_addr = '%s/%s/measurements/centrosomes/C%03d/pos' % (experiment_tag, run, centr_id)
+            source_npos_addr = '%s/%s/measurements/nuclei/N%02d/pos' % (experiment_tag, run, nuc_id)
             nxcpos = f[source_cpos_addr]
 
-            target_addr = '%s/%s/selection/N%02d' % (experimentTag, run, nucID)
+            target_addr = '%s/%s/selection/N%02d' % (experiment_tag, run, nuc_id)
             if target_addr not in f:
                 nxnuc_ = f.create_group(target_addr)
                 nxnuc_.create_group('A')
@@ -213,27 +220,27 @@ class LabHDF5NeXusFile():
                 nxnpos = f[source_npos_addr]
                 nxnuc_['pos'] = nxnpos
 
-            cstr = 'A' if centrosomeGroup == 0 else 'B'
+            cstr = 'A' if centrosome_group == 0 else 'B'
             nxnuc_ = f['%s/%s' % (target_addr, cstr)]
-            nxnuc_['C%03d' % centrID] = nxcpos
+            nxnuc_['C%03d' % centr_id] = nxcpos
 
-    def deleteAssociation(self, ofCentrosome, withNuclei, experimentTag, run):
+    def delete_association(self, of_centrosome, with_nuclei, experiment_tag, run):
         with h5py.File(self.filename, "a") as f:
-            centosomesA = f['%s/%s/selection/N%02d/A' % (experimentTag, run, withNuclei)]
-            centosomesB = f['%s/%s/selection/N%02d/B' % (experimentTag, run, withNuclei)]
-            if ofCentrosome in centosomesA:
-                del centosomesA[ofCentrosome]
-            if ofCentrosome in centosomesB:
-                del centosomesB[ofCentrosome]
+            centosomesA = f['%s/%s/selection/N%02d/A' % (experiment_tag, run, with_nuclei)]
+            centosomesB = f['%s/%s/selection/N%02d/B' % (experiment_tag, run, with_nuclei)]
+            if of_centrosome in centosomesA:
+                del centosomesA[of_centrosome]
+            if of_centrosome in centosomesB:
+                del centosomesB[of_centrosome]
 
-    def moveAssociation(self, ofCentrosome, fromNuclei, toNuclei, centrosomeGroup, experimentTag, run):
-        self.deleteAssociation(ofCentrosome, fromNuclei, experimentTag, run)
-        self.associateCentrosomeWithNuclei(ofCentrosome, toNuclei, experimentTag, run)
+    def move_association(self, of_centrosome, from_nuclei, toNuclei, centrosome_group, experiment_tag, run):
+        self.delete_association(of_centrosome, from_nuclei, experiment_tag, run)
+        self.associate_centrosome_with_nuclei(of_centrosome, toNuclei, experiment_tag, run)
 
-    def isCentrosomeAssociated(self, centrosome, experimentTag, run):
+    def is_centrosome_associated(self, centrosome, experiment_tag, run):
         with h5py.File(self.filename, "r") as f:
-            nuclei_list = f['%s/%s/measurements/nuclei' % (experimentTag, run)]
-            sel = f['%s/%s/selection' % (experimentTag, run)]
+            nuclei_list = f['%s/%s/measurements/nuclei' % (experiment_tag, run)]
+            sel = f['%s/%s/selection' % (experiment_tag, run)]
             for nuclei in nuclei_list:
                 if nuclei in sel:
                     nuc = sel[nuclei]
@@ -241,7 +248,7 @@ class LabHDF5NeXusFile():
                         return True
         return False
 
-    def addProcessed(self, experimentTag, run):
+    def add_processed(self, experiment_tag, run):
         pass
 
 
@@ -258,13 +265,13 @@ def process_dir(path, hdf5f):
                 run_id = groups[1]
                 run_str = 'run_%s' % run_id
                 print 'adding raw file: %s' % joinf
-                hdf5.addExperiment(condition, run_str)
-                hdf5f.addTiffSequence(joinf, condition, run_str)
+                hdf5.add_experiment(condition, run_str)
+                hdf5f.add_tiff_sequence(joinf, condition, run_str)
 
                 centdata = os.path.join(path, 'data', '%s-%s-table.csv' % (condition, run_id))
                 nucldata = os.path.join(path, 'data', '%s-%s-nuclei.csv' % (condition, run_id))
                 print 'adding data file: %s' % centdata
-                hdf5f.addMeasurements(centdata, condition, run_str)
+                hdf5f.add_measurements(centdata, condition, run_str)
 
 
 if __name__ == '__main__':
