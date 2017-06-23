@@ -2,6 +2,7 @@ import argparse
 import datetime
 import os
 import re
+from subprocess import call
 
 import h5py
 import numpy as np
@@ -12,29 +13,22 @@ from dataframe_from_imagej import DataFrameFromImagej as dfij
 
 
 class LabHDF5NeXusFile():
-    def __init__(self, filename=None, rewrite=False, append_data=True):
-        if filename is None:
-            self.filename = "fabio_data_hochegger_lab.nexus.hdf5"
-        else:
-            self.filename = filename
+    def __init__(self, filename='fabio_data_hochegger_lab.nexus.hdf5', fileflag='r'):
+        self.filename = filename
 
-        timestamp = datetime.datetime.now().isoformat()
-
-        # create the HDF5 NeXus file
-        if rewrite:
-            openflag = 'w' if (not os.path.isfile(self.filename)) else 'a'
-        if append_data:
-            openflag = 'r+'
-        with h5py.File(self.filename, openflag) as f:
-            # point to the default data to be plotted
-            f.attrs['default'] = 'entry'
-            # give the HDF5 root some more attributes
-            f.attrs['file_name'] = self.filename
-            f.attrs['file_time'] = timestamp
-            f.attrs['creator'] = 'fabio@hochegger.lab'
-            f.attrs['NeXus_version'] = '4.3.0'
-            f.attrs['HDF5_Version'] = h5py.version.hdf5_version
-            f.attrs['h5py_version'] = h5py.version.version
+        # open the HDF5 NeXus file
+        if fileflag in ['w', 'a', 'r+']:
+            with h5py.File(self.filename, fileflag) as f:
+                # point to the default data to be plotted
+                f.attrs['default'] = 'entry'
+                # give the HDF5 root some more attributes
+                f.attrs['file_name'] = self.filename
+                timestamp = datetime.datetime.now().isoformat()
+                f.attrs['file_time'] = timestamp
+                f.attrs['creator'] = 'fabio@hochegger.lab'
+                f.attrs['NeXus_version'] = '4.3.0'
+                f.attrs['HDF5_Version'] = h5py.version.hdf5_version
+                f.attrs['h5py_version'] = h5py.version.version
 
     def add_experiment(self, group, experiment_tag, timestamp=None, tags=None):
         with h5py.File(self.filename, "a") as f:
@@ -259,19 +253,22 @@ def process_dir(path, hdf5f):
         for filename in filenames:
             ext = filename.split('.')[-1]
             if ext == 'tif':
-                print '\r\n--------------------------------------------------------------'
                 joinf = os.path.join(root, filename)
-                groups = re.search('^(.+)-(.+).tif$', filename).groups()
-                run_id = groups[1]
-                run_str = 'run_%s' % run_id
-                print 'adding raw file: %s' % joinf
-                hdf5.add_experiment(condition, run_str)
-                hdf5f.add_tiff_sequence(joinf, condition, run_str)
+                try:
+                    print '\r\n--------------------------------------------------------------'
+                    groups = re.search('^(.+)-(.+).tif$', filename).groups()
+                    run_id = groups[1]
+                    run_str = 'run_%s' % run_id
+                    print 'adding raw file: %s' % joinf
+                    hdf5.add_experiment(condition, run_str)
+                    hdf5f.add_tiff_sequence(joinf, condition, run_str)
 
-                centdata = os.path.join(path, 'data', '%s-%s-table.csv' % (condition, run_id))
-                nucldata = os.path.join(path, 'data', '%s-%s-nuclei.csv' % (condition, run_id))
-                print 'adding data file: %s' % centdata
-                hdf5f.add_measurements(centdata, condition, run_str)
+                    centdata = os.path.join(path, 'data', '%s-%s-table.csv' % (condition, run_id))
+                    nucldata = os.path.join(path, 'data', '%s-%s-nuclei.csv' % (condition, run_id))
+                    print 'adding data file: %s' % centdata
+                    hdf5f.add_measurements(centdata, condition, run_str)
+                except:
+                    print 'error processing %s' % joinf
 
 
 if __name__ == '__main__':
@@ -282,6 +279,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Create hdf5 file if it doesn't exist
-    hdf5 = LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5', rewrite=True)
-
-    process_dir(args.input, hdf5)
+    hdf5 = LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5', fileflag='a')
+    try:
+        process_dir(args.input, hdf5)
+    finally:
+        print '\r\n\r\n--------------------------------------------------------------'
+        print 'shrinking file size...'
+        call('h5repack /Users/Fabio/centrosomes.nexus.hdf5 /Users/Fabio/repack.hdf5', shell=True)
+        os.remove('/Users/Fabio/centrosomes.nexus.hdf5')
+        os.rename('/Users/Fabio/repack.hdf5', '/Users/Fabio/centrosomes.nexus.hdf5')

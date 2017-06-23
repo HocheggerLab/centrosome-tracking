@@ -117,12 +117,16 @@ class ExperimentsList(QtGui.QWidget):
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
 
     def plot_tracks_of_nuclei(self, nuclei):
-        # with h5py.File(self.hdf5file, "r") as f:
-        #     if 'pandas_dataframe' in f['%s/%s/selection' % (self.condition, self.run)]:
-        df = pd.read_hdf(self.hdf5file, key='%s/%s/selection/pandas_dataframe' % (self.condition, self.run))
+        with h5py.File(self.hdf5file, "r") as f:
+            if 'pandas_dataframe' in f['%s/%s/selection' % (self.condition, self.run)]:
+                read_ok = True
+            else:
+                read_ok = False
         self.mplDistance.canvas.ax.cla()
-        dfij.plot_distance_to_nucleus(df[df['Nuclei'] == nuclei], self.mplDistance.canvas.ax)
-        self.mplDistance.canvas.draw()
+        if read_ok:
+            df = pd.read_hdf(self.hdf5file, key='%s/%s/selection/pandas_dataframe' % (self.condition, self.run))
+            dfij.plot_distance_to_nucleus(df[df['Nuclei'] == nuclei], self.mplDistance.canvas.ax)
+            self.mplDistance.canvas.draw()
 
     def populate_centrosomes(self):
         model = QtGui.QStandardItemModel()
@@ -176,7 +180,8 @@ class ExperimentsList(QtGui.QWidget):
             self.centrosome_dropped = False
             hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
             c = int(self.centrosome_selected[1:])
-            hlab.associate_centrosome_with_nuclei(c, self.nuclei_selected, self.condition, self.run, self.centrosome_group)
+            hlab.associate_centrosome_with_nuclei(c, self.nuclei_selected, self.condition, self.run,
+                                                  self.centrosome_group)
             hlab.process_selection_for_run(self.condition, self.run)
         elif item.checkState() == QtCore.Qt.Unchecked:
             hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
