@@ -143,7 +143,8 @@ class ExperimentsList(QtGui.QWidget):
         self.mplDistance.canvas.ax.cla()
         if read_ok:
             df = pd.read_hdf(self.hdf5file, key='%s/%s/selection/pandas_dataframe' % (self.condition, self.run))
-            dfij.plot_distance_to_nucleus(df[df['Nuclei'] == nuclei], self.mplDistance.canvas.ax)
+            mask = pd.read_hdf(self.hdf5file, key='%s/%s/selection/pandas_masks' % (self.condition, self.run))
+            dfij.plot_distance_to_nucleus(df[df['Nuclei'] == nuclei], self.mplDistance.canvas.ax, mask=mask)
             self.mplDistance.canvas.draw()
 
     def populate_centrosomes(self):
@@ -200,11 +201,11 @@ class ExperimentsList(QtGui.QWidget):
             c = int(self.centrosome_selected[1:])
             hlab.associate_centrosome_with_nuclei(c, self.nuclei_selected, self.condition, self.run,
                                                   self.centrosome_group)
-            hlab.process_selection_for_run(self.condition, self.run)
         elif item.checkState() == QtCore.Qt.Unchecked:
             hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
             hlab.delete_association(self.centrosome_selected, self.nuclei_selected, self.condition, self.run)
-            hlab.process_selection_for_run(self.condition, self.run)
+
+        hlab.process_selection_for_run(self.condition, self.run)
 
         self.populate_nuclei()
         self.populate_centrosomes()

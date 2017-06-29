@@ -123,7 +123,7 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                     cx = cfxy[fidx][1] * self.resolution
                     cy = cfxy[fidx][2] * self.resolution
 
-                    nuclei_sel = [n for n in sel if n != 'pandas_dataframe']
+                    nuclei_sel = [n for n in sel if (n != 'pandas_dataframe' and n != 'pandas_masks')]
                     if len(nuclei_sel) > 0:
                         for nucID in nuclei_sel:
                             is_in_selected_nuclei = int(nucID[1:]) == self.nucleiSelected

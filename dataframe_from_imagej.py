@@ -108,7 +108,8 @@ class DataFrameFromImagej(object):
             # we accept just 1 value per (frame,centrosome)
             return df, df.isnull()
 
-        u = df.set_index(['Time', 'Centrosome']).unstack('Centrosome')
+        s = df.set_index(['Frame', 'Time', 'Centrosome']).sort_index()
+        u = s.unstack('Centrosome')
         umask = u.isnull()  # true for interpolated values
         u = u.interpolate(limit=30, limit_direction='backward')
 
@@ -324,19 +325,16 @@ class DataFrameFromImagej(object):
 
     # TODO: move to mplwidget
     @staticmethod
-    def plot_distance_to_nucleus(df, ax, filename=None):
+    def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None):
         # TODO: missing global parameter use
         nucleus_id = df['Nuclei'].min()
 
         # re-scale time
         df['Time'] /= 60.0
 
-        # get time of contact
-        time_contact, frame_contact, dist_contact = DataFrameFromImagej.get_contact_time(df, 1.0)  # TODO: param here
-
         dhandles, dlabels = list(), list()
-        for [(lblCentr), _df], k in zip(df.groupby(['Centrosome']), range(len(df.groupby(['Centrosome'])))):
-            track = _df.set_index('Time').sort_index()
+        for k, [(lblCentr), _df] in enumerate(df.groupby(['Centrosome'])):
+            track = _df.set_index('Frame').sort_index()
 
             color = sns.color_palette()[k]
             dlbl = 'N%d-C%d' % (nucleus_id, lblCentr)
@@ -344,16 +342,19 @@ class DataFrameFromImagej(object):
             dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
             dlabels.append(dlbl)
 
-            if len(track['Dist'][track['dist_mask']]) > 0:
-                track['Dist'][track['dist_mask']].plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0,
-                                                       c=color)
-            if len(track['Dist'][~track['dist_mask']]) > 0:
-                track['Dist'][~track['dist_mask']].plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
+            if mask is not None:
+                tmask = mask[mask['Centrosome'] == lblCentr].set_index('Frame').sort_index()
+                orig = track['Dist'][tmask['Dist']]
+                interp = track['Dist'][~tmask['Dist']]
+                if len(orig) > 0:
+                    orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
+                if len(interp) > 0:
+                    interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
 
-            # plot time of contact
-            if time_contact is not None:
-                ax.axvline(x=time_contact, color='dimgray', linestyle='--')
-                ax.axvline(x=time_contact - 30, color='lightgray', linestyle='--')  # TODO: param here
+        # plot time of contact
+        if time_contact is not None:
+            ax.axvline(x=time_contact, color='dimgray', linestyle='--')
+            ax.axvline(x=time_contact - 30, color='lightgray', linestyle='--')  # TODO: param here
 
         ax.legend(dhandles, dlabels)
         ax.set_ylabel('Dist to Nuclei $[\mu m]$')
@@ -379,7 +380,7 @@ class DataFrameFromImagej(object):
         return df
 
     @staticmethod
-    def process_dataframe(df, experimentTag,
+    def process_dataframe(df,
                           nuclei_list=None,
                           centrosome_exclusion_dict=None,
                           centrosome_inclusion_dict=None,
@@ -399,8 +400,8 @@ class DataFrameFromImagej(object):
                 for centId in centrosome_inclusion_dict[nuId]:
                     df.loc[df['Centrosome'] == centId, 'Nuclei'] = nuId
 
-        df_filtered_nucs = pd.DataFrame()
-        # nuclei_data = list()
+        df.dropna(how='all', inplace=True)
+        df_filtered_nucs, df_masks = pd.DataFrame(), pd.DataFrame()
         for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
             if nucleusID in nuclei_list:
                 if (max_time_dict is not None) and (nucleusID in max_time_dict):
@@ -438,9 +439,9 @@ class DataFrameFromImagej(object):
                                                                                      centId[1])
 
                 # compute mask as logical AND of joined track mask and interpolated data mask
-                im = imask.set_index(['Time', 'Centrosome'])
+                im = imask.set_index(['Frame', 'Time', 'Centrosome'])
                 try:
-                    jm = jmask.set_index(['Time', 'Centrosome'])
+                    jm = jmask.set_index(['Frame', 'Time', 'Centrosome'])
                     mask = (~im & ~jm).reset_index()
                 except (NameError, AttributeError)as e:  # jm not defined
                     mask = (~im).reset_index()
@@ -451,7 +452,8 @@ class DataFrameFromImagej(object):
                 filtered_nuc_df['speed_mask'] = mask['Speed']
                 filtered_nuc_df['acc_mask'] = mask['Acc']
                 df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
-        return df_filtered_nucs
+                df_masks = df_masks.append(mask)
+        return df_filtered_nucs, df_masks
 
     @staticmethod
     def html_centrosomes_report(df, experimentTag, run):

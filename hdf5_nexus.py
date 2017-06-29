@@ -169,11 +169,11 @@ class LabHDF5NeXusFile():
         with h5py.File(self.filename, "a") as f:
             select_addr = '%s/%s/selection' % (experiment_tag, run)
             sel = f[select_addr]
-            nuclei_list = [int(n[1:]) for n in sel if n != 'pandas_dataframe']
+            nuclei_list = [int(n[1:]) for n in sel if (n != 'pandas_dataframe' and n != 'pandas_masks')]
             centrosomes_list = [int(c[1:]) for c in f['%s/%s/measurements/centrosomes' % (experiment_tag, run)].keys()]
 
             for nuclei in sel:
-                if nuclei == 'pandas_dataframe': continue
+                if nuclei == 'pandas_dataframe' or nuclei == 'pandas_masks': continue
                 nid = int(nuclei[1:])
                 centrosomes_of_nuclei = [c for c in centrosomes_list if int(c / 100.0) == nid]
                 C = set(centrosomes_of_nuclei)
@@ -195,14 +195,15 @@ class LabHDF5NeXusFile():
             self.selectiondicts_run(experiment_tag, run)
 
         pdhdf = pd.read_hdf(self.filename, key='%s/%s/measurements/pandas_dataframe' % (experiment_tag, run))
-        proc_df = dfij.process_dataframe(pdhdf, experiment_tag, nuclei_list=nuclei_list,
-                                         centrosome_exclusion_dict=centrosome_exclusion_dict,
-                                         centrosome_inclusion_dict=centrosome_inclusion_dict,
-                                         centrosome_equivalence_dict=centrosome_equivalence_dict)
+        proc_df, mask_df = dfij.process_dataframe(pdhdf, nuclei_list=nuclei_list,
+                                                  centrosome_exclusion_dict=centrosome_exclusion_dict,
+                                                  centrosome_inclusion_dict=centrosome_inclusion_dict,
+                                                  centrosome_equivalence_dict=centrosome_equivalence_dict)
         if proc_df.empty:
             print 'dataframe is empty'
         else:
             proc_df.to_hdf(self.filename, key='%s/%s/selection/pandas_dataframe' % (experiment_tag, run))
+            mask_df.to_hdf(self.filename, key='%s/%s/selection/pandas_masks' % (experiment_tag, run))
 
     def associate_centrosome_with_nuclei(self, centr_id, nuc_id, experiment_tag, run, centrosome_group=1):
         with h5py.File(self.filename, "a") as f:
