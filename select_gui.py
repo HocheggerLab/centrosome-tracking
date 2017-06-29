@@ -3,7 +3,7 @@ import os
 import h5py
 import pandas as pd
 from PyQt4 import QtCore, QtGui, uic
-from PyQt4.QtCore import Qt
+from PyQt4.QtCore import Qt, QTimer
 from PyQt4.QtGui import QAbstractItemView
 
 import hdf5_nexus as hdf
@@ -16,6 +16,7 @@ class ExperimentsList(QtGui.QWidget):
         uic.loadUi('ExperimentsSelectionWidget.ui', self)
 
         self.frame = 0
+        self.total_frames = 0
         self.nuclei_selected = None
         self.hdf5file = path
         self.centrosome_dropped = False
@@ -24,6 +25,21 @@ class ExperimentsList(QtGui.QWidget):
         self.movieImgLabel.clear()
 
         self.populate_experiments()
+
+        # Create a QTimer for animations
+        self.timer = QTimer()
+        self.timer.singleShot(1000, self.anim)
+
+        QtCore.QObject.connect(self.exportButton, QtCore.SIGNAL("pressed()"), self.on_export_button)
+
+    def anim(self):
+        try:
+            if self.total_frames > 0:
+                self.frame = (self.frame + 1) % self.total_frames
+                self.movieImgLabel.render_frame(self.condition, self.run, self.frame,
+                                                nuclei_selected=self.nuclei_selected)
+        finally:
+            self.timer.singleShot(500, self.anim)
 
     def populate_experiments(self):
         model = QtGui.QStandardItemModel()
@@ -64,14 +80,16 @@ class ExperimentsList(QtGui.QWidget):
             self.centrosomeListView_B.model().clear()
             self.movieImgLabel.clear()
 
-            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-            df = hlab.dataframe
-            df.to_pickle('/Users/Fabio/centrosomes.%s.pandas' % self.run)
+        with h5py.File(self.hdf5file, "r") as f:
+            sel = f['%s/%s/raw' % (self.condition, self.run)]
+            self.total_frames = len(sel)
+        self.anim()
 
     def populate_frames_list(self):
         with h5py.File(self.hdf5file, "r") as f:
             sel = f['%s/%s/raw' % (self.condition, self.run)]
-            self.frameHSlider.setMaximum(len(sel) - 1)
+            self.total_frames = len(sel)
+            self.frameHSlider.setMaximum(self.total_frames - 1)
         QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('valueChanged(int)'), self.on_frame_slider_change)
 
     @QtCore.pyqtSlot('int')
@@ -203,6 +221,13 @@ class ExperimentsList(QtGui.QWidget):
         self.centrosome_dropped = True
         self.centrosome_group = 1
 
+    @QtCore.pyqtSlot()
+    def on_export_button(self):
+        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+        df = hlab.dataframe
+        # df.to_pickle('/Users/Fabio/centrosomes.%s.pandas' % self.run)
+        df.to_pickle('/Users/Fabio/centrosomes.pandas')
+
 
 if __name__ == '__main__':
     import sys
@@ -220,7 +245,6 @@ if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
 
     folders = ExperimentsList('/Users/Fabio/centrosomes.nexus.hdf5')
-    # folders.setGeometry(1200, 100, 900, 800)
     folders.show()
 
     sys.exit(app.exec_())

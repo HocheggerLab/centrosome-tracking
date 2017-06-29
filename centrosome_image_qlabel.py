@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
-from PyQt4 import QtCore, QtGui
+import pandas as pd
+from PyQt4 import QtCore, QtGui, Qt
 from PyQt4.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
 
 
@@ -15,7 +16,7 @@ class CentrosomeImageQLabel(QtGui.QLabel):
         self.run = None
         self.frame = None
         self.resolution = None
-        self.imagePixmap = None
+        self.image_pixmap = None
 
         self.clear()
 
@@ -37,8 +38,8 @@ class CentrosomeImageQLabel(QtGui.QLabel):
         imgarr = np.zeros(shape=(512, 512), dtype=np.uint32)
         qtimage = QtGui.QImage(imgarr.data, imgarr.shape[1], imgarr.shape[0], imgarr.strides[0],
                                QtGui.QImage.Format_RGB32)
-        self.imagePixmap = QtGui.QPixmap(qtimage)
-        self.setPixmap(self.imagePixmap)
+        self.image_pixmap = QtGui.QPixmap(qtimage)
+        self.setPixmap(self.image_pixmap)
 
     def mouseReleaseEvent(self, ev):
         self.emit(QtCore.SIGNAL('clicked()'))
@@ -51,28 +52,30 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                 ch2 = f['%s/%s/raw/%03d/channel-2' % (self.condition, self.run, self.frame)]
                 data = ch2[:]
                 self.resolution = ch2.parent.attrs['resolution']
-
-                img_8bit = ((data - data.min()) / (data.ptp() / 255.0)).astype(
-                    np.uint8)  # map the data range to 0 - 255
+                # map the data range to 0 - 255
+                img_8bit = ((data - data.min()) / (data.ptp() / 255.0)).astype(np.uint8)
                 qtimage = QtGui.QImage(img_8bit.repeat(4), 512, 512, QtGui.QImage.Format_RGB32)
-                self.imagePixmap = QPixmap(qtimage)
+                self.image_pixmap = QPixmap(qtimage)
                 self.draw_measurements()
-                self.setPixmap(self.imagePixmap)
+                self.setPixmap(self.image_pixmap)
         return QtGui.QLabel.paintEvent(self, event)
 
     def render_frame(self, condition, run, frame, nuclei_selected=None):
         self.condition, self.run, self.frame = condition, run, frame
         self.nucleiSelected = nuclei_selected
         self.dataHasChanged = True
+        self.repaint()
 
     def draw_measurements(self):
+        df = pd.read_hdf(self.hdf5file, key='%s/%s/measurements/pandas_dataframe' % (self.condition, self.run),
+                         mode='r')
         with h5py.File(self._hdf5file, "r") as f:
             nuclei_list = f['%s/%s/measurements/nuclei' % (self.condition, self.run)]
             centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)]
             sel = f['%s/%s/selection' % (self.condition, self.run)]
 
             painter = QPainter()
-            painter.begin(self.imagePixmap)
+            painter.begin(self.image_pixmap)
             painter.setRenderHint(QPainter.Antialiasing)
 
             for nucID in nuclei_list:
@@ -96,6 +99,19 @@ class CentrosomeImageQLabel(QtGui.QLabel):
 
                     painter.setPen(QPen(QBrush(QColor('white')), 2))
                     painter.drawText(nx + 10, ny + 5, nucID)
+
+                    # get nuclei boundary as a polygon
+                    nid = int(nucID[1:])
+                    df_nucfr = df[(df['Nuclei'] == nid) & (df['Frame'] == self.frame)]
+                    if len(df_nucfr['NucleiBoundary'].values) > 0:
+                        nuc_boundary_str = df_nucfr['NucleiBoundary'].values[0]
+                        nucb_points = eval(nuc_boundary_str[1:-1])
+                        nucb_qpoints = [Qt.QPoint(x * self.resolution, y * self.resolution) for x, y in nucb_points]
+                        nucb_poly = Qt.QPolygon(nucb_qpoints)
+
+                        painter.setPen(QPen(QBrush(QColor('red')), 2))
+                        painter.setBrush(QColor('transparent'))
+                        painter.drawPolygon(nucb_poly)
 
             for cntrID in centrosome_list:
                 cntr = centrosome_list[cntrID]

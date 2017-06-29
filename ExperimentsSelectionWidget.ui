@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>730</width>
+    <width>891</width>
     <height>821</height>
    </rect>
   </property>
@@ -16,7 +16,7 @@
   <widget class="CentrosomeImageQLabel" name="movieImgLabel">
    <property name="geometry">
     <rect>
-     <x>160</x>
+     <x>380</x>
      <y>0</y>
      <width>512</width>
      <height>512</height>
@@ -38,7 +38,7 @@
      <x>0</x>
      <y>0</y>
      <width>151</width>
-     <height>811</height>
+     <height>511</height>
     </rect>
    </property>
    <property name="verticalScrollBarPolicy">
@@ -48,8 +48,8 @@
   <widget class="QListView" name="centrosomeListView">
    <property name="geometry">
     <rect>
-     <x>230</x>
-     <y>570</y>
+     <x>240</x>
+     <y>30</y>
      <width>51</width>
      <height>241</height>
     </rect>
@@ -58,8 +58,8 @@
   <widget class="QListView" name="nucleiListView">
    <property name="geometry">
     <rect>
-     <x>150</x>
-     <y>570</y>
+     <x>160</x>
+     <y>30</y>
      <width>81</width>
      <height>241</height>
     </rect>
@@ -71,8 +71,8 @@
   <widget class="QLabel" name="nucleiTitleLbl">
    <property name="geometry">
     <rect>
-     <x>150</x>
-     <y>550</y>
+     <x>160</x>
+     <y>10</y>
      <width>56</width>
      <height>13</height>
     </rect>
@@ -84,8 +84,8 @@
   <widget class="QLabel" name="centrosomesTitleLbl">
    <property name="geometry">
     <rect>
-     <x>220</x>
-     <y>550</y>
+     <x>230</x>
+     <y>10</y>
      <width>91</width>
      <height>16</height>
     </rect>
@@ -94,24 +94,11 @@
     <string>Centrosomes</string>
    </property>
   </widget>
-  <widget class="QLabel" name="frameTitleLbl">
-   <property name="geometry">
-    <rect>
-     <x>150</x>
-     <y>520</y>
-     <width>56</width>
-     <height>13</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Frame</string>
-   </property>
-  </widget>
   <widget class="QListView" name="centrosomeListView_A">
    <property name="geometry">
     <rect>
-     <x>280</x>
-     <y>570</y>
+     <x>290</x>
+     <y>30</y>
      <width>71</width>
      <height>111</height>
     </rect>
@@ -123,8 +110,8 @@
   <widget class="QListView" name="centrosomeListView_B">
    <property name="geometry">
     <rect>
-     <x>280</x>
-     <y>700</y>
+     <x>290</x>
+     <y>160</y>
      <width>71</width>
      <height>111</height>
     </rect>
@@ -136,8 +123,8 @@
   <widget class="QLabel" name="centrosomesTitleLbl_A">
    <property name="geometry">
     <rect>
-     <x>330</x>
-     <y>550</y>
+     <x>340</x>
+     <y>10</y>
      <width>16</width>
      <height>16</height>
     </rect>
@@ -149,8 +136,8 @@
   <widget class="QLabel" name="centrosomesTitleLbl_B">
    <property name="geometry">
     <rect>
-     <x>330</x>
-     <y>680</y>
+     <x>340</x>
+     <y>140</y>
      <width>16</width>
      <height>16</height>
     </rect>
@@ -162,7 +149,7 @@
   <widget class="QSlider" name="frameHSlider">
    <property name="geometry">
     <rect>
-     <x>170</x>
+     <x>380</x>
      <y>490</y>
      <width>481</width>
      <height>20</height>
@@ -184,14 +171,28 @@
   <widget class="MplWidget" name="mplDistance" native="true">
    <property name="geometry">
     <rect>
-     <x>350</x>
-     <y>510</y>
-     <width>381</width>
-     <height>311</height>
+     <x>0</x>
+     <y>500</y>
+     <width>891</width>
+     <height>321</height>
     </rect>
    </property>
    <property name="cursor">
     <cursorShape>CrossCursor</cursorShape>
+   </property>
+   <zorder>exportButton</zorder>
+  </widget>
+  <widget class="QPushButton" name="exportButton">
+   <property name="geometry">
+    <rect>
+     <x>150</x>
+     <y>480</y>
+     <width>110</width>
+     <height>32</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Export Pandas</string>
    </property>
   </widget>
  </widget>

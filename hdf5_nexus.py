@@ -76,6 +76,10 @@ class LabHDF5NeXusFile():
                     xr = tif.pages[0].x_resolution
                     res = float(xr[0]) / float(xr[1])  # pixels per cm
                     res = res / 1e4  # pixels per um
+                elif tif.pages[0].imagej_tags.unit == 'micron':
+                    # asuming square pixels
+                    xr = tif.pages[0].x_resolution
+                    res = float(xr[0]) / float(xr[1])  # pixels per um
 
                 if sizeT > 1:
                     p1a = tif.pages[0].asarray()
@@ -139,6 +143,7 @@ class LabHDF5NeXusFile():
                             visitedCentrosomes.append(centr_id)
                             nuc_id = filt_centr_df['Nuclei'].unique()[0]
                             self.associate_centrosome_with_nuclei(centr_id, nuc_id, experiment_tag, run, i % 2)
+        dfc.merged_df.rename(columns={'ROI': 'NucleiBoundary'}, inplace=True)
         dfc.merged_df.to_hdf(self.filename, '%s/%s/measurements/pandas_dataframe' % (experiment_tag, run), mode='r+')
         self.process_selection_for_run(experiment_tag, run)
 
