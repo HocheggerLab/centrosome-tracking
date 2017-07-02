@@ -11,6 +11,9 @@ import seaborn as sns
 
 
 class DataFrameFromImagej(object):
+    DIST_THRESHOLD = 1.0  # um before 1 frame of contact
+    TIME_BEFORE_CONTACT = 30
+
     def __init__(self, filename, stats_df=None):
         self.path_csv = filename
         self.df_csv = pd.read_csv(self.path_csv)
@@ -24,14 +27,11 @@ class DataFrameFromImagej(object):
         if stats_df is None:
             stats_df = pd.DataFrame()
         self.stats = stats_df
-        self.dt_before_contact = 30
-        self.t_per_frame = 5
-        self.d_threshold = 1.0  # um before 1 frame of contact
         self.centrosome_replacements = dict()
 
         # merge with nuclei data
         self.merged_df = self.df_csv.merge(self.df_nuclei_csv)
-        self.merged_df = self.merged_df.drop(['WhereInNuclei', 'ValidCentroid'], axis=1)
+        self.merged_df = self.merged_df.drop(['ValidCentroid'], axis=1)
 
     @staticmethod
     def get_contact_time(df, threshold):
@@ -230,7 +230,7 @@ class DataFrameFromImagej(object):
         ax5 = plt.subplot(gs[5, 0])
 
         # get time of contact
-        time_contact, frame_contact, dist_contact = self.get_contact_time(nuclei_df, self.d_threshold)
+        time_contact, frame_contact, dist_contact = self.get_contact_time(nuclei_df, DataFrameFromImagej.DIST_THRESHOLD)
 
         # plot distance between centrosomes
         dsf = DataFrameFromImagej.compute_distance_velocity_acceleration_between_centrosomes(nuclei_df)
@@ -285,7 +285,7 @@ class DataFrameFromImagej(object):
             # plot time of contact
             if time_contact is not None:
                 ax1.axvline(x=time_contact, color='dimgray', linestyle='--')
-                ax1.axvline(x=time_contact - self.dt_before_contact, color='lightgray', linestyle='--')
+                ax1.axvline(x=time_contact - DataFrameFromImagej.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
                 ax2.axvline(x=time_contact, color='dimgray', linestyle='--')
                 ax3.axvline(x=time_contact, color='dimgray', linestyle='--')
                 ax4.axvline(x=time_contact, color='dimgray', linestyle='--')
@@ -448,9 +448,6 @@ class DataFrameFromImagej(object):
 
                 # compute velocity again with interpolated data
                 filtered_nuc_df = DataFrameFromImagej.compute_velocity_acceleration(filtered_nuc_df)
-                filtered_nuc_df['dist_mask'] = mask['Dist']
-                filtered_nuc_df['speed_mask'] = mask['Speed']
-                filtered_nuc_df['acc_mask'] = mask['Acc']
                 df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
                 df_masks = df_masks.append(mask)
         return df_filtered_nucs, df_masks

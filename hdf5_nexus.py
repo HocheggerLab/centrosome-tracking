@@ -1,13 +1,12 @@
 import argparse
 import datetime
-import os
-import re
-from subprocess import call
-
 import h5py
 import numpy as np
+import os
 import pandas as pd
+import re
 import tifffile as tf
+from subprocess import call
 
 from dataframe_from_imagej import DataFrameFromImagej as dfij
 
@@ -136,14 +135,13 @@ class LabHDF5NeXusFile():
 
             visitedCentrosomes = []
             for (centr_id), filt_centr_df in dfct.groupby('Centrosome'):
+                nuc_id = filt_centr_df['Nuclei'].unique()[0]
                 centrosomesOfNuclei = dfct[dfct['Nuclei'] == nuc_id].groupby('Centrosome')
                 if len(centrosomesOfNuclei.groups) >= 2:
                     for i, ((centr_id), filt_centr_df) in enumerate(centrosomesOfNuclei):
                         if centr_id not in visitedCentrosomes:
                             visitedCentrosomes.append(centr_id)
-                            nuc_id = filt_centr_df['Nuclei'].unique()[0]
                             self.associate_centrosome_with_nuclei(centr_id, nuc_id, experiment_tag, run, i % 2)
-        dfc.merged_df.rename(columns={'ROI': 'NucleiBoundary'}, inplace=True)
         dfc.merged_df.to_hdf(self.filename, '%s/%s/measurements/pandas_dataframe' % (experiment_tag, run), mode='r+')
         self.process_selection_for_run(experiment_tag, run)
 
@@ -213,16 +211,17 @@ class LabHDF5NeXusFile():
             nxcpos = f[source_cpos_addr]
 
             target_addr = '%s/%s/selection/N%02d' % (experiment_tag, run, nuc_id)
-            if target_addr not in f:
-                nxnuc_ = f.create_group(target_addr)
-                nxnuc_.create_group('A')
-                nxnuc_.create_group('B')
-                nxnpos = f[source_npos_addr]
-                nxnuc_['pos'] = nxnpos
+            if source_npos_addr in f:
+                if target_addr not in f:
+                    nxnuc_ = f.create_group(target_addr)
+                    nxnuc_.create_group('A')
+                    nxnuc_.create_group('B')
+                    nxnpos = f[source_npos_addr]
+                    nxnuc_['pos'] = nxnpos
 
-            cstr = 'A' if centrosome_group == 0 else 'B'
-            nxnuc_ = f['%s/%s' % (target_addr, cstr)]
-            nxnuc_['C%03d' % centr_id] = nxcpos
+                cstr = 'A' if centrosome_group == 0 else 'B'
+                nxnuc_ = f['%s/%s' % (target_addr, cstr)]
+                nxnuc_['C%03d' % centr_id] = nxcpos
 
     def delete_association(self, of_centrosome, with_nuclei, experiment_tag, run):
         with h5py.File(self.filename, "a") as f:

@@ -1,7 +1,7 @@
 import h5py
 import numpy as np
 import pandas as pd
-from PyQt4 import QtCore, QtGui, Qt
+from PyQt4 import Qt, QtCore, QtGui
 from PyQt4.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
 
 
@@ -80,6 +80,8 @@ class CentrosomeImageQLabel(QtGui.QLabel):
 
             for nucID in nuclei_list:
                 nuc = nuclei_list[nucID]
+                nid = int(nucID[1:])
+                if nid == 0: continue
                 nfxy = nuc['pos'].value
                 nuc_frames = nfxy.T[0]
                 if self.frame in nuc_frames:
@@ -101,17 +103,17 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                     painter.drawText(nx + 10, ny + 5, nucID)
 
                     # get nuclei boundary as a polygon
-                    nid = int(nucID[1:])
                     df_nucfr = df[(df['Nuclei'] == nid) & (df['Frame'] == self.frame)]
-                    if len(df_nucfr['NucleiBoundary'].values) > 0:
-                        nuc_boundary_str = df_nucfr['NucleiBoundary'].values[0]
-                        nucb_points = eval(nuc_boundary_str[1:-1])
-                        nucb_qpoints = [Qt.QPoint(x * self.resolution, y * self.resolution) for x, y in nucb_points]
-                        nucb_poly = Qt.QPolygon(nucb_qpoints)
+                    if len(df_nucfr['NuclBound'].values) > 0:
+                        nuc_boundary_str = df_nucfr['NuclBound'].values[0]
+                        if nuc_boundary_str[1:-1] != '':
+                            nucb_points = eval(nuc_boundary_str[1:-1])
+                            nucb_qpoints = [Qt.QPoint(x * self.resolution, y * self.resolution) for x, y in nucb_points]
+                            nucb_poly = Qt.QPolygon(nucb_qpoints)
 
-                        painter.setPen(QPen(QBrush(QColor('red')), 2))
-                        painter.setBrush(QColor('transparent'))
-                        painter.drawPolygon(nucb_poly)
+                            painter.setPen(QPen(QBrush(QColor('red')), 2))
+                            painter.setBrush(QColor('transparent'))
+                            painter.drawPolygon(nucb_poly)
 
             for cntrID in centrosome_list:
                 cntr = centrosome_list[cntrID]
