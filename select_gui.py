@@ -7,7 +7,7 @@ from PyQt4.QtCore import Qt, QTimer
 from PyQt4.QtGui import QAbstractItemView
 
 import hdf5_nexus as hdf
-from dataframe_from_imagej import DataFrameFromImagej as dfij
+from imagej_pandas import ImagejPandas as dfij
 
 
 class ExperimentsList(QtGui.QWidget):
@@ -195,14 +195,13 @@ class ExperimentsList(QtGui.QWidget):
     @QtCore.pyqtSlot('QStandardItem')
     def on_centrosometick_change(self, item):
         self.centrosome_selected = str(item.text())
+        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
         if self.centrosome_dropped:
             self.centrosome_dropped = False
-            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
             c = int(self.centrosome_selected[1:])
             hlab.associate_centrosome_with_nuclei(c, self.nuclei_selected, self.condition, self.run,
                                                   self.centrosome_group)
         elif item.checkState() == QtCore.Qt.Unchecked:
-            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
             hlab.delete_association(self.centrosome_selected, self.nuclei_selected, self.condition, self.run)
 
         hlab.process_selection_for_run(self.condition, self.run)

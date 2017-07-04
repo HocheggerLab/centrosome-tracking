@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import jinja2 as j2
 import matplotlib.pyplot as plt
-import dataframe_from_imagej as ijdf
+import imagej_pandas as ijdf
 import codecs
 import time
 
@@ -15,7 +15,7 @@ def subreport(conditions):
     for cond in conditions:
         for f in cond['files'][0:]:
             print f['name']
-            dfij = ijdf.DataFrameFromImagej(cond['path'] + f['name'], stats_df=stats)
+            dfij = ijdf.ImagejPandas(cond['path'] + f['name'], stats_df=stats)
             _html, _data = dfij.html_centrosomes_report(nuclei_list=f['nuclei_list'], max_time_dict=f['max_time_dict'],
                                                         centrosome_inclusion_dict=f['centrosome_inclusion_dict'],
                                                         centrosome_exclusion_dict=f['centrosome_exclusion_dict'],

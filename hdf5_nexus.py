@@ -1,14 +1,15 @@
 import argparse
 import datetime
-import h5py
-import numpy as np
 import os
-import pandas as pd
 import re
-import tifffile as tf
 from subprocess import call
 
-from dataframe_from_imagej import DataFrameFromImagej as dfij
+import h5py
+import numpy as np
+import pandas as pd
+import tifffile as tf
+
+from imagej_pandas import ImagejPandas as dfij
 
 
 class LabHDF5NeXusFile():
@@ -106,7 +107,7 @@ class LabHDF5NeXusFile():
         with h5py.File(self.filename, "a") as f:
             nxmeas = f['%s/%s/measurements' % (experiment_tag, run)]
 
-            dfnt = dfc.df_nuclei_csv.set_index('Frame').sort_index()
+            dfnt = dfc.df_nuclei.set_index('Frame').sort_index()
             for (nuc_id), filt_nuc_df in dfnt.groupby('Nuclei'):
                 nxnucl = nxmeas.create_group('nuclei/N%02d' % nuc_id)
                 nxnucl.attrs['NX_class'] = 'NXdata'
@@ -119,7 +120,7 @@ class LabHDF5NeXusFile():
                 sx = nxnucl.create_dataset('sample_x', data=nx, dtype=nx.dtype)
                 sy = nxnucl.create_dataset('sample_y', data=ny, dtype=ny.dtype)
 
-            dfct = dfc.df_csv.set_index('Frame').sort_index()
+            dfct = dfc.df_centrosome.set_index('Frame').sort_index()
 
             for (centr_id), filt_centr_df in dfct.groupby('Centrosome'):
                 nuc_id = filt_centr_df['Nuclei'].unique()[0]
@@ -143,6 +144,7 @@ class LabHDF5NeXusFile():
                             visitedCentrosomes.append(centr_id)
                             self.associate_centrosome_with_nuclei(centr_id, nuc_id, experiment_tag, run, i % 2)
         dfc.merged_df.to_hdf(self.filename, '%s/%s/measurements/pandas_dataframe' % (experiment_tag, run), mode='r+')
+        dfc.df_nuclei.to_hdf(self.filename, '%s/%s/measurements/nuclei_dataframe' % (experiment_tag, run), mode='r+')
         self.process_selection_for_run(experiment_tag, run)
 
     @property
@@ -156,6 +158,8 @@ class LabHDF5NeXusFile():
                                          mode='r')
                         df['condition'] = experiment_tag
                         df['run'] = run
+                        # for nuc_id, df_nuc in df.groupby('Nuclei'):
+                        #     dc = dfij.dist_vel_acc_centrosomes(df_nuc)
                         out = out.append(df)
         return out
 
@@ -164,7 +168,7 @@ class LabHDF5NeXusFile():
         centrosome_exclusion_dict = dict()
         centrosome_equivalence_dict = dict()
         joined_tracks = dict()
-        with h5py.File(self.filename, "a") as f:
+        with h5py.File(self.filename, "r") as f:
             select_addr = '%s/%s/selection' % (experiment_tag, run)
             sel = f[select_addr]
             nuclei_list = [int(n[1:]) for n in sel if (n != 'pandas_dataframe' and n != 'pandas_masks')]
@@ -192,8 +196,25 @@ class LabHDF5NeXusFile():
         nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict, joined_tracks = \
             self.selectiondicts_run(experiment_tag, run)
 
-        pdhdf = pd.read_hdf(self.filename, key='%s/%s/measurements/pandas_dataframe' % (experiment_tag, run))
-        proc_df, mask_df = dfij.process_dataframe(pdhdf, nuclei_list=nuclei_list,
+        pdhdf_measured = pd.read_hdf(self.filename, key='%s/%s/measurements/pandas_dataframe' % (experiment_tag, run))
+        pdhdf_nuclei = pd.read_hdf(self.filename, key='%s/%s/measurements/nuclei_dataframe' % (experiment_tag, run))
+
+        # update centrosome nuclei from selection
+        with h5py.File(self.filename, "r") as f:
+            for nuclei_str in f['%s/%s/selection' % (experiment_tag, run)]:
+                if nuclei_str == 'pandas_dataframe' or nuclei_str == 'pandas_masks': continue
+                nuclei_id = int(nuclei_str[1:])
+                centrosomes_of_nuclei_a = f['%s/%s/selection/%s/A' % (experiment_tag, run, nuclei_str)].keys()
+                centrosomes_of_nuclei_b = f['%s/%s/selection/%s/B' % (experiment_tag, run, nuclei_str)].keys()
+                for centr_str in centrosomes_of_nuclei_a + centrosomes_of_nuclei_b:
+                    centr_id = int(centr_str[1:])
+                    pdhdf_measured.loc[pdhdf_measured['Centrosome'] == centr_id, 'Nuclei'] = nuclei_id
+
+        # re-merge with nuclei data
+        pdhdf_measured.drop(['NuclX', 'NuclY', 'NuclBound'], axis=1, inplace=True)
+        pdhdf_merge = pdhdf_measured.merge(pdhdf_nuclei)
+
+        proc_df, mask_df = dfij.process_dataframe(pdhdf_merge, nuclei_list=nuclei_list,
                                                   centrosome_exclusion_dict=centrosome_exclusion_dict,
                                                   centrosome_inclusion_dict=centrosome_inclusion_dict,
                                                   centrosome_equivalence_dict=centrosome_equivalence_dict)
@@ -222,6 +243,12 @@ class LabHDF5NeXusFile():
                 cstr = 'A' if centrosome_group == 0 else 'B'
                 nxnuc_ = f['%s/%s' % (target_addr, cstr)]
                 nxnuc_['C%03d' % centr_id] = nxcpos
+
+                # update dataframe
+                # TODO: construct this based on selection, not on measurements
+                # df = pd.read_hdf(self.filename, key='%s/%s/measurements/pandas_dataframe' % (experiment_tag, run))
+                # df.loc[df['Centrosome'] == centr_id, 'Nuclei'] = nuc_id
+                # df.to_hdf(self.filename, key='%s/%s/measurements/pandas_dataframe' % (experiment_tag, run))
 
     def delete_association(self, of_centrosome, with_nuclei, experiment_tag, run):
         with h5py.File(self.filename, "a") as f:

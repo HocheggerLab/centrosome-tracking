@@ -10,27 +10,24 @@ import pandas as pd
 import seaborn as sns
 
 
-class DataFrameFromImagej(object):
+class ImagejPandas(object):
     DIST_THRESHOLD = 1.0  # um before 1 frame of contact
     TIME_BEFORE_CONTACT = 30
 
     def __init__(self, filename, stats_df=None):
         self.path_csv = filename
-        self.df_csv = pd.read_csv(self.path_csv)
+        self.df_centrosome = pd.read_csv(self.path_csv)
         base_path = os.path.dirname(filename)
         parent_path = os.path.abspath(os.path.join(os.path.dirname(filename), '..'))
         bname = os.path.basename(filename)
         self.fname = re.search('(.+)-table.csv$', bname).group(1)
-        self.path_csv_nuclei = '%s/%s-nuclei.csv' % (base_path, self.fname)
+        self.path_nuclei = '%s/%s-nuclei.csv' % (base_path, self.fname)
 
-        self.df_nuclei_csv = pd.read_csv(self.path_csv_nuclei)
-        if stats_df is None:
-            stats_df = pd.DataFrame()
-        self.stats = stats_df
+        self.df_nuclei = pd.read_csv(self.path_nuclei)
         self.centrosome_replacements = dict()
 
         # merge with nuclei data
-        self.merged_df = self.df_csv.merge(self.df_nuclei_csv)
+        self.merged_df = self.df_centrosome.merge(self.df_nuclei)
         self.merged_df = self.merged_df.drop(['ValidCentroid'], axis=1)
 
     @staticmethod
@@ -40,7 +37,7 @@ class DataFrameFromImagej(object):
         if len(cent_list) <= 1:
             return 0, 0, 0
         elif len(cent_list) == 2:
-            dsf = DataFrameFromImagej.compute_distance_velocity_acceleration_between_centrosomes(df)
+            dsf = ImagejPandas.dist_vel_acc_centrosomes(df)
             dsr = dsf[dsf['DistCentr'] < threshold]
 
             if dsr.size > 0:
@@ -61,7 +58,7 @@ class DataFrameFromImagej(object):
         return None, None, None
 
     @staticmethod
-    def compute_velocity_acceleration(df):
+    def vel_acc_nuclei(df):
         df = df.set_index('Frame').sort_index()
         df['CNx'] = df['NuclX'] - df['CentX']
         df['CNy'] = df['NuclY'] - df['CentY']
@@ -77,7 +74,7 @@ class DataFrameFromImagej(object):
         return df.reset_index()
 
     @staticmethod
-    def compute_distance_velocity_acceleration_between_centrosomes(df):
+    def dist_vel_acc_centrosomes(df):
         cent_list = df.groupby('Centrosome').size().index
         if (len(cent_list) != 2) | (df.groupby(['Frame', 'Time', 'Centrosome']).size().max() > 1):
             # we accept just 1 value per (frame,centrosome)
@@ -230,10 +227,10 @@ class DataFrameFromImagej(object):
         ax5 = plt.subplot(gs[5, 0])
 
         # get time of contact
-        time_contact, frame_contact, dist_contact = self.get_contact_time(nuclei_df, DataFrameFromImagej.DIST_THRESHOLD)
+        time_contact, frame_contact, dist_contact = self.get_contact_time(nuclei_df, ImagejPandas.DIST_THRESHOLD)
 
         # plot distance between centrosomes
-        dsf = DataFrameFromImagej.compute_distance_velocity_acceleration_between_centrosomes(nuclei_df)
+        dsf = ImagejPandas.dist_vel_acc_centrosomes(nuclei_df)
         dsf = dsf.set_index('Time').sort_index()
         try:
             color = sns.color_palette()[-1]
@@ -285,7 +282,7 @@ class DataFrameFromImagej(object):
             # plot time of contact
             if time_contact is not None:
                 ax1.axvline(x=time_contact, color='dimgray', linestyle='--')
-                ax1.axvline(x=time_contact - DataFrameFromImagej.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
+                ax1.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
                 ax2.axvline(x=time_contact, color='dimgray', linestyle='--')
                 ax3.axvline(x=time_contact, color='dimgray', linestyle='--')
                 ax4.axvline(x=time_contact, color='dimgray', linestyle='--')
@@ -326,11 +323,10 @@ class DataFrameFromImagej(object):
     # TODO: move to mplwidget
     @staticmethod
     def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None):
-        # TODO: missing global parameter use
         nucleus_id = df['Nuclei'].min()
 
         # re-scale time
-        df['Time'] /= 60.0
+        df.loc[df.index, 'Time'] /= 60.0
 
         dhandles, dlabels = list(), list()
         for k, [(lblCentr), _df] in enumerate(df.groupby(['Centrosome'])):
@@ -354,7 +350,8 @@ class DataFrameFromImagej(object):
         # plot time of contact
         if time_contact is not None:
             ax.axvline(x=time_contact, color='dimgray', linestyle='--')
-            ax.axvline(x=time_contact - 30, color='lightgray', linestyle='--')  # TODO: param here
+            ax.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray',
+                       linestyle='--')
 
         ax.legend(dhandles, dlabels)
         ax.set_ylabel('Dist to Nuclei $[\mu m]$')
@@ -388,7 +385,7 @@ class DataFrameFromImagej(object):
                           joined_tracks=None,
                           max_time_dict=None):
 
-        df = DataFrameFromImagej.compute_velocity_acceleration(df)
+        df = ImagejPandas.vel_acc_nuclei(df)
         # filter non wanted centrosomes
         if centrosome_exclusion_dict is not None:
             for nuId in centrosome_exclusion_dict.keys():
@@ -415,7 +412,7 @@ class DataFrameFromImagej(object):
                             ceq = dict()
                             for cn in cneq:
                                 if cn != min_cm:
-                                    filtered_nuc_df = DataFrameFromImagej.merge_tracks(filtered_nuc_df, cn, min_cm)
+                                    filtered_nuc_df = ImagejPandas.merge_tracks(filtered_nuc_df, cn, min_cm)
                                     ceq[cn] = min_cm
                             centr_repl.append(ceq.copy())
 
@@ -427,7 +424,7 @@ class DataFrameFromImagej(object):
                         c_tags += ' C%d was merged with (%s),' % (min_c, ''.join('C%d,' % c for c in rest_c)[0:-1])
                 print c_tags[0:-1] + '.'
 
-                filtered_nuc_df, imask = DataFrameFromImagej.interpolate_data(filtered_nuc_df)
+                filtered_nuc_df, imask = ImagejPandas.interpolate_data(filtered_nuc_df)
 
                 # reset mask variables in each loop
                 jmask = None
@@ -435,8 +432,8 @@ class DataFrameFromImagej(object):
                 if joined_tracks is not None:
                     if nucleusID in joined_tracks.keys():
                         for centId in joined_tracks[nucleusID]:
-                            filtered_nuc_df, jmask = DataFrameFromImagej.join_tracks(filtered_nuc_df, centId[0],
-                                                                                     centId[1])
+                            filtered_nuc_df, jmask = ImagejPandas.join_tracks(filtered_nuc_df, centId[0],
+                                                                              centId[1])
 
                 # compute mask as logical AND of joined track mask and interpolated data mask
                 im = imask.set_index(['Frame', 'Time', 'Centrosome'])
@@ -447,7 +444,7 @@ class DataFrameFromImagej(object):
                     mask = (~im).reset_index()
 
                 # compute velocity again with interpolated data
-                filtered_nuc_df = DataFrameFromImagej.compute_velocity_acceleration(filtered_nuc_df)
+                filtered_nuc_df = ImagejPandas.vel_acc_nuclei(filtered_nuc_df)
                 df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
                 df_masks = df_masks.append(mask)
         return df_filtered_nucs, df_masks
@@ -458,8 +455,8 @@ class DataFrameFromImagej(object):
 
         for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
             mask, nuc_item = None, None
-            DataFrameFromImagej.plot_nucleus_dataframe(filtered_nuc_df, mask, 'out/%s' % nuc_item['centrosomes_img'])
-            DataFrameFromImagej.add_stats(filtered_nuc_df)
+            ImagejPandas.plot_nucleus_dataframe(filtered_nuc_df, mask, 'out/%s' % nuc_item['centrosomes_img'])
+            ImagejPandas.add_stats(filtered_nuc_df)
 
         template = """
                 {% for nuc_item in nuclei_list %}

@@ -126,30 +126,44 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                     cy = cfxy[fidx][2] * self.resolution
 
                     nuclei_sel = [n for n in sel if (n != 'pandas_dataframe' and n != 'pandas_masks')]
+                    painter.setBrush(QColor('transparent'))
                     if len(nuclei_sel) > 0:
-                        for nucID in nuclei_sel:
-                            is_in_selected_nuclei = int(nucID[1:]) == self.nucleiSelected
-
-                            centr_in_a = cntrID in sel['%s/A' % nucID]
-                            centr_in_b = cntrID in sel['%s/B' % nucID]
-                            painter.setBrush(QColor('transparent'))
-                            if self.nucleiSelected is None:
-                                painter.setPen(QPen(QBrush(QColor('green')), 2))
-                            elif is_in_selected_nuclei and centr_in_a:
-                                painter.setPen(QPen(QBrush(QColor('orange')), 2))
-                            elif is_in_selected_nuclei and centr_in_b:
-                                painter.setPen(QPen(QBrush(QColor('red')), 2))
-                            else:
-                                painter.setPen(QPen(QBrush(QColor('gray')), 2))
-                            painter.drawEllipse(cx - 5, cy - 5, 10, 10)
-
-                            painter.setPen(QPen(QBrush(QColor('white')), 2))
-                            painter.drawText(cx + 10, cy + 5, cntrID)
-                    else:
-                        painter.setBrush(QColor('transparent'))
-                        painter.setPen(QPen(QBrush(QColor('gray')), 2))
+                        painter.setPen(QPen(QBrush(QColor('gray')), 1))
                         painter.drawEllipse(cx - 5, cy - 5, 10, 10)
-                        painter.setPen(QPen(QBrush(QColor('white')), 2))
+                        painter.setPen(QPen(QBrush(QColor('white')), 1))
                         painter.drawText(cx + 10, cy + 5, cntrID)
+                    else:
+                        painter.setPen(QPen(QBrush(QColor('gray')), 1))
+                        painter.drawEllipse(cx - 5, cy - 5, 10, 10)
+                        painter.setPen(QPen(QBrush(QColor('white')), 1))
+                        painter.drawText(cx + 10, cy + 5, cntrID)
+
+            # draw selection
+            for nuclei_str in f['%s/%s/selection' % (self.condition, self.run)]:
+                if nuclei_str == 'pandas_dataframe' or nuclei_str == 'pandas_masks': continue
+                nuclei_id = int(nuclei_str[1:])
+                centrosomes_of_nuclei_a = f['%s/%s/selection/%s/A' % (self.condition, self.run, nuclei_str)].keys()
+                centrosomes_of_nuclei_b = f['%s/%s/selection/%s/B' % (self.condition, self.run, nuclei_str)].keys()
+                painter.setPen(QPen(QBrush(QColor('orange')), 2))
+                for centr_str in centrosomes_of_nuclei_a:
+                    cntr = centrosome_list[centr_str]
+                    cfxy = cntr['pos'].value
+                    cnt_frames = cfxy.T[0]
+                    if self.frame in cnt_frames:
+                        fidx = cnt_frames.searchsorted(self.frame)
+                        cx = cfxy[fidx][1] * self.resolution
+                        cy = cfxy[fidx][2] * self.resolution
+                        painter.drawEllipse(cx - 5, cy - 5, 10, 10)
+
+                painter.setPen(QPen(QBrush(QColor('red')), 2))
+                for centr_str in centrosomes_of_nuclei_b:
+                    cntr = centrosome_list[centr_str]
+                    cfxy = cntr['pos'].value
+                    cnt_frames = cfxy.T[0]
+                    if self.frame in cnt_frames:
+                        fidx = cnt_frames.searchsorted(self.frame)
+                        cx = cfxy[fidx][1] * self.resolution
+                        cy = cfxy[fidx][2] * self.resolution
+                        painter.drawEllipse(cx - 5, cy - 5, 10, 10)
 
             painter.end()

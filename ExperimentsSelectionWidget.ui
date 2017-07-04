@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>891</width>
+    <width>975</width>
     <height>821</height>
    </rect>
   </property>
@@ -16,7 +16,7 @@
   <widget class="CentrosomeImageQLabel" name="movieImgLabel">
    <property name="geometry">
     <rect>
-     <x>380</x>
+     <x>450</x>
      <y>0</y>
      <width>512</width>
      <height>512</height>
@@ -50,8 +50,8 @@
     <rect>
      <x>240</x>
      <y>30</y>
-     <width>51</width>
-     <height>241</height>
+     <width>81</width>
+     <height>431</height>
     </rect>
    </property>
   </widget>
@@ -61,7 +61,7 @@
      <x>160</x>
      <y>30</y>
      <width>81</width>
-     <height>241</height>
+     <height>431</height>
     </rect>
    </property>
    <property name="selectionMode">
@@ -97,7 +97,7 @@
   <widget class="QListView" name="centrosomeListView_A">
    <property name="geometry">
     <rect>
-     <x>290</x>
+     <x>330</x>
      <y>30</y>
      <width>71</width>
      <height>111</height>
@@ -110,7 +110,7 @@
   <widget class="QListView" name="centrosomeListView_B">
    <property name="geometry">
     <rect>
-     <x>290</x>
+     <x>330</x>
      <y>160</y>
      <width>71</width>
      <height>111</height>
@@ -123,7 +123,7 @@
   <widget class="QLabel" name="centrosomesTitleLbl_A">
    <property name="geometry">
     <rect>
-     <x>340</x>
+     <x>380</x>
      <y>10</y>
      <width>16</width>
      <height>16</height>
@@ -136,7 +136,7 @@
   <widget class="QLabel" name="centrosomesTitleLbl_B">
    <property name="geometry">
     <rect>
-     <x>340</x>
+     <x>380</x>
      <y>140</y>
      <width>16</width>
      <height>16</height>
@@ -149,7 +149,7 @@
   <widget class="QSlider" name="frameHSlider">
    <property name="geometry">
     <rect>
-     <x>380</x>
+     <x>450</x>
      <y>490</y>
      <width>481</width>
      <height>20</height>
@@ -180,7 +180,6 @@
    <property name="cursor">
     <cursorShape>CrossCursor</cursorShape>
    </property>
-   <zorder>exportButton</zorder>
   </widget>
   <widget class="QPushButton" name="exportButton">
    <property name="geometry">
