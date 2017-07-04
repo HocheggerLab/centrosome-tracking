@@ -30,7 +30,7 @@ class ExperimentsList(QtGui.QWidget):
         self.timer = QTimer()
         self.timer.singleShot(1000, self.anim)
 
-        QtCore.QObject.connect(self.exportButton, QtCore.SIGNAL("pressed()"), self.on_export_button)
+        QtCore.QObject.connect(self.exportButton, QtCore.SIGNAL('pressed()'), self.on_export_button)
 
     def anim(self):
         try:
@@ -45,7 +45,7 @@ class ExperimentsList(QtGui.QWidget):
         model = QtGui.QStandardItemModel()
         self.experimentsTreeView.setModel(model)
         self.experimentsTreeView.setUniformRowHeights(True)
-        with h5py.File(self.hdf5file, "r") as f:
+        with h5py.File(self.hdf5file, 'r') as f:
             for cond in f.iterkeys():
                 conditem = QtGui.QStandardItem(cond)
                 for run in f[cond].iterkeys():
@@ -80,13 +80,13 @@ class ExperimentsList(QtGui.QWidget):
             self.centrosomeListView_B.model().clear()
             self.movieImgLabel.clear()
 
-        with h5py.File(self.hdf5file, "r") as f:
+        with h5py.File(self.hdf5file, 'r') as f:
             sel = f['%s/%s/raw' % (self.condition, self.run)]
             self.total_frames = len(sel)
         self.anim()
 
     def populate_frames_list(self):
-        with h5py.File(self.hdf5file, "r") as f:
+        with h5py.File(self.hdf5file, 'r') as f:
             sel = f['%s/%s/raw' % (self.condition, self.run)]
             self.total_frames = len(sel)
             self.frameHSlider.setMaximum(self.total_frames - 1)
@@ -100,7 +100,7 @@ class ExperimentsList(QtGui.QWidget):
     def populate_nuclei(self):
         model = QtGui.QStandardItemModel()
         self.nucleiListView.setModel(model)
-        with h5py.File(self.hdf5file, "r") as f:
+        with h5py.File(self.hdf5file, 'r') as f:
             nuc = f['%s/%s/measurements/nuclei' % (self.condition, self.run)]
             sel = f['%s/%s/selection' % (self.condition, self.run)]
             for nucID in nuc:
@@ -135,16 +135,18 @@ class ExperimentsList(QtGui.QWidget):
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
 
     def plot_tracks_of_nuclei(self, nuclei):
-        with h5py.File(self.hdf5file, "r") as f:
-            if 'pandas_dataframe' in f['%s/%s/selection' % (self.condition, self.run)]:
+        with h5py.File(self.hdf5file, 'r') as f:
+            if 'pandas_dataframe' in f['%s/%s/processed' % (self.condition, self.run)]:
                 read_ok = True
             else:
                 read_ok = False
         self.mplDistance.canvas.ax.cla()
         if read_ok:
-            df = pd.read_hdf(self.hdf5file, key='%s/%s/selection/pandas_dataframe' % (self.condition, self.run))
-            mask = pd.read_hdf(self.hdf5file, key='%s/%s/selection/pandas_masks' % (self.condition, self.run))
-            dfij.plot_distance_to_nucleus(df[df['Nuclei'] == nuclei], self.mplDistance.canvas.ax, mask=mask)
+            df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_dataframe' % (self.condition, self.run))
+            mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
+            df = df[df['Nuclei'] == nuclei]
+            mask = mask[mask['Nuclei'] == nuclei]
+            dfij.plot_distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask)
             self.mplDistance.canvas.draw()
 
     def populate_centrosomes(self):
@@ -160,7 +162,7 @@ class ExperimentsList(QtGui.QWidget):
         self.centrosomeListView_A.setAcceptDrops(True)
         self.centrosomeListView_B.setModel(modelB)
         self.centrosomeListView_B.setAcceptDrops(True)
-        with h5py.File(self.hdf5file, "r") as f:
+        with h5py.File(self.hdf5file, 'r') as f:
             centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)].keys()
             sel = f['%s/%s/selection' % (self.condition, self.run)]
             if self.nuclei_selected is not None and 'N%02d' % self.nuclei_selected in sel:
@@ -189,8 +191,8 @@ class ExperimentsList(QtGui.QWidget):
         modelA.itemChanged.connect(self.on_centrosometick_change)
         modelB.itemChanged.connect(self.on_centrosometick_change)
 
-        QtCore.QObject.connect(modelA, QtCore.SIGNAL("rowsInserted(QModelIndex,int,int)"), self.on_centrosome_a_drop)
-        QtCore.QObject.connect(modelB, QtCore.SIGNAL("rowsInserted(QModelIndex,int,int)"), self.on_centrosome_b_drop)
+        QtCore.QObject.connect(modelA, QtCore.SIGNAL('rowsInserted(QModelIndex,int,int)'), self.on_centrosome_a_drop)
+        QtCore.QObject.connect(modelB, QtCore.SIGNAL('rowsInserted(QModelIndex,int,int)'), self.on_centrosome_b_drop)
 
     @QtCore.pyqtSlot('QStandardItem')
     def on_centrosometick_change(self, item):
@@ -225,21 +227,25 @@ class ExperimentsList(QtGui.QWidget):
     def on_export_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save file',
                                                   directory='/Users/Fabio/centrosomes.pandas')
+        fname = str(fname)
         try:
             print 'saving to %s' % fname
-            self.reprocess_selections()
+            # self.reprocess_selections()
             hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
             df = hlab.dataframe
             df.to_pickle(fname)
-        except:
-            print 'something bad happened trying to save pandas dataframe.'
+        except Exception as e:
+            print 'something bad happened trying to save pandas dataframe. \r\n%s' % e
 
     def reprocess_selections(self):
-        with h5py.File(self.hdf5file, "r") as f:
-            for cond in f.iterkeys():
-                for run in f[cond].iterkeys():
-                    hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-                    hlab.process_selection_for_run(cond, run)
+        with h5py.File(self.hdf5file, 'r') as f:
+            conditions = f.keys()
+        for cond in conditions:
+            with h5py.File(self.hdf5file, 'r') as f:
+                runs = f[cond].keys()
+            for run in runs:
+                hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+                hlab.process_selection_for_run(cond, run)
 
 
 if __name__ == '__main__':

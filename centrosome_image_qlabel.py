@@ -27,9 +27,9 @@ class CentrosomeImageQLabel(QtGui.QLabel):
     @hdf5file.setter
     def hdf5file(self, hdf_file):
         if hdf_file is not None:
-            print("Setting value")
+            print('Setting value')
             self._hdf5file = hdf_file
-            with h5py.File(hdf_file, "r") as f:
+            with h5py.File(hdf_file, 'r') as f:
                 self.condition = f.keys()[0]
                 self.run = f[self.condition].keys()[0]
                 self.frame = int(f['%s/%s/raw' % (self.condition, self.run)].keys()[0])
@@ -48,7 +48,7 @@ class CentrosomeImageQLabel(QtGui.QLabel):
         if self.dataHasChanged:
             # print 'paintEvent reloading data from file %s' % self.hdf5file
             self.dataHasChanged = False
-            with h5py.File(self.hdf5file, "r") as f:
+            with h5py.File(self.hdf5file, 'r') as f:
                 ch2 = f['%s/%s/raw/%03d/channel-2' % (self.condition, self.run, self.frame)]
                 data = ch2[:]
                 self.resolution = ch2.parent.attrs['resolution']
@@ -69,7 +69,7 @@ class CentrosomeImageQLabel(QtGui.QLabel):
     def draw_measurements(self):
         df = pd.read_hdf(self.hdf5file, key='%s/%s/measurements/pandas_dataframe' % (self.condition, self.run),
                          mode='r')
-        with h5py.File(self._hdf5file, "r") as f:
+        with h5py.File(self._hdf5file, 'r') as f:
             nuclei_list = f['%s/%s/measurements/nuclei' % (self.condition, self.run)]
             centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)]
             sel = f['%s/%s/selection' % (self.condition, self.run)]

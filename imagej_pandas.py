@@ -26,6 +26,9 @@ class ImagejPandas(object):
         self.df_nuclei = pd.read_csv(self.path_nuclei)
         self.centrosome_replacements = dict()
 
+        self.df_centrosome[['Frame', 'Nuclei', 'Centrosome']].astype(np.int64, inplace=True)
+        self.df_nuclei[['Frame', 'Nuclei']].astype(np.int64, inplace=True)
+
         # merge with nuclei data
         self.merged_df = self.df_centrosome.merge(self.df_nuclei)
         self.merged_df = self.merged_df.drop(['ValidCentroid'], axis=1)
@@ -101,11 +104,11 @@ class ImagejPandas(object):
 
     @staticmethod
     def interpolate_data(df):
-        if df.groupby(['Frame', 'Time', 'Centrosome']).size().max() > 1:
+        if df.groupby(['Frame', 'Time', 'Nuclei', 'Centrosome']).size().max() > 1:
             # we accept just 1 value per (frame,centrosome)
             return df, df.isnull()
 
-        s = df.set_index(['Frame', 'Time', 'Centrosome']).sort_index()
+        s = df.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome']).sort_index()
         u = s.unstack('Centrosome')
         umask = u.isnull()  # true for interpolated values
         u = u.interpolate(limit=30, limit_direction='backward')
@@ -120,7 +123,7 @@ class ImagejPandas(object):
         # get the time of the minimum of the two values
         tc = supdn[supdn == supdn.min()].values[0]
 
-        s = u.set_index(['Time', 'Centrosome']).unstack('Centrosome')
+        s = u.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome']).unstack('Centrosome')
         # where are the NaN's?
         nans_are_in = s['Frame'].transpose().isnull().any(axis=1)
         nans_are_in = list(nans_are_in.ix[nans_are_in].keys())[0]
@@ -137,7 +140,7 @@ class ImagejPandas(object):
         return u.reset_index(), mask
 
     def add_stats(self, _ndf):
-        if _ndf.groupby(['Frame', 'Time', 'Centrosome']).size().max() > 1:
+        if _ndf.groupby(['Frame', 'Time', 'Nuclei', 'Centrosome']).size().max() > 1:
             return
 
         # get time of contact
@@ -436,11 +439,11 @@ class ImagejPandas(object):
                                                                               centId[1])
 
                 # compute mask as logical AND of joined track mask and interpolated data mask
-                im = imask.set_index(['Frame', 'Time', 'Centrosome'])
-                try:
-                    jm = jmask.set_index(['Frame', 'Time', 'Centrosome'])
+                im = imask.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome'])
+                if jmask is not None:
+                    jm = jmask.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome'])
                     mask = (~im & ~jm).reset_index()
-                except (NameError, AttributeError)as e:  # jm not defined
+                else:
                     mask = (~im).reset_index()
 
                 # compute velocity again with interpolated data
