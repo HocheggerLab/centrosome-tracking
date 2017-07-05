@@ -111,7 +111,10 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                             nucb_qpoints = [Qt.QPoint(x * self.resolution, y * self.resolution) for x, y in nucb_points]
                             nucb_poly = Qt.QPolygon(nucb_qpoints)
 
-                            painter.setPen(QPen(QBrush(QColor('red')), 2))
+                            if nid==self.nucleiSelected:
+                                painter.setPen(QPen(QBrush(QColor('yellow')), 2))
+                            else:
+                                painter.setPen(QPen(QBrush(QColor('red')), 2))
                             painter.setBrush(QColor('transparent'))
                             painter.drawPolygon(nucb_poly)
 

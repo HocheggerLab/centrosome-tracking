@@ -1,3 +1,4 @@
+import ConfigParser
 import os
 
 import h5py
@@ -30,7 +31,8 @@ class ExperimentsList(QtGui.QWidget):
         self.timer = QTimer()
         self.timer.singleShot(1000, self.anim)
 
-        QtCore.QObject.connect(self.exportButton, QtCore.SIGNAL('pressed()'), self.on_export_button)
+        QtCore.QObject.connect(self.exportPandasButton, QtCore.SIGNAL('pressed()'), self.on_export_pandas_button)
+        QtCore.QObject.connect(self.exportSelectionButton, QtCore.SIGNAL('pressed()'), self.on_export_sel_button)
 
     def anim(self):
         try:
@@ -67,6 +69,7 @@ class ExperimentsList(QtGui.QWidget):
         self.condition = str(current.parent().data().toString())
         self.run = str(current.data().toString())
         self.frame = 0
+        self.mplDistance.canvas.ax.cla()
         if len(self.condition) > 0:
             self.populate_frames_list()
             self.movieImgLabel.render_frame(self.condition, self.run, self.frame)
@@ -224,7 +227,7 @@ class ExperimentsList(QtGui.QWidget):
         self.centrosome_group = 1
 
     @QtCore.pyqtSlot()
-    def on_export_button(self):
+    def on_export_pandas_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save file',
                                                   directory='/Users/Fabio/centrosomes.pandas')
         fname = str(fname)
@@ -236,6 +239,29 @@ class ExperimentsList(QtGui.QWidget):
             df.to_pickle(fname)
         except Exception as e:
             print 'something bad happened trying to save pandas dataframe. \r\n%s' % e
+
+    def on_export_sel_button(self):
+        fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selection file',
+                                                  directory='/Users/Fabio/centrosomes_selection.txt')
+        fname = str(fname)
+        print 'saving to %s' % fname
+
+        config = ConfigParser.RawConfigParser()
+        with h5py.File(self.hdf5file, "r") as f:
+            for cond in f:
+                for run in f[cond]:
+                    for nuclei_str in f['%s/%s/selection' % (cond, run)]:
+                        if nuclei_str == 'pandas_dataframe' or nuclei_str == 'pandas_masks': continue
+                        section = '%s.%s.%s' % (cond, run, nuclei_str)
+                        config.add_section(section)
+                        centrosomes_of_nuclei_a = f['%s/%s/selection/%s/A' % (cond, run, nuclei_str)].keys()
+                        centrosomes_of_nuclei_b = f['%s/%s/selection/%s/B' % (cond, run, nuclei_str)].keys()
+                        config.set(section, 'A', [c.encode('ascii','ignore') for c in centrosomes_of_nuclei_a])
+                        config.set(section, 'B', [c.encode('ascii','ignore') for c in centrosomes_of_nuclei_b])
+
+        # Write our configuration file
+        with open(fname, 'w') as configfile:
+            config.write(configfile)
 
     def reprocess_selections(self):
         with h5py.File(self.hdf5file, 'r') as f:
