@@ -160,21 +160,21 @@ class LabHDF5NeXusFile():
                         for nuc_id, df_nuc in df.groupby('Nuclei'):
                             dc = dfij.dist_vel_acc_centrosomes(df_nuc)
                             if len(dc) > 0:
-                                maxframe1 = df_nuc.loc[df_nuc['Centrosome'] == 1, 'Frame'].max()
-                                maxframe2 = df_nuc.loc[df_nuc['Centrosome'] == 2, 'Frame'].max()
+                                maxframe1 = df_nuc.loc[df_nuc['CentrLabel'] == 'A', 'Frame'].max()
+                                maxframe2 = df_nuc.loc[df_nuc['CentrLabel'] == 'B', 'Frame'].max()
                                 maxframedc = dc['Frame'].max()
                                 minframe1 = min(maxframe1, maxframedc)
                                 minframe2 = min(maxframe2, maxframedc)
 
-                                idx1 = (df_nuc['Centrosome'] == 1) & (df_nuc['Frame'] <= minframe1)
-                                idx2 = (df_nuc['Centrosome'] == 2) & (df_nuc['Frame'] <= minframe2)
+                                idx1 = (df_nuc['CentrLabel'] == 'A') & (df_nuc['Frame'] <= minframe1)
+                                idx2 = (df_nuc['CentrLabel'] == 'B') & (df_nuc['Frame'] <= minframe2)
 
-                                df_nuc.loc[idx1, 'DistCentr'] = dc[dc['Frame']<=minframe1]['DistCentr'].values
-                                df_nuc.loc[idx1, 'SpeedCentr'] = dc[dc['Frame']<=minframe1]['SpeedCentr'].values
-                                df_nuc.loc[idx1, 'AccCentr'] = dc[dc['Frame']<=minframe1]['AccCentr'].values
-                                df_nuc.loc[idx2, 'DistCentr'] = -dc[dc['Frame']<=minframe2]['DistCentr'].values
-                                df_nuc.loc[idx2, 'SpeedCentr'] = -dc[dc['Frame']<=minframe2]['SpeedCentr'].values
-                                df_nuc.loc[idx2, 'AccCentr'] = -dc[dc['Frame']<=minframe2]['AccCentr'].values
+                                df_nuc.loc[idx1, 'DistCentr'] = dc[dc['Frame'] <= minframe1]['DistCentr'].values
+                                df_nuc.loc[idx1, 'SpeedCentr'] = dc[dc['Frame'] <= minframe1]['SpeedCentr'].values
+                                df_nuc.loc[idx1, 'AccCentr'] = dc[dc['Frame'] <= minframe1]['AccCentr'].values
+                                df_nuc.loc[idx2, 'DistCentr'] = -dc[dc['Frame'] <= minframe2]['DistCentr'].values
+                                df_nuc.loc[idx2, 'SpeedCentr'] = -dc[dc['Frame'] <= minframe2]['SpeedCentr'].values
+                                df_nuc.loc[idx2, 'AccCentr'] = -dc[dc['Frame'] <= minframe2]['AccCentr'].values
                                 out = out.append(df_nuc)
         return out
 
@@ -251,13 +251,13 @@ class LabHDF5NeXusFile():
                     centrosomes_of_nuclei_b = fsel['%s/B' % nuclei_str].keys()
                     for centr_str in centrosomes_of_nuclei_a:
                         centr_id = int(centr_str[1:])
-                        proc_df.loc[proc_df['Centrosome'] == centr_id, 'Centrosome'] = 1
-                        mask_df.loc[mask_df['Centrosome'] == centr_id, 'Centrosome'] = 1
+                        proc_df.loc[proc_df['Centrosome'] == centr_id, 'CentrLabel'] = 'A'
+                        mask_df.loc[mask_df['Centrosome'] == centr_id, 'CentrLabel'] = 'A'
                     for centr_str in centrosomes_of_nuclei_b:
                         centr_id = int(centr_str[1:])
-                        proc_df.loc[proc_df['Centrosome'] == centr_id, 'Centrosome'] = 2
-                        mask_df.loc[mask_df['Centrosome'] == centr_id, 'Centrosome'] = 2
-            proc_df.drop(proc_df[proc_df['Centrosome'] > 2].index, inplace=True)
+                        proc_df.loc[proc_df['Centrosome'] == centr_id, 'CentrLabel'] = 'B'
+                        mask_df.loc[mask_df['Centrosome'] == centr_id, 'CentrLabel'] = 'B'
+            proc_df.drop(proc_df[proc_df['CentrLabel'] == None].index, inplace=True)
             mask_df = mask_df[mask_df['Nuclei'] > 0]
 
             proc_df.to_hdf(self.filename, key='%s/%s/processed/pandas_dataframe' % (experiment_tag, run), mode='r+')
