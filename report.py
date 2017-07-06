@@ -1,11 +1,13 @@
-import matplotlib
-import numpy as np
-import pandas as pd
-import jinja2 as j2
-import matplotlib.pyplot as plt
-import imagej_pandas as ijdf
 import codecs
 import time
+
+import jinja2 as j2
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+import imagej_pandas as ijdf
 
 
 def subreport(conditions):
@@ -78,6 +80,33 @@ def plot_distance(data, filename=None):
     if filename is not None:
         plt.savefig('out/img/%s.svg' % filename, format='svg')
     plt.close(20)
+
+
+def html_centrosomes_report(df, experimentTag, run):
+    htmlout = '<h3>Experiment Group: %s, run: %s</h3>' % (experimentTag, run)
+
+    for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
+        mask, nuc_item = None, None
+        ImagejPandas.plot_nucleus_dataframe(filtered_nuc_df, mask, 'out/%s' % nuc_item['centrosomes_img'])
+        ImagejPandas.add_stats(filtered_nuc_df)
+
+    template = """
+            {% for nuc_item in nuclei_list %}
+            <div class="container">
+                <!--<h3>Filename: {{ nuc_item['filename']}}</h3>-->
+                <ul>
+                    <li>Nucleus ID: {{ nuc_item['nuclei_id'] }} ({{ nuc_item['filename']}})</li>
+                    <li>Centrosome Tags: {{ nuc_item['nuclei_centrosomes_tags'] }}</li>
+                </ul>
+                <!--<p style="page-break-before: always" >{{ nuc_item['centrosomes_speed_stats'] }}</p>-->
+                <img src="{{ nuc_item['centrosomes_img'] }}">
+            </div>
+            <div style="page-break-after: always"></div>
+            {% endfor %}
+        """
+    templ = j2.Template(template)
+    htmlout += templ.render({'nuclei_list': df.groupby(['Nuclei']).groups})
+    return htmlout
 
 
 if __name__ == '__main__':

@@ -3,7 +3,6 @@ import re
 
 import jinja2 as j2
 import matplotlib
-import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -14,11 +13,10 @@ class ImagejPandas(object):
     DIST_THRESHOLD = 1.0  # um before 1 frame of contact
     TIME_BEFORE_CONTACT = 30
 
-    def __init__(self, filename, stats_df=None):
+    def __init__(self, filename):
         self.path_csv = filename
         self.df_centrosome = pd.read_csv(self.path_csv)
         base_path = os.path.dirname(filename)
-        parent_path = os.path.abspath(os.path.join(os.path.dirname(filename), '..'))
         bname = os.path.basename(filename)
         self.fname = re.search('(.+)-table.csv$', bname).group(1)
         self.path_nuclei = '%s/%s-nuclei.csv' % (base_path, self.fname)
@@ -57,7 +55,6 @@ class ImagejPandas(object):
                     dist = list(dsf[dsf['Frame'] == frame]['DistCentr'])[0]
 
                 return time, frame, dist
-
         return None, None, None
 
     @staticmethod
@@ -323,68 +320,11 @@ class ImagejPandas(object):
             plt.savefig(filename, format='svg')
         plt.close(5)
 
-    # TODO: move to mplwidget
-    @staticmethod
-    def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None):
-        nucleus_id = df['Nuclei'].min()
-
-        # re-scale time
-        df.loc[df.index, 'Time'] /= 60.0
-
-        dhandles, dlabels = list(), list()
-        for k, [(lblCentr), _df] in enumerate(df.groupby(['Centrosome'])):
-            track = _df.set_index('Frame').sort_index()
-
-            color = sns.color_palette()[k]
-            dlbl = 'N%d-C%d' % (nucleus_id, lblCentr)
-            track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
-            dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
-            dlabels.append(dlbl)
-
-            if mask is not None:
-                tmask = mask[mask['Centrosome'] == lblCentr].set_index('Frame').sort_index()
-                orig = track['Dist'][tmask['Dist']]
-                interp = track['Dist'][~tmask['Dist']]
-                if len(orig) > 0:
-                    orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
-                if len(interp) > 0:
-                    interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
-
-        # plot time of contact
-        if time_contact is not None:
-            ax.axvline(x=time_contact, color='dimgray', linestyle='--')
-            ax.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray',
-                       linestyle='--')
-
-        ax.legend(dhandles, dlabels)
-        ax.set_ylabel('Dist to Nuclei $[\mu m]$')
-        ax.set_xlabel('Time $[min]$')
-
-        if filename is not None:
-            plt.axes(ax).savefig(filename, format='svg')
-
-    @staticmethod
-    def merge_tracks(df, cn, cm):
-        # makes the operation df(Cn) <- df(Cm)
-        # that is, to replace all Cn with Cm
-        cmnuclei = df.ix[df['Centrosome'] == cm, 'Nuclei'].unique()[0]
-        cnnuclei = df.ix[df['Centrosome'] == cn, 'Nuclei'].unique()[0]
-
-        print 'joining %d with %d on nuclei %d' % (cm, cn, cmnuclei)
-
-        df.loc[(df['Nuclei'] == cnnuclei) & (df['Centrosome'] == cm), 'Nuclei'] = df.loc[
-            (df['Nuclei'] == cmnuclei) & (df['Centrosome'] == cn), 'Nuclei'].unique()[0]
-
-        df.loc[df['Centrosome'] == cn, 'Centrosome'] = cm
-
-        return df
-
     @staticmethod
     def process_dataframe(df,
                           nuclei_list=None,
                           centrosome_exclusion_dict=None,
                           centrosome_inclusion_dict=None,
-                          centrosome_equivalence_dict=None,
                           joined_tracks=None,
                           max_time_dict=None):
 
@@ -406,26 +346,6 @@ class ImagejPandas(object):
             if nucleusID in nuclei_list:
                 if (max_time_dict is not None) and (nucleusID in max_time_dict):
                     filtered_nuc_df = filtered_nuc_df[filtered_nuc_df['Time'] <= max_time_dict[nucleusID]]
-
-                if centrosome_equivalence_dict is not None:
-                    if nucleusID in centrosome_equivalence_dict.keys():
-                        centr_repl = list()
-                        for cneq in centrosome_equivalence_dict[nucleusID]:
-                            min_cm = min(cneq)
-                            ceq = dict()
-                            for cn in cneq:
-                                if cn != min_cm:
-                                    filtered_nuc_df = ImagejPandas.merge_tracks(filtered_nuc_df, cn, min_cm)
-                                    ceq[cn] = min_cm
-                            centr_repl.append(ceq.copy())
-
-                c_tags = ''
-                if nucleusID in centrosome_equivalence_dict:
-                    for equivs in centrosome_equivalence_dict[nucleusID]:
-                        min_c = min(equivs)
-                        rest_c = set(equivs) - set([min_c])
-                        c_tags += ' C%d was merged with (%s),' % (min_c, ''.join('C%d,' % c for c in rest_c)[0:-1])
-                print c_tags[0:-1] + '.'
 
                 filtered_nuc_df, imask = ImagejPandas.interpolate_data(filtered_nuc_df)
 
@@ -451,30 +371,3 @@ class ImagejPandas(object):
                 df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
                 df_masks = df_masks.append(mask)
         return df_filtered_nucs, df_masks
-
-    @staticmethod
-    def html_centrosomes_report(df, experimentTag, run):
-        htmlout = '<h3>Experiment Group: %s, run: %s</h3>' % (experimentTag, run)
-
-        for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
-            mask, nuc_item = None, None
-            ImagejPandas.plot_nucleus_dataframe(filtered_nuc_df, mask, 'out/%s' % nuc_item['centrosomes_img'])
-            ImagejPandas.add_stats(filtered_nuc_df)
-
-        template = """
-                {% for nuc_item in nuclei_list %}
-                <div class="container">
-                    <!--<h3>Filename: {{ nuc_item['filename']}}</h3>-->
-                    <ul>
-                        <li>Nucleus ID: {{ nuc_item['nuclei_id'] }} ({{ nuc_item['filename']}})</li>
-                        <li>Centrosome Tags: {{ nuc_item['nuclei_centrosomes_tags'] }}</li>
-                    </ul>
-                    <!--<p style="page-break-before: always" >{{ nuc_item['centrosomes_speed_stats'] }}</p>-->
-                    <img src="{{ nuc_item['centrosomes_img'] }}">
-                </div>
-                <div style="page-break-after: always"></div>
-                {% endfor %}
-            """
-        templ = j2.Template(template)
-        htmlout += templ.render({'nuclei_list': df.groupby(['Nuclei']).groups})
-        return htmlout

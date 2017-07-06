@@ -31,7 +31,7 @@ class LabHDF5NeXusFile():
                 f.attrs['h5py_version'] = h5py.version.version
 
     def add_experiment(self, group, experiment_tag, timestamp=None, tags=None):
-        with h5py.File(self.filename, "a") as f:
+        with h5py.File(self.filename, 'a') as f:
             timestamp = timestamp if timestamp is not None else datetime.datetime.now().isoformat()
 
             gr = '%s/%s' % (group, experiment_tag)
@@ -53,10 +53,10 @@ class LabHDF5NeXusFile():
             nxentry_proc.attrs['NX_class'] = 'NXgroup'
 
     def add_tiff_sequence(self, tiffpath, experiment_tag, run):
-        print "adding tiff:", tiffpath
+        print 'adding tiff:', tiffpath
 
         # open the HDF5 NeXus file
-        f = h5py.File(self.filename, "a")
+        f = h5py.File(self.filename, 'a')
 
         # create the NXentry group
         nxdata = f['%s/%s/raw' % (experiment_tag, run)]
@@ -104,7 +104,7 @@ class LabHDF5NeXusFile():
 
     def add_measurements(self, csvpath, experiment_tag, run):
         dfc = dfij(csvpath)
-        with h5py.File(self.filename, "a") as f:
+        with h5py.File(self.filename, 'a') as f:
             nxmeas = f['%s/%s/measurements' % (experiment_tag, run)]
 
             dfnt = dfc.df_nuclei.set_index('Frame').sort_index()
@@ -149,7 +149,7 @@ class LabHDF5NeXusFile():
     @property
     def dataframe(self):
         out = pd.DataFrame()
-        with h5py.File(self.filename, "r") as f:
+        with h5py.File(self.filename, 'r') as f:
             for experiment_tag in f:
                 for run in f['%s' % experiment_tag]:
                     if 'pandas_dataframe' in f['%s/%s/processed' % (experiment_tag, run)]:
@@ -158,6 +158,7 @@ class LabHDF5NeXusFile():
                         df['condition'] = experiment_tag
                         df['run'] = run
                         for nuc_id, df_nuc in df.groupby('Nuclei'):
+                            print 'getting run %s nuclei N%02d' % (run, nuc_id)
                             dc = dfij.dist_vel_acc_centrosomes(df_nuc)
                             if len(dc) > 0:
                                 maxframe1 = df_nuc.loc[df_nuc['CentrLabel'] == 'A', 'Frame'].max()
@@ -183,7 +184,7 @@ class LabHDF5NeXusFile():
         centrosome_exclusion_dict = dict()
         centrosome_equivalence_dict = dict()
         joined_tracks = dict()
-        with h5py.File(self.filename, "r") as f:
+        with h5py.File(self.filename, 'r') as f:
             select_addr = '%s/%s/selection' % (experiment_tag, run)
             sel = f[select_addr]
             nuclei_list = [int(n[1:]) for n in sel if (n != 'pandas_dataframe' and n != 'pandas_masks')]
@@ -217,7 +218,7 @@ class LabHDF5NeXusFile():
         pdhdf_nuclei = pd.read_hdf(self.filename, key=nuclei_key, mode='r')
 
         # update centrosome nuclei from selection
-        with h5py.File(self.filename, "r") as f:
+        with h5py.File(self.filename, 'r') as f:
             for nuclei_str in f['%s/%s/selection' % (experiment_tag, run)]:
                 if nuclei_str == 'pandas_dataframe' or nuclei_str == 'pandas_masks': continue
                 nuclei_id = int(nuclei_str[1:])
@@ -233,8 +234,7 @@ class LabHDF5NeXusFile():
 
         proc_df, mask_df = dfij.process_dataframe(pdhdf_merge, nuclei_list=nuclei_list,
                                                   centrosome_exclusion_dict=centrosome_exclusion_dict,
-                                                  centrosome_inclusion_dict=centrosome_inclusion_dict,
-                                                  centrosome_equivalence_dict=centrosome_equivalence_dict)
+                                                  centrosome_inclusion_dict=centrosome_inclusion_dict)
         if proc_df.empty:
             print 'dataframe is empty'
         else:
@@ -264,7 +264,7 @@ class LabHDF5NeXusFile():
             mask_df.to_hdf(self.filename, key='%s/%s/processed/pandas_masks' % (experiment_tag, run), mode='r+')
 
     def associate_centrosome_with_nuclei(self, centr_id, nuc_id, experiment_tag, run, centrosome_group=1):
-        with h5py.File(self.filename, "a") as f:
+        with h5py.File(self.filename, 'a') as f:
             # link centrosome to current nuclei selection
             source_cpos_addr = '%s/%s/measurements/centrosomes/C%03d/pos' % (experiment_tag, run, centr_id)
             source_npos_addr = '%s/%s/measurements/nuclei/N%02d/pos' % (experiment_tag, run, nuc_id)
@@ -284,7 +284,7 @@ class LabHDF5NeXusFile():
                 nxnuc_['C%03d' % centr_id] = nxcpos
 
     def delete_association(self, of_centrosome, with_nuclei, experiment_tag, run):
-        with h5py.File(self.filename, "a") as f:
+        with h5py.File(self.filename, 'a') as f:
             centosomesA = f['%s/%s/selection/N%02d/A' % (experiment_tag, run, with_nuclei)]
             centosomesB = f['%s/%s/selection/N%02d/B' % (experiment_tag, run, with_nuclei)]
             if of_centrosome in centosomesA:
@@ -297,7 +297,7 @@ class LabHDF5NeXusFile():
         self.associate_centrosome_with_nuclei(of_centrosome, toNuclei, experiment_tag, run)
 
     def is_centrosome_associated(self, centrosome, experiment_tag, run):
-        with h5py.File(self.filename, "r") as f:
+        with h5py.File(self.filename, 'r') as f:
             nuclei_list = f['%s/%s/measurements/nuclei' % (experiment_tag, run)]
             sel = f['%s/%s/selection' % (experiment_tag, run)]
             for nuclei in nuclei_list:

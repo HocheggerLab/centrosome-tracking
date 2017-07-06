@@ -8,7 +8,7 @@ from PyQt4.QtCore import Qt, QTimer
 from PyQt4.QtGui import QAbstractItemView
 
 import hdf5_nexus as hdf
-from imagej_pandas import ImagejPandas as dfij
+import special_plots as spc
 
 
 class ExperimentsList(QtGui.QWidget):
@@ -149,7 +149,7 @@ class ExperimentsList(QtGui.QWidget):
             mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
             df = df[df['Nuclei'] == nuclei]
             mask = mask[mask['Nuclei'] == nuclei]
-            dfij.plot_distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask)
+            spc.plot_distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask)
             self.mplDistance.canvas.draw()
 
     def populate_centrosomes(self):
@@ -233,7 +233,7 @@ class ExperimentsList(QtGui.QWidget):
         fname = str(fname)
         try:
             print 'saving to %s' % fname
-            # self.reprocess_selections()
+            self.reprocess_selections()
             hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
             df = hlab.dataframe
             df.to_pickle(fname)
@@ -256,8 +256,8 @@ class ExperimentsList(QtGui.QWidget):
                         config.add_section(section)
                         centrosomes_of_nuclei_a = f['%s/%s/selection/%s/A' % (cond, run, nuclei_str)].keys()
                         centrosomes_of_nuclei_b = f['%s/%s/selection/%s/B' % (cond, run, nuclei_str)].keys()
-                        config.set(section, 'A', [c.encode('ascii','ignore') for c in centrosomes_of_nuclei_a])
-                        config.set(section, 'B', [c.encode('ascii','ignore') for c in centrosomes_of_nuclei_b])
+                        config.set(section, 'A', [c.encode('ascii', 'ignore') for c in centrosomes_of_nuclei_a])
+                        config.set(section, 'B', [c.encode('ascii', 'ignore') for c in centrosomes_of_nuclei_b])
 
         # Write our configuration file
         with open(fname, 'w') as configfile:
@@ -267,7 +267,7 @@ class ExperimentsList(QtGui.QWidget):
         with h5py.File(self.hdf5file, 'r') as f:
             conditions = f.keys()
         for cond in conditions:
-            with h5py.File(self.hdf5file, 'r') as f:
+            with h5py.File(self.hdf5file, 'a') as f:
                 runs = f[cond].keys()
             for run in runs:
                 hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
