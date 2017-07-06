@@ -1,5 +1,6 @@
 import ConfigParser
 import os
+import re
 
 import h5py
 import pandas as pd
@@ -33,6 +34,7 @@ class ExperimentsList(QtGui.QWidget):
 
         QtCore.QObject.connect(self.exportPandasButton, QtCore.SIGNAL('pressed()'), self.on_export_pandas_button)
         QtCore.QObject.connect(self.exportSelectionButton, QtCore.SIGNAL('pressed()'), self.on_export_sel_button)
+        QtCore.QObject.connect(self.importSelectionButton, QtCore.SIGNAL('pressed()'), self.on_import_sel_button)
 
     def anim(self):
         try:
@@ -245,7 +247,7 @@ class ExperimentsList(QtGui.QWidget):
         print 'saving to %s' % fname
 
         config = ConfigParser.RawConfigParser()
-        with h5py.File(self.hdf5file, "r") as f:
+        with h5py.File(self.hdf5file, 'r') as f:
             for cond in f:
                 for run in f[cond]:
                     for nuclei_str in f['%s/%s/selection' % (cond, run)]:
@@ -260,6 +262,37 @@ class ExperimentsList(QtGui.QWidget):
         # Write our configuration file
         with open(fname, 'w') as configfile:
             config.write(configfile)
+
+    def on_import_sel_button(self):
+        fname = QtGui.QFileDialog.getOpenFileName(self, caption='Load selection file', filter='Text (*.txt)',
+                                                  directory='/Users/Fabio/centrosomes_selection.txt')
+        if not fname: return
+        fname = str(fname)
+
+        print 'deleting old selection'
+        with h5py.File(self.hdf5file, 'a') as f:
+            for cond in f:
+                for run in f[cond]:
+                    for o in f['%s/%s/selection' % (cond, run)]:
+                        del f['%s/%s/selection/%s' % (cond, run, o)]
+
+        print 'opening %s' % fname
+        selection = ConfigParser.ConfigParser()
+        selection.read(fname)
+        for sel in selection.sections():
+            print sel
+            cond, run, nucl = re.search('^(.+)\.(.+)\.N(.+)$', sel).groups()
+            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+
+            _A = eval(selection.get(sel, 'a'))
+            _B = eval(selection.get(sel, 'b'))
+            for c in _A:
+                hlab.associate_centrosome_with_nuclei(int(c[1:]), int(nucl), cond, run, centrosome_group=0)
+            for c in _B:
+                hlab.associate_centrosome_with_nuclei(int(c[1:]), int(nucl), cond, run, centrosome_group=1)
+            # hlab.process_selection_for_run(cond, run)
+        self.reprocess_selections()
+        print '\r\n done importing selection.'
 
     def reprocess_selections(self):
         with h5py.File(self.hdf5file, 'r') as f:

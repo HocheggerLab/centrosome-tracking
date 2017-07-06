@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>975</width>
+    <width>939</width>
     <height>821</height>
    </rect>
   </property>
@@ -173,9 +173,15 @@
     <rect>
      <x>0</x>
      <y>500</y>
-     <width>891</width>
+     <width>941</width>
      <height>321</height>
     </rect>
+   </property>
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
    </property>
    <property name="cursor">
     <cursorShape>CrossCursor</cursorShape>
@@ -197,7 +203,7 @@
   <widget class="QPushButton" name="exportSelectionButton">
    <property name="geometry">
     <rect>
-     <x>270</x>
+     <x>320</x>
      <y>470</y>
      <width>121</width>
      <height>41</height>
@@ -205,6 +211,19 @@
    </property>
    <property name="text">
     <string>Export Selection</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="importSelectionButton">
+   <property name="geometry">
+    <rect>
+     <x>320</x>
+     <y>430</y>
+     <width>121</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Import Selection</string>
    </property>
   </widget>
  </widget>
