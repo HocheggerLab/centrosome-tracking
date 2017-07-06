@@ -148,7 +148,7 @@ class LabHDF5NeXusFile():
 
     @property
     def dataframe(self):
-        out = pd.DataFrame()
+        df_out = outmsk = pd.DataFrame()
         with h5py.File(self.filename, 'r') as f:
             for experiment_tag in f:
                 for run in f['%s' % experiment_tag]:
@@ -171,13 +171,13 @@ class LabHDF5NeXusFile():
                                 idx2 = (df_nuc['CentrLabel'] == 'B') & (df_nuc['Frame'] <= minframe2)
 
                                 df_nuc.loc[idx1, 'DistCentr'] = dc[dc['Frame'] <= minframe1]['DistCentr'].values
-                                df_nuc.loc[idx1, 'SpeedCentr'] = dc[dc['Frame'] <= minframe1]['SpeedCentr'].values
-                                df_nuc.loc[idx1, 'AccCentr'] = dc[dc['Frame'] <= minframe1]['AccCentr'].values
+                                df_nuc.loc[idx1, 'SpeedCentr'] = -dc[dc['Frame'] <= minframe1]['SpeedCentr'].values
+                                df_nuc.loc[idx1, 'AccCentr'] = -dc[dc['Frame'] <= minframe1]['AccCentr'].values
                                 df_nuc.loc[idx2, 'DistCentr'] = -dc[dc['Frame'] <= minframe2]['DistCentr'].values
-                                df_nuc.loc[idx2, 'SpeedCentr'] = -dc[dc['Frame'] <= minframe2]['SpeedCentr'].values
-                                df_nuc.loc[idx2, 'AccCentr'] = -dc[dc['Frame'] <= minframe2]['AccCentr'].values
-                                out = out.append(df_nuc)
-        return out
+                                df_nuc.loc[idx2, 'SpeedCentr'] = dc[dc['Frame'] <= minframe2]['SpeedCentr'].values
+                                df_nuc.loc[idx2, 'AccCentr'] = dc[dc['Frame'] <= minframe2]['AccCentr'].values
+                                df_out = df_out.append(df_nuc)
+        return df_out
 
     def selectiondicts_run(self, experiment_tag, run):
         centrosome_inclusion_dict = dict()
@@ -242,6 +242,25 @@ class LabHDF5NeXusFile():
                 fproc = f['%s/%s/processed' % (experiment_tag, run)]
                 if 'pandas_dataframe' in fproc: del fproc['pandas_dataframe']
                 if 'pandas_masks' in fproc: del fproc['pandas_masks']
+
+            dfn_join = mskn_join = pd.DataFrame()
+            for nuc_id, df_nuc in proc_df.groupby('Nuclei'):
+                print 'processing selection for run %s nuclei N%02d' % (run, nuc_id)
+                # join tracks based on distance of time of contact
+                # get time of contact
+                dthrsh = dfij.DIST_THRESHOLD * 1.5
+                time_ofc, frame_ofc, dist_ofc = dfij.get_contact_time(df_nuc, dthrsh)
+                if time_ofc is not None:
+                    print 'time of contact=%0.1f frame=%d dist=%0.1f' % (time_ofc, frame_ofc, dist_ofc)
+                    centrosomes_ofc = df_nuc[df_nuc['Frame'] == frame_ofc]['Centrosome'].unique()
+                    if len(centrosomes_ofc) == 2:
+                        print '--> joining centrosomes %d and %d' % (centrosomes_ofc[0], centrosomes_ofc[1])
+                        dfj, mskj = dfij.join_tracks(df_nuc, centrosomes_ofc[0], centrosomes_ofc[1])
+                        dfn_join = dfn_join.append(dfj)
+                        mskn_join = mskn_join.append(mskj)
+                else:
+                    dfn_join = dfn_join.append(df_nuc)
+                proc_df = dfn_join
 
             with h5py.File(self.filename, 'r') as f:
                 fsel = f['%s/%s/selection' % (experiment_tag, run)]

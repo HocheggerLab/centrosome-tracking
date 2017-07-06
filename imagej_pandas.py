@@ -1,7 +1,6 @@
 import os
 import re
 
-import jinja2 as j2
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,6 +23,7 @@ class ImagejPandas(object):
         self.df_nuclei = pd.read_csv(self.path_nuclei)
         self.centrosome_replacements = dict()
 
+        self.df_centrosome.loc[self.df_centrosome.index, 'Time'] /= 60.0  # time in minutes
         self.df_centrosome[['Frame', 'Nuclei', 'Centrosome']].astype(np.int64, inplace=True)
         self.df_nuclei[['Frame', 'Nuclei']].astype(np.int64, inplace=True)
 
@@ -39,7 +39,7 @@ class ImagejPandas(object):
             return 0, 0, 0
         elif len(cent_list) == 2:
             dsf = ImagejPandas.dist_vel_acc_centrosomes(df)
-            dsr = dsf[dsf['DistCentr'] < threshold]
+            dsr = dsf[dsf['DistCentr'] <= threshold]
 
             if dsr.size > 0:
                 zeros_df = dsr[dsr['DistCentr'] == 0]
@@ -120,97 +120,23 @@ class ImagejPandas(object):
         # get the time of the minimum of the two values
         tc = supdn[supdn == supdn.min()].values[0]
 
-        s = u.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome']).unstack('Centrosome')
+        s = u.set_index(['Time', 'Nuclei', 'Centrosome']).unstack('Centrosome')
         # where are the NaN's?
         nans_are_in = s['Frame'].transpose().isnull().any(axis=1)
-        nans_are_in = list(nans_are_in.ix[nans_are_in].keys())[0]
+        nans_are_in = nans_are_in.keys().values
 
         mask = s.isnull().stack().reset_index()
+        s = u.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome']).unstack('Centrosome')
 
-        if nans_are_in == cm:
-            g = s[s.index > tc].transpose().fillna(method='ffill').transpose()
-        else:
-            g = s[s.index > tc].transpose().fillna(method='bfill').transpose()
-        s[s.index > tc] = g
+        if nans_are_in.size > 0:
+            if nans_are_in[0] == cm:
+                g = s[s.index > tc].transpose().fillna(method='ffill').transpose()
+            else:
+                g = s[s.index > tc].transpose().fillna(method='bfill').transpose()
+            s[s.index > tc] = g
         u = s.stack()
 
         return u.reset_index(), mask
-
-    def add_stats(self, _ndf):
-        if _ndf.groupby(['Frame', 'Time', 'Nuclei', 'Centrosome']).size().max() > 1:
-            return
-
-        # get time of contact
-        time_contact, frame_contact, dist_contact = self.get_contact_time(_ndf, self.d_threshold)
-        # hack: get two distances before dt_before_contact and store them in an independent dataframe
-        if time_contact is not None:
-            frame_before = frame_contact - self.dt_before_contact / self.t_per_frame
-            if frame_before < 0:
-                frame_before = 0
-            dists_before_contact = list(
-                _ndf[_ndf['Frame'] == frame_before]['Dist'])
-            min_dist = max_dist = time_before = np.NaN
-            if len(dists_before_contact) > 0:
-                max_dist = max(dists_before_contact)
-                min_dist = min(dists_before_contact)
-                time_before = _ndf[_ndf['Frame'] == frame_before]['Time'].unique()[0]
-        else:
-            frame_before = time_before = min_dist = max_dist = np.NaN
-
-        # pick the first item with both non NaN's in the series
-        _dfi = _ndf.set_index(['Frame', 'Time', 'Centrosome'])
-        _udfi = _dfi['Dist'].unstack()
-        _udfi['valid'] = ~ _udfi[_udfi.columns[0]].isnull() & ~ _udfi[_udfi.columns[1]].isnull()
-        ini_frame = _udfi[_udfi['valid']].index[0][0]
-        ini_time = _udfi[_udfi['valid']].index[0][1]
-        ini_dist_min = min(_ndf[_ndf['Frame'] == ini_frame]['Dist'])
-
-        int_time = 100
-        int_frame = _ndf[(_ndf['Time'] >= int_time) & (_ndf['Time'] < int_time + 5)]['Frame'].unique()[0]
-        int_time = _ndf[_ndf['Frame'] == int_frame]['Time'].unique()[0]
-        int_dist_min = min(_ndf[_ndf['Frame'] == int_frame]['Dist'])
-
-        df_rowc = pd.DataFrame({'Tag': self.fname,
-                                'Nuclei': _ndf['Nuclei'].unique()[0],
-                                'Frame': [frame_contact],
-                                'Time': [time_contact],
-                                'Stat': 'Contact',
-                                'Type': 'Contact',
-                                'Dist': [dist_contact]})
-        df_row1 = pd.DataFrame({'Tag': self.fname,
-                                'Nuclei': _ndf['Nuclei'].unique()[0],
-                                'Frame': [frame_before],
-                                'Time': [time_before],
-                                'Stat': 'Contact',
-                                'Type': 'Away',
-                                'Dist': [max_dist]})
-        df_row2 = pd.DataFrame({'Tag': self.fname,
-                                'Nuclei': _ndf['Nuclei'].unique()[0],
-                                'Frame': [frame_before],
-                                'Time': [time_before],
-                                'Stat': 'Contact',
-                                'Type': 'Close',
-                                'Dist': [min_dist]})
-        df_row_ini = pd.DataFrame({'Tag': self.fname,
-                                   'Nuclei': _ndf['Nuclei'].unique()[0],
-                                   'Frame': [ini_frame],
-                                   'Time': [ini_time],
-                                   'Stat': 'Snapshot',
-                                   'Type': 'Initial',
-                                   'Dist': [ini_dist_min]})
-        df_row_int = pd.DataFrame({'Tag': self.fname,
-                                   'Nuclei': _ndf['Nuclei'].unique()[0],
-                                   'Frame': [int_time],
-                                   'Time': [int_frame],
-                                   'Stat': 'Snapshot',
-                                   'Type': '100min',
-                                   'Dist': [int_dist_min]})
-
-        self.stats = self.stats.append(df_row1, ignore_index=True)
-        self.stats = self.stats.append(df_row2, ignore_index=True)
-        self.stats = self.stats.append(df_rowc, ignore_index=True)
-        self.stats = self.stats.append(df_row_ini, ignore_index=True)
-        self.stats = self.stats.append(df_row_int, ignore_index=True)
 
     def plot_nucleus_dataframe(self, nuclei_df, mask, filename=None):
         nucleus_id = nuclei_df['Nuclei'].min()

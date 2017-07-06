@@ -20,9 +20,6 @@ def anotated_boxplot(data_grouped, var):
 def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None):
     nucleus_id = df['Nuclei'].min()
 
-    # re-scale time
-    df.loc[df.index, 'Time'] /= 60.0
-
     dhandles, dlabels = list(), list()
     for k, [(lblCentr), _df] in enumerate(df.groupby(['Centrosome'])):
         track = _df.set_index('Frame').sort_index()

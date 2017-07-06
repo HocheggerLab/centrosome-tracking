@@ -231,14 +231,12 @@ class ExperimentsList(QtGui.QWidget):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save file',
                                                   directory='/Users/Fabio/centrosomes.pandas')
         fname = str(fname)
-        try:
-            print 'saving to %s' % fname
-            self.reprocess_selections()
-            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-            df = hlab.dataframe
-            df.to_pickle(fname)
-        except Exception as e:
-            print 'something bad happened trying to save pandas dataframe. \r\n%s' % e
+
+        print 'saving to %s' % fname
+        self.reprocess_selections()
+        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+        df = hlab.dataframe
+        df.to_pickle(fname)
 
     def on_export_sel_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selection file',
