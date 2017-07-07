@@ -131,21 +131,25 @@ class ExperimentsList(QtGui.QWidget):
     @QtCore.pyqtSlot('QStandardItem')
     def on_nucleitick_change(self, item):
         self.nuclei_selected = int(item.text()[1:])
-        with h5py.File(self.hdf5file, 'a') as f:
-            sel = f['%s/%s/selection' % (self.condition, self.run)]
-            del sel['N%02d' % self.nuclei_selected]
+        if item.checkState() == QtCore.Qt.Unchecked:
+            with h5py.File(self.hdf5file, 'a') as f:
+                sel = f['%s/%s/selection' % (self.condition, self.run)]
+                del sel['N%02d' % self.nuclei_selected]
+            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+            hlab.process_selection_for_run(self.condition, self.run)
+            self.mplDistance.clear()
 
         self.populate_nuclei()
         self.populate_centrosomes()
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
 
     def plot_tracks_of_nuclei(self, nuclei):
+        self.mplDistance.clear()
         with h5py.File(self.hdf5file, 'r') as f:
             if 'pandas_dataframe' in f['%s/%s/processed' % (self.condition, self.run)]:
                 read_ok = True
             else:
                 read_ok = False
-        self.mplDistance.canvas.ax.cla()
         if read_ok:
             df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_dataframe' % (self.condition, self.run))
             mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
@@ -208,10 +212,9 @@ class ExperimentsList(QtGui.QWidget):
             c = int(self.centrosome_selected[1:])
             hlab.associate_centrosome_with_nuclei(c, self.nuclei_selected, self.condition, self.run,
                                                   self.centrosome_group)
+            hlab.process_selection_for_run(self.condition, self.run)
         elif item.checkState() == QtCore.Qt.Unchecked:
             hlab.delete_association(self.centrosome_selected, self.nuclei_selected, self.condition, self.run)
-
-        hlab.process_selection_for_run(self.condition, self.run)
 
         self.populate_nuclei()
         self.populate_centrosomes()
@@ -262,6 +265,7 @@ class ExperimentsList(QtGui.QWidget):
         # Write our configuration file
         with open(fname, 'w') as configfile:
             config.write(configfile)
+        print '\r\nexport done.'
 
     def on_import_sel_button(self):
         fname = QtGui.QFileDialog.getOpenFileName(self, caption='Load selection file', filter='Text (*.txt)',
@@ -292,7 +296,7 @@ class ExperimentsList(QtGui.QWidget):
                 hlab.associate_centrosome_with_nuclei(int(c[1:]), int(nucl), cond, run, centrosome_group=1)
             # hlab.process_selection_for_run(cond, run)
         self.reprocess_selections()
-        print '\r\n done importing selection.'
+        print '\r\ndone importing selection.'
 
     def reprocess_selections(self):
         with h5py.File(self.hdf5file, 'r') as f:

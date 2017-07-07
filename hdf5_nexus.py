@@ -233,14 +233,15 @@ class LabHDF5NeXusFile():
         proc_df, mask_df = dfij.process_dataframe(pdhdf_merge, nuclei_list=nuclei_list,
                                                   centrosome_exclusion_dict=centrosome_exclusion_dict,
                                                   centrosome_inclusion_dict=centrosome_inclusion_dict)
+
+        with h5py.File(self.filename, 'a') as f:
+            fproc = f['%s/%s/processed' % (experiment_tag, run)]
+            if 'pandas_dataframe' in fproc: del fproc['pandas_dataframe']
+            if 'pandas_masks' in fproc: del fproc['pandas_masks']
+
         if proc_df.empty:
             print 'dataframe is empty'
         else:
-            with h5py.File(self.filename, 'a') as f:
-                fproc = f['%s/%s/processed' % (experiment_tag, run)]
-                if 'pandas_dataframe' in fproc: del fproc['pandas_dataframe']
-                if 'pandas_masks' in fproc: del fproc['pandas_masks']
-
             dfn_join = mskn_join = pd.DataFrame()
             for nuc_id, df_nuc in proc_df.groupby('Nuclei'):
                 print 'processing selection for run %s nuclei N%02d' % (run, nuc_id)
@@ -308,6 +309,29 @@ class LabHDF5NeXusFile():
                 del centosomesA[of_centrosome]
             if of_centrosome in centosomesB:
                 del centosomesB[of_centrosome]
+
+            with h5py.File(self.filename, 'a') as f:
+                fproc = f['%s/%s/processed' % (experiment_tag, run)]
+                df_key = '%s/%s/processed/pandas_dataframe' % (experiment_tag, run)
+                msk_key = '%s/%s/processed/pandas_masks' % (experiment_tag, run)
+                if 'pandas_dataframe' in fproc:
+                    _newdf = pd.read_hdf(self.filename, key=df_key, mode='r')
+                    del fproc['pandas_dataframe']
+                if _newdf:
+                    _idx = (_newdf['Centrosome'] == int(of_centrosome[1:])) & \
+                           (_newdf['Nuclei'] == int(with_nuclei[1:])) & \
+                           (_newdf['condition'] == experiment_tag) & \
+                           (_newdf['run'] == run)
+                    _newdf[~_idx].to_hdf(self.filename, key=df_key, mode='r+')
+                if 'pandas_masks' in fproc:
+                    _newmsk = pd.read_hdf(self.filename, key=msk_key, mode='r')
+                    del fproc['pandas_masks']
+                if _newmsk:
+                    _idx = (_newmsk['Centrosome'] == int(of_centrosome[1:])) & \
+                           (_newmsk['Nuclei'] == int(with_nuclei[1:])) & \
+                           (_newmsk['condition'] == experiment_tag) & \
+                           (_newmsk['run'] == run)
+                    _newmsk[~_idx].to_hdf(self.filename, key=msk_key, mode='r+')
 
     def move_association(self, of_centrosome, from_nuclei, toNuclei, centrosome_group, experiment_tag, run):
         self.delete_association(of_centrosome, from_nuclei, experiment_tag, run)
