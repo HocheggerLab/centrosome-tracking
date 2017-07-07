@@ -17,7 +17,7 @@ class LabHDF5NeXusFile():
         self.filename = filename
 
         # open the HDF5 NeXus file
-        if fileflag in ['w', 'a', 'r+']:
+        if fileflag == 'w':
             with h5py.File(self.filename, fileflag) as f:
                 # point to the default data to be plotted
                 f.attrs['default'] = 'entry'
@@ -53,8 +53,6 @@ class LabHDF5NeXusFile():
             nxentry_proc.attrs['NX_class'] = 'NXgroup'
 
     def add_tiff_sequence(self, tiffpath, experiment_tag, run):
-        print 'adding tiff:', tiffpath
-
         # open the HDF5 NeXus file
         f = h5py.File(self.filename, 'a')
 
@@ -338,21 +336,20 @@ def process_dir(path, hdf5f):
             ext = filename.split('.')[-1]
             if ext == 'tif':
                 joinf = os.path.join(root, filename)
-                try:
-                    print '\r\n--------------------------------------------------------------'
-                    groups = re.search('^(.+)-(.+).tif$', filename).groups()
-                    run_id = groups[1]
-                    run_str = 'run_%s' % run_id
+                print '\r\n--------------------------------------------------------------'
+                groups = re.search('^(.+)-(.+).tif$', filename).groups()
+                run_id = groups[1]
+                run_str = 'run_%s' % run_id
+                centdata = os.path.join(path, 'data', 'run-%s-table.csv' % run_id)
+                nucldata = os.path.join(path, 'data', 'run-%s-nuclei.csv' % run_id)
+
+                if os.path.isfile(centdata) and os.path.isfile(nucldata) and os.path.isfile(joinf):
                     print 'adding raw file: %s' % joinf
                     hdf5.add_experiment(condition, run_str)
+                    print 'adding tiff:', joinf
                     hdf5f.add_tiff_sequence(joinf, condition, run_str)
-
-                    centdata = os.path.join(path, 'data', '%s-%s-table.csv' % (condition, run_id))
-                    nucldata = os.path.join(path, 'data', '%s-%s-nuclei.csv' % (condition, run_id))
                     print 'adding data file: %s' % centdata
                     hdf5f.add_measurements(centdata, condition, run_str)
-                except:
-                    print 'error processing %s' % joinf
 
 
 if __name__ == '__main__':
@@ -366,9 +363,11 @@ if __name__ == '__main__':
     hdf5 = LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5', fileflag='a')
     try:
         process_dir(args.input, hdf5)
-    finally:
+
         print '\r\n\r\n--------------------------------------------------------------'
         print 'shrinking file size...'
         call('h5repack /Users/Fabio/centrosomes.nexus.hdf5 /Users/Fabio/repack.hdf5', shell=True)
         os.remove('/Users/Fabio/centrosomes.nexus.hdf5')
         os.rename('/Users/Fabio/repack.hdf5', '/Users/Fabio/centrosomes.nexus.hdf5')
+    finally:
+        print '\r\nfinished.'
