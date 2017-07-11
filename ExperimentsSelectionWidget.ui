@@ -226,6 +226,19 @@
     <string>Import Selection</string>
    </property>
   </widget>
+  <widget class="QPushButton" name="clearRunButton">
+   <property name="geometry">
+    <rect>
+     <x>320</x>
+     <y>280</y>
+     <width>121</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Clear Run</string>
+   </property>
+  </widget>
  </widget>
  <customwidgets>
   <customwidget>

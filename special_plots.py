@@ -17,7 +17,7 @@ def anotated_boxplot(data_grouped, var):
         ax.text(x, _max_y * 0.7, '$n=%d$' % count, ha='center')
 
 
-def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None):
+def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None, draw_interpolated=True):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
@@ -27,7 +27,6 @@ def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None
 
         color = pal[k % len(pal)]
         dlbl = 'N%d-C%d' % (nucleus_id, lblCentr)
-        track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
         dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
         dlabels.append(dlbl)
 
@@ -37,8 +36,12 @@ def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None
             interp = track['Dist'][~tmask['Dist']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
-            if len(interp) > 0:
+                if not draw_interpolated:
+                    orig.plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+            if len(interp) > 0 and draw_interpolated:
                 interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
+            if draw_interpolated:
+                track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
 
     # plot time of contact
     if time_contact is not None:

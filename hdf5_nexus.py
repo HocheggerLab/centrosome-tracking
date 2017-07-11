@@ -301,6 +301,12 @@ class LabHDF5NeXusFile():
                 nxnuc_ = f['%s/%s' % (target_addr, cstr)]
                 nxnuc_['C%03d' % centr_id] = nxcpos
 
+    def clear_associations(self, experiment_tag, run):
+        with h5py.File(self.filename, 'a') as f:
+            fsel = f['%s/%s/selection' % (experiment_tag, run)]
+            for o in fsel:
+                del fsel[o]
+
     def delete_association(self, of_centrosome, with_nuclei, experiment_tag, run):
         with h5py.File(self.filename, 'a') as f:
             centosomesA = f['%s/%s/selection/N%02d/A' % (experiment_tag, run, with_nuclei)]

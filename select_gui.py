@@ -35,6 +35,7 @@ class ExperimentsList(QtGui.QWidget):
         QtCore.QObject.connect(self.exportPandasButton, QtCore.SIGNAL('pressed()'), self.on_export_pandas_button)
         QtCore.QObject.connect(self.exportSelectionButton, QtCore.SIGNAL('pressed()'), self.on_export_sel_button)
         QtCore.QObject.connect(self.importSelectionButton, QtCore.SIGNAL('pressed()'), self.on_import_sel_button)
+        QtCore.QObject.connect(self.clearRunButton, QtCore.SIGNAL('pressed()'), self.on_clear_run_button)
 
     def anim(self):
         try:
@@ -155,7 +156,7 @@ class ExperimentsList(QtGui.QWidget):
             mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
             df = df[df['Nuclei'] == nuclei]
             mask = mask[mask['Nuclei'] == nuclei]
-            spc.plot_distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask)
+            spc.plot_distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask, draw_interpolated=False)
             self.mplDistance.canvas.draw()
 
     def populate_centrosomes(self):
@@ -232,6 +233,15 @@ class ExperimentsList(QtGui.QWidget):
         self.centrosome_group = 1
 
     @QtCore.pyqtSlot()
+    def on_clear_run_button(self):
+        if self.condition is not None and self.run is not None:
+            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+            hlab.clear_associations(self.condition, self.run)
+            hlab.process_selection_for_run(self.condition, self.run)
+            self.populate_nuclei()
+            self.populate_centrosomes()
+
+    @QtCore.pyqtSlot()
     def on_export_pandas_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save file',
                                                   directory='/Users/Fabio/centrosomes.pandas')
@@ -243,6 +253,7 @@ class ExperimentsList(QtGui.QWidget):
         df = hlab.dataframe
         df.to_pickle(fname)
 
+    @QtCore.pyqtSlot()
     def on_export_sel_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selection file',
                                                   directory='/Users/Fabio/centrosomes_selection.txt')
@@ -294,7 +305,6 @@ class ExperimentsList(QtGui.QWidget):
                 hlab.associate_centrosome_with_nuclei(int(c[1:]), int(nucl), cond, run, centrosome_group=0)
             for c in _B:
                 hlab.associate_centrosome_with_nuclei(int(c[1:]), int(nucl), cond, run, centrosome_group=1)
-            # hlab.process_selection_for_run(cond, run)
         self.reprocess_selections()
         print '\r\ndone importing selection.'
 
