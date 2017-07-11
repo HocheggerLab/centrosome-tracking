@@ -52,12 +52,12 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                 ch2 = f['%s/%s/raw/%03d/channel-2' % (self.condition, self.run, self.frame)]
                 data = ch2[:]
                 self.resolution = ch2.parent.attrs['resolution']
-                # map the data range to 0 - 255
-                img_8bit = ((data - data.min()) / (data.ptp() / 255.0)).astype(np.uint8)
-                qtimage = QtGui.QImage(img_8bit.repeat(4), 512, 512, QtGui.QImage.Format_RGB32)
-                self.image_pixmap = QPixmap(qtimage)
-                self.draw_measurements()
-                self.setPixmap(self.image_pixmap)
+            # map the data range to 0 - 255
+            img_8bit = ((data - data.min()) / (data.ptp() / 255.0)).astype(np.uint8)
+            qtimage = QtGui.QImage(img_8bit.repeat(4), 512, 512, QtGui.QImage.Format_RGB32)
+            self.image_pixmap = QPixmap(qtimage)
+            self.draw_measurements()
+            self.setPixmap(self.image_pixmap)
         return QtGui.QLabel.paintEvent(self, event)
 
     def render_frame(self, condition, run, frame, nuclei_selected=None):
@@ -101,6 +101,7 @@ class CentrosomeImageQLabel(QtGui.QLabel):
 
                     painter.setPen(QPen(QBrush(QColor('white')), 2))
                     painter.drawText(nx + 10, ny + 5, nucID)
+                    painter.drawText(10, 30, '%02d' % self.frame)
 
                     # get nuclei boundary as a polygon
                     df_nucfr = df[(df['Nuclei'] == nid) & (df['Frame'] == self.frame)]
@@ -111,10 +112,10 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                             nucb_qpoints = [Qt.QPoint(x * self.resolution, y * self.resolution) for x, y in nucb_points]
                             nucb_poly = Qt.QPolygon(nucb_qpoints)
 
-                            if nid==self.nucleiSelected:
+                            if nid == self.nucleiSelected:
                                 painter.setPen(QPen(QBrush(QColor('yellow')), 2))
                             else:
-                                painter.setPen(QPen(QBrush(QColor('red')), 2))
+                                painter.setPen(QPen(QBrush(QColor('red')), 1))
                             painter.setBrush(QColor('transparent'))
                             painter.drawPolygon(nucb_poly)
 

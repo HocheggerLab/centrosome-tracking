@@ -305,32 +305,29 @@ class LabHDF5NeXusFile():
         with h5py.File(self.filename, 'a') as f:
             centosomesA = f['%s/%s/selection/N%02d/A' % (experiment_tag, run, with_nuclei)]
             centosomesB = f['%s/%s/selection/N%02d/B' % (experiment_tag, run, with_nuclei)]
-            if of_centrosome in centosomesA:
-                del centosomesA[of_centrosome]
-            if of_centrosome in centosomesB:
-                del centosomesB[of_centrosome]
+            if 'C%03d' % of_centrosome in centosomesA:
+                del centosomesA['C%03d' % of_centrosome]
+            if 'C%03d' % of_centrosome in centosomesB:
+                del centosomesB['C%03d' % of_centrosome]
 
             with h5py.File(self.filename, 'a') as f:
                 fproc = f['%s/%s/processed' % (experiment_tag, run)]
                 df_key = '%s/%s/processed/pandas_dataframe' % (experiment_tag, run)
                 msk_key = '%s/%s/processed/pandas_masks' % (experiment_tag, run)
+                _newdf = _newmsk = None
                 if 'pandas_dataframe' in fproc:
                     _newdf = pd.read_hdf(self.filename, key=df_key, mode='r')
                     del fproc['pandas_dataframe']
-                if _newdf:
-                    _idx = (_newdf['Centrosome'] == int(of_centrosome[1:])) & \
-                           (_newdf['Nuclei'] == int(with_nuclei[1:])) & \
-                           (_newdf['condition'] == experiment_tag) & \
-                           (_newdf['run'] == run)
+                if _newdf is not None:
+                    _idx = (_newdf['Centrosome'] == of_centrosome) & \
+                           (_newdf['Nuclei'] == with_nuclei)
                     _newdf[~_idx].to_hdf(self.filename, key=df_key, mode='r+')
                 if 'pandas_masks' in fproc:
                     _newmsk = pd.read_hdf(self.filename, key=msk_key, mode='r')
                     del fproc['pandas_masks']
-                if _newmsk:
-                    _idx = (_newmsk['Centrosome'] == int(of_centrosome[1:])) & \
-                           (_newmsk['Nuclei'] == int(with_nuclei[1:])) & \
-                           (_newmsk['condition'] == experiment_tag) & \
-                           (_newmsk['run'] == run)
+                if _newmsk is not None:
+                    _idx = (_newmsk['Centrosome'] == of_centrosome) & \
+                           (_newmsk['Nuclei'] == with_nuclei)
                     _newmsk[~_idx].to_hdf(self.filename, key=msk_key, mode='r+')
 
     def move_association(self, of_centrosome, from_nuclei, toNuclei, centrosome_group, experiment_tag, run):

@@ -207,14 +207,14 @@ class ExperimentsList(QtGui.QWidget):
     def on_centrosometick_change(self, item):
         self.centrosome_selected = str(item.text())
         hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+        c = int(self.centrosome_selected[1:])
         if self.centrosome_dropped:
             self.centrosome_dropped = False
-            c = int(self.centrosome_selected[1:])
             hlab.associate_centrosome_with_nuclei(c, self.nuclei_selected, self.condition, self.run,
                                                   self.centrosome_group)
             hlab.process_selection_for_run(self.condition, self.run)
         elif item.checkState() == QtCore.Qt.Unchecked:
-            hlab.delete_association(self.centrosome_selected, self.nuclei_selected, self.condition, self.run)
+            hlab.delete_association(c, self.nuclei_selected, self.condition, self.run)
 
         self.populate_nuclei()
         self.populate_centrosomes()

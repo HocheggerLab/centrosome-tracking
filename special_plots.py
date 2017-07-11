@@ -18,13 +18,14 @@ def anotated_boxplot(data_grouped, var):
 
 
 def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None):
+    pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
     dhandles, dlabels = list(), list()
     for k, [(lblCentr), _df] in enumerate(df.groupby(['Centrosome'])):
         track = _df.set_index('Frame').sort_index()
 
-        color = sns.color_palette()[k]
+        color = pal[k % len(pal)]
         dlbl = 'N%d-C%d' % (nucleus_id, lblCentr)
         track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
         dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
