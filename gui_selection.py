@@ -316,8 +316,11 @@ class ExperimentsList(QtGui.QWidget):
             with h5py.File(self.hdf5file, 'a') as f:
                 runs = f[cond].keys()
             for run in runs:
-                hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-                hlab.process_selection_for_run(cond, run)
+                try:
+                    hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+                    hlab.process_selection_for_run(cond, run)
+                except KeyError:
+                    print 'skipping %s due to lack of data.'
 
 
 if __name__ == '__main__':

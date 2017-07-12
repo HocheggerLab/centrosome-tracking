@@ -182,6 +182,9 @@ class LabHDF5NeXusFile():
         centrosome_exclusion_dict = dict()
         centrosome_equivalence_dict = dict()
         with h5py.File(self.filename, 'r') as f:
+            if 'centrosomes' not in f['%s/%s/measurements' % (experiment_tag, run)]:
+                raise KeyError('No data for selected condition-run.')
+
             select_addr = '%s/%s/selection' % (experiment_tag, run)
             sel = f[select_addr]
             nuclei_list = [int(n[1:]) for n in sel if (n != 'pandas_dataframe' and n != 'pandas_masks')]
@@ -242,7 +245,7 @@ class LabHDF5NeXusFile():
         else:
             dfn_join = mskn_join = pd.DataFrame()
             for nuc_id, df_nuc in proc_df.groupby('Nuclei'):
-                print 'processing selection for run %s nuclei N%02d' % (run, nuc_id)
+                print 'processing selection for condition %s run %s nuclei N%02d' % (experiment_tag, run, nuc_id)
                 # join tracks based on distance of time of contact
                 # get time of contact
                 dthrsh = dfij.DIST_THRESHOLD * 1.5

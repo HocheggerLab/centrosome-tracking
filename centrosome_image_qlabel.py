@@ -67,9 +67,12 @@ class CentrosomeImageQLabel(QtGui.QLabel):
         self.repaint()
 
     def draw_measurements(self):
-        df = pd.read_hdf(self.hdf5file, key='%s/%s/measurements/pandas_dataframe' % (self.condition, self.run),
-                         mode='r')
         with h5py.File(self._hdf5file, 'r') as f:
+            if 'pandas_dataframe' not in f['%s/%s/measurements' % (self.condition, self.run)]:
+                raise KeyError('No data for selected condition-run.')
+
+            df = pd.read_hdf(self.hdf5file, key='%s/%s/measurements/pandas_dataframe' % (self.condition, self.run),
+                             mode='r')
             nuclei_list = f['%s/%s/measurements/nuclei' % (self.condition, self.run)]
             centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)]
             sel = f['%s/%s/selection' % (self.condition, self.run)]
