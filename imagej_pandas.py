@@ -102,8 +102,7 @@ class ImagejPandas(object):
     @staticmethod
     def interpolate_data(df):
         if df.groupby(['Frame', 'Time', 'Nuclei', 'Centrosome']).size().max() > 1:
-            # we accept just 1 value per (frame,centrosome)
-            return df, df.isnull()
+            raise LookupError('this function accepts just 1 value per (frame,centrosome)')
 
         s = df.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome']).sort_index()
         u = s.unstack('Centrosome')
@@ -247,19 +246,15 @@ class ImagejPandas(object):
         plt.close(5)
 
     @staticmethod
-    def process_dataframe(df,
-                          nuclei_list=None,
-                          centrosome_exclusion_dict=None,
-                          centrosome_inclusion_dict=None,
-                          joined_tracks=None,
-                          max_time_dict=None):
+    def process_dataframe(df, nuclei_list=None, centrosome_inclusion_dict=None, max_time_dict=None):
 
-        df = ImagejPandas.vel_acc_nuclei(df)
+        keep_centrosomes = list()
+        for _cnuc in centrosome_inclusion_dict: keep_centrosomes.extend(centrosome_inclusion_dict[_cnuc])
+
         # filter non wanted centrosomes
-        if centrosome_exclusion_dict is not None:
-            for nuId in centrosome_exclusion_dict.keys():
-                for centId in centrosome_exclusion_dict[nuId]:
-                    df[(df['Nuclei'] == nuId) & (df['Centrosome'] == centId)] = np.NaN
+        df = df[df['Centrosome'].isin(keep_centrosomes)]
+        df = ImagejPandas.vel_acc_nuclei(df)  # call to make distance & acceleration columns appear
+
         # include wanted centrosomes
         if centrosome_inclusion_dict is not None:
             for nuId in centrosome_inclusion_dict.keys():
@@ -273,27 +268,18 @@ class ImagejPandas(object):
                 if (max_time_dict is not None) and (nucleusID in max_time_dict):
                     filtered_nuc_df = filtered_nuc_df[filtered_nuc_df['Time'] <= max_time_dict[nucleusID]]
 
-                filtered_nuc_df, imask = ImagejPandas.interpolate_data(filtered_nuc_df)
+                try:
+                    filtered_nuc_df, imask = ImagejPandas.interpolate_data(filtered_nuc_df)
 
-                # reset mask variables in each loop
-                jmask = None
-                # join tracks if asked
-                if joined_tracks is not None:
-                    if nucleusID in joined_tracks.keys():
-                        for centId in joined_tracks[nucleusID]:
-                            filtered_nuc_df, jmask = ImagejPandas.join_tracks(filtered_nuc_df, centId[0],
-                                                                              centId[1])
-
-                # compute mask as logical AND of joined track mask and interpolated data mask
-                im = imask.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome'])
-                if jmask is not None:
-                    jm = jmask.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome'])
-                    mask = (~im & ~jm).reset_index()
-                else:
+                    # compute mask as logical AND of joined track mask and interpolated data mask
+                    im = imask.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome'])
                     mask = (~im).reset_index()
 
-                # compute velocity again with interpolated data
-                filtered_nuc_df = ImagejPandas.vel_acc_nuclei(filtered_nuc_df)
-                df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
-                df_masks = df_masks.append(mask)
+                    # compute velocity with interpolated data
+                    filtered_nuc_df = ImagejPandas.vel_acc_nuclei(filtered_nuc_df)
+                    df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
+                    df_masks = df_masks.append(mask)
+                except LookupError as le:
+                    print 'check raw input data for nuclei=N%d' % nucleusID
+
         return df_filtered_nucs, df_masks

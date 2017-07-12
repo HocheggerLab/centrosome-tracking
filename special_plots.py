@@ -30,7 +30,7 @@ def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None
         dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
         dlabels.append(dlbl)
 
-        if mask is not None:
+        if mask is not None and not mask.empty:
             tmask = mask[mask['Centrosome'] == lblCentr].set_index('Frame').sort_index()
             orig = track['Dist'][tmask['Dist']]
             interp = track['Dist'][~tmask['Dist']]
@@ -42,6 +42,9 @@ def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None
                 interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
             if draw_interpolated:
                 track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+        else:
+            print 'plotting with no mask.'
+            track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
 
     # plot time of contact
     if time_contact is not None:

@@ -181,7 +181,6 @@ class LabHDF5NeXusFile():
         centrosome_inclusion_dict = dict()
         centrosome_exclusion_dict = dict()
         centrosome_equivalence_dict = dict()
-        joined_tracks = dict()
         with h5py.File(self.filename, 'r') as f:
             select_addr = '%s/%s/selection' % (experiment_tag, run)
             sel = f[select_addr]
@@ -204,10 +203,10 @@ class LabHDF5NeXusFile():
                     centrosome_equivalence_dict[nid].append(sorted(list(A)))
                 if len(B) > 1:
                     centrosome_equivalence_dict[nid].append(sorted(list(B)))
-        return nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict, joined_tracks
+        return nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict
 
     def process_selection_for_run(self, experiment_tag, run):
-        nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict, joined_tracks = \
+        nuclei_list, centrosome_inclusion_dict, centrosome_exclusion_dict, centrosome_equivalence_dict = \
             self.selectiondicts_run(experiment_tag, run)
 
         merge_key = '%s/%s/measurements/pandas_dataframe' % (experiment_tag, run)
@@ -231,7 +230,6 @@ class LabHDF5NeXusFile():
         pdhdf_merge = pdhdf_measured.merge(pdhdf_nuclei)
 
         proc_df, mask_df = dfij.process_dataframe(pdhdf_merge, nuclei_list=nuclei_list,
-                                                  centrosome_exclusion_dict=centrosome_exclusion_dict,
                                                   centrosome_inclusion_dict=centrosome_inclusion_dict)
 
         with h5py.File(self.filename, 'a') as f:
