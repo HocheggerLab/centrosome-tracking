@@ -1,6 +1,7 @@
 import ConfigParser
 import os
 import re
+from threading import Lock
 
 import h5py
 import pandas as pd
@@ -28,9 +29,9 @@ class ExperimentsList(QtGui.QWidget):
 
         self.populate_experiments()
 
-        # Create a QTimer for animations
-        self.timer = QTimer()
-        self.timer.singleShot(1000, self.anim)
+        # Call a QTimer for animations
+        self.rendering_lock = Lock()
+        QTimer.singleShot(1000, self.anim)
 
         QtCore.QObject.connect(self.exportPandasButton, QtCore.SIGNAL('pressed()'), self.on_export_pandas_button)
         QtCore.QObject.connect(self.exportSelectionButton, QtCore.SIGNAL('pressed()'), self.on_export_sel_button)
@@ -38,13 +39,13 @@ class ExperimentsList(QtGui.QWidget):
         QtCore.QObject.connect(self.clearRunButton, QtCore.SIGNAL('pressed()'), self.on_clear_run_button)
 
     def anim(self):
-        try:
+        with self.rendering_lock:
             if self.total_frames > 0:
                 self.frame = (self.frame + 1) % self.total_frames
                 self.movieImgLabel.render_frame(self.condition, self.run, self.frame,
                                                 nuclei_selected=self.nuclei_selected)
-        finally:
-            self.timer.singleShot(500, self.anim)
+            QTimer.singleShot(500, self.anim)
+
 
     def populate_experiments(self):
         model = QtGui.QStandardItemModel()
