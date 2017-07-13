@@ -6,7 +6,11 @@ from imagej_pandas import ImagejPandas
 
 
 def anotated_boxplot(data_grouped, var):
+    sns.boxplot(data=data_grouped, y=var, x='condition')
     ax = sns.swarmplot(data=data_grouped, y=var, x='condition')
+    for i, artist in enumerate(ax.artists):
+        artist.set_facecolor('None')
+
     cat = data_grouped['condition'].unique()
     for x, c in enumerate(cat):
         d = data_grouped[data_grouped['condition'] == c][var]
@@ -14,7 +18,7 @@ def anotated_boxplot(data_grouped, var):
         count = d.count()
         mean = d.mean()
         ax.text(x, _max_y * 0.9, '$\mu=%0.3f$' % mean, ha='center')
-        ax.text(x, _max_y * 0.7, '$n=%d$' % count, ha='center')
+        ax.text(x, _max_y * 0.8, '$n=%d$' % count, ha='center')
 
 
 def plot_distance_to_nucleus(df, ax, filename=None, mask=None, time_contact=None, draw_interpolated=True):
