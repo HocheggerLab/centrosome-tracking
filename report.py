@@ -8,8 +8,12 @@ import matplotlib.gridspec
 import matplotlib.pyplot as plt
 import pandas as pd
 import pdfkit
+import seaborn as sns
 
 import special_plots as sp
+
+sns.set_style('whitegrid')
+sns.set_context('paper')
 
 
 def plots_for_individual(df):
@@ -36,6 +40,8 @@ def plots_for_individual(df):
     sp.plot_distance_between_centrosomes(between_df, ax4)
     sp.plot_speed_between_centrosomes(between_df, ax5)
     sp.plot_acceleration_between_centrosomes(between_df, ax6)
+
+    # change y axis title properties for small plots
     for _ax in [ax2, ax3, ax4, ax5, ax6]:
         _ax.set_ylabel(_ax.get_ylabel(), rotation='horizontal', ha='right', fontsize=9, weight='ultralight')
 
