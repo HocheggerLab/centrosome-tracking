@@ -1,11 +1,8 @@
 import os
 import re
 
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 
 
 class ImagejPandas(object):
@@ -137,114 +134,6 @@ class ImagejPandas(object):
 
         return u.reset_index(), mask
 
-    def plot_nucleus_dataframe(self, nuclei_df, mask, filename=None):
-        nucleus_id = nuclei_df['Nuclei'].min()
-
-        plt.figure(5, figsize=[13, 7])
-        plt.clf()
-        gs = matplotlib.gridspec.GridSpec(6, 2)
-        ax1 = plt.subplot(gs[0:2, 0])
-        ax2 = plt.subplot(gs[2, 0])
-        ax22 = plt.subplot(gs[2, 1])
-        ax3 = plt.subplot(gs[3, 0])
-        ax4 = plt.subplot(gs[4, 0])
-        ax42 = plt.subplot(gs[4, 1])
-        ax5 = plt.subplot(gs[5, 0])
-
-        # get time of contact
-        time_contact, frame_contact, dist_contact = self.get_contact_time(nuclei_df, ImagejPandas.DIST_THRESHOLD)
-
-        # plot distance between centrosomes
-        dsf = ImagejPandas.dist_vel_acc_centrosomes(nuclei_df)
-        dsf = dsf.set_index('Time').sort_index()
-        try:
-            color = sns.color_palette()[-1]
-            tmask = mask.set_index(['Time', 'Centrosome'])['Frame'].unstack().transpose().all()
-            dsf['DistCentr'].plot(ax=ax3, label='Dist N%d' % (nucleus_id), marker=None, sharex=True, c=color)
-            dsf[tmask]['DistCentr'].plot(ax=ax3, label='Original', marker='o', linewidth=0, sharex=True, c=color)
-
-            ax4.axhline(y=0, color='k', linestyle='--', linewidth=0.1)
-            ax42.axhline(y=0, color='k', linestyle='--', linewidth=0.1)
-            dsf['SpeedCentr'].plot(ax=ax4, label='Dist N%d' % (nucleus_id), marker=None, sharex=True, c=color)
-            dsf[tmask]['SpeedCentr'].plot(ax=ax4, label='Original', marker='o', linewidth=0, sharex=True, c=color)
-
-            dsf['AccCentr'].plot(ax=ax42, label='Dist N%d' % (nucleus_id), marker=None, sharex=True, c=color)
-            dsf[tmask]['AccCentr'].plot(ax=ax42, label='Original', marker='o', linewidth=0, sharex=True, c=color)
-
-            if len(dsf[~tmask]['DistCentr']) > 0:
-                dsf[~tmask]['DistCentr'].plot(ax=ax3, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
-                dsf[~tmask]['SpeedCentr'].plot(ax=ax4, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
-                dsf[~tmask]['AccCentr'].plot(ax=ax42, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
-        except Exception as e:
-            print 'Error printing in try block: ' + str(e)
-            pass
-
-        in_yticks = list()
-        in_yticks_lbl = list()
-        for [(lblCentr), _df], k in zip(nuclei_df.groupby(['Centrosome']),
-                                        range(len(nuclei_df.groupby(['Centrosome'])))):
-            track = _df.set_index('Time').sort_index()
-
-            tmask = mask[mask['Centrosome'] == lblCentr].set_index(['Time'])['Frame']
-
-            color = sns.color_palette()[k]
-            track['Dist'].plot(ax=ax1, label='N%d-C%d' % (nucleus_id, lblCentr), marker=None, sharex=True, c=color)
-            track['Speed'].plot(ax=ax2, label='N%d-C%d' % (nucleus_id, lblCentr), sharex=True, c=color)
-            track['Acc'].plot(ax=ax22, label='N%d-C%d' % (nucleus_id, lblCentr), sharex=True, c=color)
-
-            ax2.axhline(y=0, color='k', linestyle='--', linewidth=0.1)
-            ax22.axhline(y=0, color='k', linestyle='--', linewidth=0.1)
-            if len(tmask) > 0:
-                if len(track['Dist'][tmask]) > 0:
-                    track['Dist'][tmask].plot(ax=ax1, label='Original', marker='o', linewidth=0, sharex=True, c=color)
-                if len(track['Dist'][~tmask]) > 0:
-                    track['Dist'][~tmask].plot(ax=ax1, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
-                    track['Speed'][~tmask].plot(ax=ax2, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
-                    track['Acc'][~tmask].plot(ax=ax22, label='Gen', marker='<', linewidth=0, sharex=True, c=color)
-            else:
-                track['Dist'].plot(ax=ax1, label='Original', marker='o', linewidth=0, sharex=True, c=color)
-
-            # plot time of contact
-            if time_contact is not None:
-                ax1.axvline(x=time_contact, color='dimgray', linestyle='--')
-                ax1.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
-                ax2.axvline(x=time_contact, color='dimgray', linestyle='--')
-                ax3.axvline(x=time_contact, color='dimgray', linestyle='--')
-                ax4.axvline(x=time_contact, color='dimgray', linestyle='--')
-                ax5.axvline(x=time_contact, color='dimgray', linestyle='--')
-
-            i_n = track.WhereInNuclei + 3 * k
-            in_yticks.append(3 * k)
-            in_yticks.append(3 * k + 1)
-            in_yticks.append(3 * k + 2)
-            in_yticks_lbl.append('Outside')
-            in_yticks_lbl.append('Touching')
-            in_yticks_lbl.append('Inside')
-            i_n.plot(ax=ax5, label='N%d-C%d' % (nucleus_id, lblCentr), marker='o', ylim=[-0.5, 2 * k + 1.5],
-                     sharex=True)
-
-        ax1.legend()
-        ax2.legend()
-        ax3.legend()
-        ax4.legend()
-        ax1.set_ylabel('Dist to Nuclei $[\mu m]$')
-        ax2.set_ylabel('Speed $[\\frac{\mu m}{min}]$')
-        ax22.set_ylabel('Accel $[\\frac{\mu m}{min^2}]$')
-        ax3.set_ylabel('Between $[\mu m]$')
-        ax4.set_ylabel('Speed $[\\frac{\mu m}{min}]$')
-        ax42.set_ylabel('Accel $[\\frac{\mu m}{min^2}]$')
-        ax5.set_yticks(in_yticks)
-        ax5.set_yticklabels(in_yticks_lbl)
-
-        ax22.set_ylim([-0.5, 0.5])
-        ax42.set_ylim([-0.5, 0.5])
-
-        if filename is None:
-            plt.show()
-        else:
-            plt.savefig(filename, format='svg')
-        plt.close(5)
-
     @staticmethod
     def process_dataframe(df, nuclei_list=None, centrosome_inclusion_dict=None, max_time_dict=None):
 
@@ -263,10 +152,10 @@ class ImagejPandas(object):
 
         df.dropna(how='all', inplace=True)
         df_filtered_nucs, df_masks = pd.DataFrame(), pd.DataFrame()
-        for (nucleusID), filtered_nuc_df in df.groupby(['Nuclei']):
-            if nucleusID in nuclei_list:
-                if (max_time_dict is not None) and (nucleusID in max_time_dict):
-                    filtered_nuc_df = filtered_nuc_df[filtered_nuc_df['Time'] <= max_time_dict[nucleusID]]
+        for (nucleus_id), filtered_nuc_df in df.groupby(['Nuclei']):
+            if nucleus_id in nuclei_list:
+                if (max_time_dict is not None) and (nucleus_id in max_time_dict):
+                    filtered_nuc_df = filtered_nuc_df[filtered_nuc_df['Time'] <= max_time_dict[nucleus_id]]
 
                 try:
                     filtered_nuc_df, imask = ImagejPandas.interpolate_data(filtered_nuc_df)
@@ -280,6 +169,6 @@ class ImagejPandas(object):
                     df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
                     df_masks = df_masks.append(mask)
                 except LookupError as le:
-                    print 'check raw input data for nuclei=N%d' % nucleusID
+                    print '%s. Check raw input data for nuclei=N%d' % (le, nucleus_id)
 
         return df_filtered_nucs, df_masks

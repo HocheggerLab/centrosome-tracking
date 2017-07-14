@@ -30,8 +30,16 @@ plt.figure(101)
 dfcentr.set_index('Time').sort_index().groupby(['condition', 'run', 'Nuclei'])['DistCentr'].plot(linewidth=1)
 plt.savefig('/Users/Fabio/dist_centrosomes_all.svg', format='svg')
 
-# plot of every distance between centrosome's track, individually
-g = sns.FacetGrid(dfcentr, col='indv', col_wrap=6)
-g.map(plt.plot, 'Time', 'DistCentr')
+# distribution of speed against distance
+new_dist_name = 'Distance relative to \nnucleus center [$\mu m$]'
+df.rename(columns={'Dist': new_dist_name}, inplace=True)
+g = sns.FacetGrid(df, col='condition', col_wrap=2, size=5)
+g.map(plt.scatter, new_dist_name, 'SpeedCentr', s=50, alpha=.7, linewidth=.5, edgecolor='white')
+g.map(sns.kdeplot, new_dist_name, 'SpeedCentr', lw=3)
 g.add_legend()
-plt.savefig('/Users/Fabio/dist_centrosomes.png', format='png')
+
+# distribution of speed
+g = sns.FacetGrid(df, row='condition', size=1.7, aspect=4)
+g.map(sns.distplot, new_dist_name, hist=False, rug=True)
+
+plt.show()
