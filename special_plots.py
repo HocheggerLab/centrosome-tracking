@@ -41,8 +41,8 @@ def plot_distance_to_nucleus(df, ax, mask=None, time_contact=None):
             if len(interp) > 0:
                 interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
         else:
-            print 'plotting with no mask.'
-            track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+            print 'plotting distance to nuclei with no mask.'
+        track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
 
     # plot time of contact
     if time_contact is not None:
@@ -58,7 +58,7 @@ def plot_distance_between_centrosomes(df, ax, mask=None, time_contact=None):
     track = df.set_index('Frame').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask[mask['DistCentr']].set_index('Frame').sort_index()
+        tmask = mask.set_index('Frame').sort_index()
         orig = track['DistCentr'][tmask['DistCentr']]
         interp = track['DistCentr'][~tmask['DistCentr']]
         if len(orig) > 0:
@@ -66,8 +66,8 @@ def plot_distance_between_centrosomes(df, ax, mask=None, time_contact=None):
         if len(interp) > 0:
             interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
     else:
-        print 'plotting with no mask.'
-        track['DistCentr'].plot(ax=ax, marker=None, sharex=True, c=color)
+        print 'plotting distance between centrosomes with no mask.'
+    track['DistCentr'].plot(ax=ax, marker=None, sharex=True, c=color)
 
     # plot time of contact
     if time_contact is not None:
@@ -75,6 +75,7 @@ def plot_distance_between_centrosomes(df, ax, mask=None, time_contact=None):
         ax.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
 
     ax.set_ylabel('Distance between\ncentrosomes $[\mu m]$')
+    ax.set_ylim([0, max(ax.get_ylim())])
 
 
 def plot_speed_to_nucleus(df, ax, mask=None, time_contact=None):
@@ -82,15 +83,15 @@ def plot_speed_to_nucleus(df, ax, mask=None, time_contact=None):
     nucleus_id = df['Nuclei'].min()
 
     dhandles, dlabels = list(), list()
-    for k, [(lblCentr), _df] in enumerate(df.groupby(['Centrosome'])):
+    for k, [(lbl_centr), _df] in enumerate(df.groupby(['Centrosome'])):
         track = _df.set_index('Frame').sort_index()
         color = pal[k % len(pal)]
-        dlbl = 'N%d-C%d' % (nucleus_id, lblCentr)
+        dlbl = 'N%d-C%d' % (nucleus_id, lbl_centr)
         dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
         dlabels.append(dlbl)
 
         if mask is not None and not mask.empty:
-            tmask = mask[mask['Speed']].set_index('Frame').sort_index()
+            tmask = mask[mask['Centrosome'] == lbl_centr].set_index('Frame').sort_index()
             orig = track['Speed'][tmask['Speed']]
             interp = track['Speed'][~tmask['Speed']]
             if len(orig) > 0:
@@ -98,8 +99,8 @@ def plot_speed_to_nucleus(df, ax, mask=None, time_contact=None):
             if len(interp) > 0:
                 interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
         else:
-            print 'plotting with no mask.'
-            track['Speed'].plot(ax=ax, marker=None, sharex=True, c=color)
+            print 'plotting speed to nuclei with no mask.'
+        track['Speed'].plot(ax=ax, marker=None, sharex=True, c=color)
 
     # plot time of contact
     if time_contact is not None:
@@ -115,7 +116,7 @@ def plot_speed_between_centrosomes(df, ax, mask=None, time_contact=None):
     track = df.set_index('Frame').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask[mask['SpeedCentr']].set_index('Frame').sort_index()
+        tmask = mask.set_index('Frame').sort_index()
         orig = track['SpeedCentr'][tmask['SpeedCentr']]
         interp = track['SpeedCentr'][~tmask['SpeedCentr']]
         if len(orig) > 0:
@@ -123,8 +124,8 @@ def plot_speed_between_centrosomes(df, ax, mask=None, time_contact=None):
         if len(interp) > 0:
             interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
     else:
-        print 'plotting with no mask.'
-        track['SpeedCentr'].plot(ax=ax, marker=None, sharex=True, c=color)
+        print 'plotting speed between centrosomes with no mask.'
+    track['SpeedCentr'].plot(ax=ax, marker=None, sharex=True, c=color)
 
     # plot time of contact
     if time_contact is not None:
@@ -139,15 +140,15 @@ def plot_acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
     nucleus_id = df['Nuclei'].min()
 
     dhandles, dlabels = list(), list()
-    for k, [(lblCentr), _df] in enumerate(df.groupby(['Centrosome'])):
+    for k, [(lbl_centr), _df] in enumerate(df.groupby(['Centrosome'])):
         track = _df.set_index('Frame').sort_index()
         color = pal[k % len(pal)]
-        dlbl = 'N%d-C%d' % (nucleus_id, lblCentr)
+        dlbl = 'N%d-C%d' % (nucleus_id, lbl_centr)
         dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
         dlabels.append(dlbl)
 
         if mask is not None and not mask.empty:
-            tmask = mask[mask['Acc']].set_index('Frame').sort_index()
+            tmask = mask[mask['Centrosome'] == lbl_centr].set_index('Frame').sort_index()
             orig = track['Acc'][tmask['Acc']]
             interp = track['Acc'][~tmask['Acc']]
             if len(orig) > 0:
@@ -155,8 +156,8 @@ def plot_acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
             if len(interp) > 0:
                 interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
         else:
-            print 'plotting with no mask.'
-            track['Acc'].plot(ax=ax, marker=None, sharex=True, c=color)
+            print 'plotting acceleration to nuclei with no mask.'
+        track['Acc'].plot(ax=ax, marker=None, sharex=True, c=color)
 
     # plot time of contact
     if time_contact is not None:
@@ -172,7 +173,7 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
     track = df.set_index('Frame').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask[mask['AccCentr']].set_index('Frame').sort_index()
+        tmask = mask.set_index('Frame').sort_index()
         orig = track['AccCentr'][tmask['AccCentr']]
         interp = track['AccCentr'][~tmask['AccCentr']]
         if len(orig) > 0:
@@ -180,8 +181,8 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
         if len(interp) > 0:
             interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
     else:
-        print 'plotting with no mask.'
-        track['AccCentr'].plot(ax=ax, marker=None, sharex=True, c=color)
+        print 'plotting acceleration between centrosomes with no mask.'
+    track['AccCentr'].plot(ax=ax, marker=None, sharex=True, c=color)
 
     # plot time of contact
     if time_contact is not None:

@@ -16,9 +16,20 @@ sns.set_style('whitegrid')
 sns.set_context('paper')
 
 
-def plots_for_individual(df):
-    if df['Nuclei'].unique().size > 1:
-        raise IndexError('Just one nuclei per plot.')
+def centr_masks(msk):
+    if msk['Nuclei'].unique().size > 1 and msk['condition'].unique().size > 1 and msk['run'].unique().size > 1:
+        raise IndexError('Just one track per mask retrieval.')
+    msk = msk.set_index(['condition', 'run', 'Nuclei', 'Frame']).sort_index()
+    omsk = pd.DataFrame()
+    omsk['DistCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Dist']) & (msk.loc[msk['CentrLabel'] == 'B', 'Dist'])
+    omsk['SpeedCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Speed']) & (msk.loc[msk['CentrLabel'] == 'B', 'Speed'])
+    omsk['AccCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Acc']) & (msk.loc[msk['CentrLabel'] == 'B', 'Acc'])
+    return omsk.reset_index()
+
+
+def plots_for_individual(df, mask=None):
+    if df['Nuclei'].unique().size > 1 and df['condition'].unique().size > 1 and df['run'].unique().size > 1:
+        raise IndexError('Just one track per plot.')
     condition = df['condition'].unique()[0]
     run = df['run'].unique()[0]
     nuclei = df['Nuclei'].unique()[0]
@@ -34,12 +45,13 @@ def plots_for_individual(df):
     ax6 = plt.subplot(gs[6, 0])
 
     between_df = df[df['CentrLabel'] == 'A']
-    sp.plot_distance_to_nucleus(df, ax1)
-    sp.plot_speed_to_nucleus(df, ax2)
-    sp.plot_acceleration_to_nucleus(df, ax3)
-    sp.plot_distance_between_centrosomes(between_df, ax4)
-    sp.plot_speed_between_centrosomes(between_df, ax5)
-    sp.plot_acceleration_between_centrosomes(between_df, ax6)
+    mask_c = centr_masks(mask)
+    sp.plot_distance_to_nucleus(df, ax1, mask=mask)
+    sp.plot_speed_to_nucleus(df, ax2, mask=mask)
+    sp.plot_acceleration_to_nucleus(df, ax3, mask=mask)
+    sp.plot_distance_between_centrosomes(between_df, ax4, mask=mask_c)
+    sp.plot_speed_between_centrosomes(between_df, ax5, mask=mask_c)
+    sp.plot_acceleration_between_centrosomes(between_df, ax6, mask=mask_c)
 
     # change y axis title properties for small plots
     for _ax in [ax2, ax3, ax4, ax5, ax6]:
@@ -50,7 +62,7 @@ def plots_for_individual(df):
     return _fname
 
 
-def html_centrosomes_condition_run_subreport(df):
+def html_centrosomes_condition_run_subreport(df, mask=None):
     if df['condition'].unique().size > 1 or df['run'].unique().size > 1:
         raise IndexError('Just one condition-run per subreport.')
 
@@ -67,7 +79,11 @@ def html_centrosomes_condition_run_subreport(df):
                 </div>
                 <div style="page-break-after: always"></div>
             """
-        plot_fname = plots_for_individual(filtered_nuc_df)
+        if mask is not None and mask.size > 0:
+            msk = mask[mask['Nuclei'] == nuclei_id]
+            plot_fname = plots_for_individual(filtered_nuc_df, mask=msk)
+        else:
+            plot_fname = plots_for_individual(filtered_nuc_df)
 
         templ = j2.Template(nuclei_template)
         htmlout += templ.render({
@@ -87,9 +103,11 @@ if __name__ == '__main__':
     _f = os.path.abspath('_html')
 
     df_disk = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
+    df_msk_disk = pd.read_pickle('/Users/Fabio/mask.pandas')
     html_cond = ''
-    for cond_id, df_cond in df_disk.groupby(['condition', 'run']):
-        html_cond += html_centrosomes_condition_run_subreport(df_cond)
+    for (cond_id, run_id), df_cond in df_disk.groupby(['condition', 'run']):
+        msk_cond = df_msk_disk[(df_msk_disk['condition'] == cond_id) & (df_msk_disk['run'] == run_id)]
+        html_cond += html_centrosomes_condition_run_subreport(df_cond, mask=msk_cond)
 
     master_template = """<!DOCTYPE html>
             <html>

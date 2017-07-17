@@ -9,6 +9,7 @@ sns.set_style('whitegrid')
 sns.set_context('paper')
 sns.set(font_scale=0.9)
 df = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
+msk = pd.read_pickle('/Users/Fabio/mask.pandas')
 
 dfcentr = df[df['CentrLabel'] == 'A'].drop(['CentrLabel', 'Centrosome', 'NuclBound',
                                             'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY',

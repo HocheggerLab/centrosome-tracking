@@ -46,7 +46,6 @@ class ExperimentsList(QtGui.QWidget):
                                                 nuclei_selected=self.nuclei_selected)
             QTimer.singleShot(500, self.anim)
 
-
     def populate_experiments(self):
         model = QtGui.QStandardItemModel()
         self.experimentsTreeView.setModel(model)
@@ -244,15 +243,22 @@ class ExperimentsList(QtGui.QWidget):
 
     @QtCore.pyqtSlot()
     def on_export_pandas_button(self):
-        fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save file',
+        fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save centrosome file',
                                                   directory='/Users/Fabio/centrosomes.pandas')
+        mname = QtGui.QFileDialog.getSaveFileName(self, caption='Save mask dataframe file',
+                                                  directory='/Users/Fabio/mask.pandas')
         fname = str(fname)
+        mname = str(mname)
 
-        print 'saving to %s' % fname
         self.reprocess_selections()
+        print 'saving masks to %s' % (mname)
         hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+        msk = hlab.mask
+        msk.to_pickle(mname)
+        print 'saving centrosomes to %s' % (fname)
         df = hlab.dataframe
         df.to_pickle(fname)
+        print 'export finished.'
 
     @QtCore.pyqtSlot()
     def on_export_sel_button(self):
