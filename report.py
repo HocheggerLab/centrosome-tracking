@@ -11,6 +11,7 @@ import pdfkit
 import seaborn as sns
 
 import special_plots as sp
+from imagej_pandas import ImagejPandas
 
 sns.set_style('whitegrid')
 sns.set_context('paper')
@@ -19,7 +20,7 @@ sns.set_context('paper')
 def centr_masks(msk):
     if msk['Nuclei'].unique().size > 1 and msk['condition'].unique().size > 1 and msk['run'].unique().size > 1:
         raise IndexError('Just one track per mask retrieval.')
-    msk = msk.set_index(['condition', 'run', 'Nuclei', 'Frame']).sort_index()
+    msk = msk.set_index(['condition', 'run', 'Nuclei', 'Frame', 'Time']).sort_index()
     omsk = pd.DataFrame()
     omsk['DistCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Dist']) & (msk.loc[msk['CentrLabel'] == 'B', 'Dist'])
     omsk['SpeedCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Speed']) & (msk.loc[msk['CentrLabel'] == 'B', 'Speed'])
@@ -46,12 +47,14 @@ def plots_for_individual(df, mask=None):
 
     between_df = df[df['CentrLabel'] == 'A']
     mask_c = centr_masks(mask)
-    sp.plot_distance_to_nucleus(df, ax1, mask=mask)
-    sp.plot_speed_to_nucleus(df, ax2, mask=mask)
-    sp.plot_acceleration_to_nucleus(df, ax3, mask=mask)
-    sp.plot_distance_between_centrosomes(between_df, ax4, mask=mask_c)
-    sp.plot_speed_between_centrosomes(between_df, ax5, mask=mask_c)
-    sp.plot_acceleration_between_centrosomes(between_df, ax6, mask=mask_c)
+    time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
+
+    sp.plot_distance_to_nucleus(df, ax1, mask=mask, time_contact=time_of_c)
+    sp.plot_speed_to_nucleus(df, ax2, mask=mask, time_contact=time_of_c)
+    sp.plot_acceleration_to_nucleus(df, ax3, mask=mask, time_contact=time_of_c)
+    sp.plot_distance_between_centrosomes(between_df, ax4, mask=mask_c, time_contact=time_of_c)
+    sp.plot_speed_between_centrosomes(between_df, ax5, mask=mask_c, time_contact=time_of_c)
+    sp.plot_acceleration_between_centrosomes(between_df, ax6, mask=mask_c, time_contact=time_of_c)
 
     # change y axis title properties for small plots
     for _ax in [ax2, ax3, ax4, ax5, ax6]:

@@ -30,14 +30,14 @@ class ImagejPandas(object):
         self.merged_df = self.merged_df.drop(['ValidCentroid'], axis=1)
 
     @staticmethod
-    def get_contact_time(df, threshold):
+    def get_contact_time(df, distance_threshold):
         # get all distances less than a threshold, order them by time and pick the earlier one
         cent_list = df.groupby('Centrosome').size().index
         if len(cent_list) <= 1:
             return 0, 0, 0
         elif len(cent_list) == 2:
             dsf = ImagejPandas.dist_vel_acc_centrosomes(df)
-            dsr = dsf[dsf['DistCentr'] <= threshold]
+            dsr = dsf[dsf['DistCentr'] <= distance_threshold]
 
             if dsr.size > 0:
                 zeros_df = dsr[dsr['DistCentr'] == 0]

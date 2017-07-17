@@ -26,14 +26,14 @@ def plot_distance_to_nucleus(df, ax, mask=None, time_contact=None):
 
     dhandles, dlabels = list(), list()
     for k, [(centr_lbl), _df] in enumerate(df.groupby(['Centrosome'])):
-        track = _df.set_index('Frame').sort_index()
+        track = _df.set_index('Time').sort_index()
         color = pal[k % len(pal)]
         dlbl = 'N%d-C%d' % (nucleus_id, centr_lbl)
         dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
         dlabels.append(dlbl)
 
         if mask is not None and not mask.empty:
-            tmask = mask[mask['Centrosome'] == centr_lbl].set_index('Frame').sort_index()
+            tmask = mask[mask['Centrosome'] == centr_lbl].set_index('Time').sort_index()
             orig = track['Dist'][tmask['Dist']]
             interp = track['Dist'][~tmask['Dist']]
             if len(orig) > 0:
@@ -55,10 +55,10 @@ def plot_distance_to_nucleus(df, ax, mask=None, time_contact=None):
 
 def plot_distance_between_centrosomes(df, ax, mask=None, time_contact=None):
     color = sns.color_palette()[0]
-    track = df.set_index('Frame').sort_index()
+    track = df.set_index('Time').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask.set_index('Frame').sort_index()
+        tmask = mask.set_index('Time').sort_index()
         orig = track['DistCentr'][tmask['DistCentr']]
         interp = track['DistCentr'][~tmask['DistCentr']]
         if len(orig) > 0:
@@ -84,14 +84,14 @@ def plot_speed_to_nucleus(df, ax, mask=None, time_contact=None):
 
     dhandles, dlabels = list(), list()
     for k, [(lbl_centr), _df] in enumerate(df.groupby(['Centrosome'])):
-        track = _df.set_index('Frame').sort_index()
+        track = _df.set_index('Time').sort_index()
         color = pal[k % len(pal)]
         dlbl = 'N%d-C%d' % (nucleus_id, lbl_centr)
         dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
         dlabels.append(dlbl)
 
         if mask is not None and not mask.empty:
-            tmask = mask[mask['Centrosome'] == lbl_centr].set_index('Frame').sort_index()
+            tmask = mask[mask['Centrosome'] == lbl_centr].set_index('Time').sort_index()
             orig = track['Speed'][tmask['Speed']]
             interp = track['Speed'][~tmask['Speed']]
             if len(orig) > 0:
@@ -113,10 +113,10 @@ def plot_speed_to_nucleus(df, ax, mask=None, time_contact=None):
 
 def plot_speed_between_centrosomes(df, ax, mask=None, time_contact=None):
     color = sns.color_palette()[0]
-    track = df.set_index('Frame').sort_index()
+    track = df.set_index('Time').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask.set_index('Frame').sort_index()
+        tmask = mask.set_index('Time').sort_index()
         orig = track['SpeedCentr'][tmask['SpeedCentr']]
         interp = track['SpeedCentr'][~tmask['SpeedCentr']]
         if len(orig) > 0:
@@ -141,14 +141,14 @@ def plot_acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
 
     dhandles, dlabels = list(), list()
     for k, [(lbl_centr), _df] in enumerate(df.groupby(['Centrosome'])):
-        track = _df.set_index('Frame').sort_index()
+        track = _df.set_index('Time').sort_index()
         color = pal[k % len(pal)]
         dlbl = 'N%d-C%d' % (nucleus_id, lbl_centr)
         dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
         dlabels.append(dlbl)
 
         if mask is not None and not mask.empty:
-            tmask = mask[mask['Centrosome'] == lbl_centr].set_index('Frame').sort_index()
+            tmask = mask[mask['Centrosome'] == lbl_centr].set_index('Time').sort_index()
             orig = track['Acc'][tmask['Acc']]
             interp = track['Acc'][~tmask['Acc']]
             if len(orig) > 0:
@@ -170,10 +170,10 @@ def plot_acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
 
 def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
     color = sns.color_palette()[0]
-    track = df.set_index('Frame').sort_index()
+    track = df.set_index('Time').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask.set_index('Frame').sort_index()
+        tmask = mask.set_index('Time').sort_index()
         orig = track['AccCentr'][tmask['AccCentr']]
         interp = track['AccCentr'][~tmask['AccCentr']]
         if len(orig) > 0:
