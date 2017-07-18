@@ -177,6 +177,20 @@ class LabHDF5NeXusFile():
                                 df_out = df_out.append(df_nuc)
         return df_out
 
+    @property
+    def mask(self):
+        df_msk = pd.DataFrame()
+        with h5py.File(self.filename, 'r') as f:
+            for experiment_tag in f:
+                for run in f['%s' % experiment_tag]:
+                    if 'pandas_masks' in f['%s/%s/processed' % (experiment_tag, run)]:
+                        selection_key = '%s/%s/processed/pandas_masks' % (experiment_tag, run)
+                        msk = pd.read_hdf(self.filename, key=selection_key, mode='r')
+                        msk['condition'] = experiment_tag
+                        msk['run'] = run
+                        df_msk = df_msk.append(msk)
+        return df_msk
+
     def selectiondicts_run(self, experiment_tag, run):
         centrosome_inclusion_dict = dict()
         centrosome_exclusion_dict = dict()
@@ -246,7 +260,10 @@ class LabHDF5NeXusFile():
             dfn_join = mskn_join = pd.DataFrame()
             for nuc_id, df_nuc in proc_df.groupby('Nuclei'):
                 print 'processing selection for condition %s run %s nuclei N%02d' % (experiment_tag, run, nuc_id)
+                msk_nuc = mask_df[mask_df['Nuclei'] == nuc_id]
+                # ----------------------------------------------------------
                 # join tracks based on distance of time of contact
+                # ----------------------------------------------------------
                 # get time of contact
                 dthrsh = dfij.DIST_THRESHOLD * 1.5
                 time_ofc, frame_ofc, dist_ofc = dfij.get_contact_time(df_nuc, dthrsh)
@@ -257,9 +274,12 @@ class LabHDF5NeXusFile():
                         print '--> joining centrosomes %d and %d' % (centrosomes_ofc[0], centrosomes_ofc[1])
                         dfj, mskj = dfij.join_tracks(df_nuc, centrosomes_ofc[0], centrosomes_ofc[1])
                         dfn_join = dfn_join.append(dfj)
-                        mskn_join = mskn_join.append(mskj)
+
+                        msk_and = msk_nuc.set_index(dfij.MASK_INDEX) & mskj.set_index(dfij.MASK_INDEX)
+                        mskn_join = mskn_join.append(msk_and.reset_index())
                 else:
                     dfn_join = dfn_join.append(df_nuc)
+                    mskn_join = mskn_join.append(msk_nuc)
                 proc_df = dfn_join
 
             with h5py.File(self.filename, 'r') as f:

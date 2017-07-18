@@ -8,6 +8,7 @@ import pandas as pd
 class ImagejPandas(object):
     DIST_THRESHOLD = 1.0  # um before 1 frame of contact
     TIME_BEFORE_CONTACT = 30
+    MASK_INDEX = ['Frame', 'Nuclei', 'Centrosome']
 
     def __init__(self, filename):
         self.path_csv = filename
@@ -29,14 +30,14 @@ class ImagejPandas(object):
         self.merged_df = self.merged_df.drop(['ValidCentroid'], axis=1)
 
     @staticmethod
-    def get_contact_time(df, threshold):
+    def get_contact_time(df, distance_threshold):
         # get all distances less than a threshold, order them by time and pick the earlier one
         cent_list = df.groupby('Centrosome').size().index
         if len(cent_list) <= 1:
             return 0, 0, 0
         elif len(cent_list) == 2:
             dsf = ImagejPandas.dist_vel_acc_centrosomes(df)
-            dsr = dsf[dsf['DistCentr'] <= threshold]
+            dsr = dsf[dsf['DistCentr'] <= distance_threshold]
 
             if dsr.size > 0:
                 zeros_df = dsr[dsr['DistCentr'] == 0]
@@ -98,10 +99,10 @@ class ImagejPandas(object):
 
     @staticmethod
     def interpolate_data(df):
-        if df.groupby(['Frame', 'Time', 'Nuclei', 'Centrosome']).size().max() > 1:
+        if df.groupby(['Frame', 'Nuclei', 'Centrosome']).size().max() > 1:
             raise LookupError('this function accepts just 1 value per (frame,centrosome)')
 
-        s = df.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome']).sort_index()
+        s = df.set_index(ImagejPandas.MASK_INDEX).sort_index()
         u = s.unstack('Centrosome')
         umask = u.isnull()  # true for interpolated values
         u = u.interpolate(limit=30, limit_direction='backward')
@@ -116,19 +117,18 @@ class ImagejPandas(object):
         # get the time of the minimum of the two values
         tc = supdn[supdn == supdn.min()].values[0]
 
-        s = u.set_index(['Time', 'Nuclei', 'Centrosome']).unstack('Centrosome')
+        s = u.set_index(ImagejPandas.MASK_INDEX).sort_index().unstack('Centrosome')
         # where are the NaN's?
         nans_are_in = s['Frame'].transpose().isnull().any(axis=1)
-        nans_are_in = nans_are_in.keys().values
+        values_where_nans_are_in = nans_are_in.keys().values
 
         mask = s.isnull().stack().reset_index()
-        s = u.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome']).unstack('Centrosome')
 
-        if nans_are_in.size > 0:
-            if nans_are_in[0] == cm:
-                g = s[s.index > tc].transpose().fillna(method='ffill').transpose()
+        if values_where_nans_are_in.size > 0:
+            if values_where_nans_are_in[0] == cm:
+                g = s[s['Time'] > tc].transpose().fillna(method='ffill').transpose()
             else:
-                g = s[s.index > tc].transpose().fillna(method='bfill').transpose()
+                g = s[s['Time'] > tc].transpose().fillna(method='bfill').transpose()
             s[s.index > tc] = g
         u = s.stack()
 
@@ -136,15 +136,13 @@ class ImagejPandas(object):
 
     @staticmethod
     def process_dataframe(df, nuclei_list=None, centrosome_inclusion_dict=None, max_time_dict=None):
-
+        # filter non wanted centrosomes
         keep_centrosomes = list()
         for _cnuc in centrosome_inclusion_dict: keep_centrosomes.extend(centrosome_inclusion_dict[_cnuc])
-
-        # filter non wanted centrosomes
         df = df[df['Centrosome'].isin(keep_centrosomes)]
         df = ImagejPandas.vel_acc_nuclei(df)  # call to make distance & acceleration columns appear
 
-        # include wanted centrosomes
+        # assign wanted centrosomes to nuclei
         if centrosome_inclusion_dict is not None:
             for nuId in centrosome_inclusion_dict.keys():
                 for centId in centrosome_inclusion_dict[nuId]:
@@ -160,7 +158,7 @@ class ImagejPandas(object):
                 try:
                     filtered_nuc_df, imask = ImagejPandas.interpolate_data(filtered_nuc_df)
 
-                    # compute mask as logical AND of joined track mask and interpolated data mask
+                    # process interpolated data mask
                     im = imask.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome'])
                     mask = (~im).reset_index()
 
