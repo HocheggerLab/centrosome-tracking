@@ -156,7 +156,7 @@ class ExperimentsList(QtGui.QWidget):
             mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
             df = df[df['Nuclei'] == nuclei]
             mask = mask[mask['Nuclei'] == nuclei]
-            spc.plot_distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask, draw_interpolated=False)
+            spc.plot_distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask)
             self.mplDistance.canvas.draw()
 
     def populate_centrosomes(self):
