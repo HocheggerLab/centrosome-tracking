@@ -20,7 +20,7 @@ def anotated_boxplot(data_grouped, var):
         ax.text(x, _max_y * 0.8, '$n=%d$' % count, ha='center')
 
 
-def plot_distance_to_nucleus(df, ax, mask=None, time_contact=None):
+def distance_to_nucleus(df, ax, mask=None, time_contact=None):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
@@ -53,7 +53,7 @@ def plot_distance_to_nucleus(df, ax, mask=None, time_contact=None):
     ax.set_ylabel('Distance to\nnuclei $[\mu m]$')
 
 
-def plot_distance_between_centrosomes(df, ax, mask=None, time_contact=None):
+def distance_between_centrosomes(df, ax, mask=None, time_contact=None):
     color = sns.color_palette()[0]
     track = df.set_index('Time').sort_index()
 
@@ -78,7 +78,7 @@ def plot_distance_between_centrosomes(df, ax, mask=None, time_contact=None):
     ax.set_ylim([0, max(ax.get_ylim())])
 
 
-def plot_speed_to_nucleus(df, ax, mask=None, time_contact=None):
+def speed_to_nucleus(df, ax, mask=None, time_contact=None):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
@@ -111,7 +111,7 @@ def plot_speed_to_nucleus(df, ax, mask=None, time_contact=None):
     ax.set_ylabel('Speed to\nnuclei $\\left[\\frac{\mu m}{min} \\right]$')
 
 
-def plot_speed_between_centrosomes(df, ax, mask=None, time_contact=None):
+def speed_between_centrosomes(df, ax, mask=None, time_contact=None):
     color = sns.color_palette()[0]
     track = df.set_index('Time').sort_index()
 
@@ -135,7 +135,7 @@ def plot_speed_between_centrosomes(df, ax, mask=None, time_contact=None):
     ax.set_ylabel('Speed between\ncentrosomes $\\left[\\frac{\mu m}{min} \\right]$')
 
 
-def plot_acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
+def acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 

@@ -10,6 +10,10 @@ sns.set_context('paper')
 sns.set(font_scale=0.9)
 pd.set_option('display.width', 320)
 
+# flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+colors = ["windows blue", "amber", "greyish", "faded green", "dusty purple"]
+palette = sns.xkcd_palette(colors)
+
 df = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
 msk = pd.read_pickle('/Users/Fabio/mask.pandas')
 
@@ -33,30 +37,27 @@ dfcentr['indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['N
 
 # average speed boxplot
 mua = dfcentr.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-mua.rename(columns={'SpeedCentr': new_speed_name}, inplace=True)
-sp.anotated_boxplot(mua, new_speed_name)
+mua.rename(columns={'SpeedCentr': new_speedcntr_name}, inplace=True)
+sp.anotated_boxplot(mua, new_speedcntr_name)
 plt.savefig('/Users/Fabio/boxplot_avg_speed.svg', format='svg')
 
 # plot of every distance between centrosome's, centered at time of contact
 plt.figure(101)
 sns.set_palette('GnBu_d')
 df_idx_grp = dfcentr.set_index('Time').sort_index().groupby(['condition', 'run', 'Nuclei'])
-df_idx_grp['DistCentr'].plot(linewidth=1, alpha=0.5)
+df_idx_grp[new_distcntr_name].plot(linewidth=1, alpha=0.5)
 plt.savefig('/Users/Fabio/dist_centrosomes_all.svg', format='svg')
 
 plt.figure(102)
 ax = plt.gca()
-# flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
-colors = ["windows blue", "amber", "greyish", "faded green", "dusty purple"]
-palette = sns.xkcd_palette(colors)
 sns.set_palette(sns.color_palette(palette))
-sns.tsplot(data=dfcentr, time='Frame', value='DistCentr', unit='indv', condition='condition', ax=ax)
+sns.tsplot(data=dfcentr, time='Frame', value=new_distcntr_name, unit='indv', condition='condition', ax=ax)
 ax.set_xlim([-10, 5])
 plt.savefig('/Users/Fabio/dist_tsplot.svg', format='svg')
 
 plt.figure(103)
 ax = plt.gca()
-sns.tsplot(data=dfcentr, time='Frame', value='SpeedCentr', unit='indv', condition='condition', ax=ax)
+sns.tsplot(data=dfcentr, time='Frame', value=new_speedcntr_name, unit='indv', condition='condition', ax=ax)
 ax.set_xlim([-10, 5])
 plt.savefig('/Users/Fabio/speed_tsplot.svg', format='svg')
 

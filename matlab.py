@@ -85,4 +85,7 @@ for _, _df in df_matlab.groupby(['condition', 'run', 'Nuclei']):
     _df.loc[idx2, 'AccCentr'] = dc[dc['Frame'] <= minframe2]['AccCentr'].values
     df_out = df_out.append(_df)
 
+df_out = df_out[['condition', 'run', 'Nuclei', 'Centrosome', 'CentrLabel',
+                 'Frame', 'Time', 'CentX', 'CentY', 'NuclX', 'NuclY', 'CNx', 'CNy',
+                 'Dist', 'Speed', 'Acc', 'DistCentr', 'SpeedCentr', 'AccCentr']]
 df_out.to_pickle('/Users/Fabio/matlab.pandas')

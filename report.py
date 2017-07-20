@@ -49,11 +49,11 @@ def plots_for_individual(df, mask=None):
     mask_c = centr_masks(mask) if mask is not None else None
     time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
-    sp.plot_distance_to_nucleus(df, ax1, mask=mask, time_contact=time_of_c)
-    sp.plot_speed_to_nucleus(df, ax2, mask=mask, time_contact=time_of_c)
-    sp.plot_acceleration_to_nucleus(df, ax3, mask=mask, time_contact=time_of_c)
-    sp.plot_distance_between_centrosomes(between_df, ax4, mask=mask_c, time_contact=time_of_c)
-    sp.plot_speed_between_centrosomes(between_df, ax5, mask=mask_c, time_contact=time_of_c)
+    sp.distance_to_nucleus(df, ax1, mask=mask, time_contact=time_of_c)
+    sp.speed_to_nucleus(df, ax2, mask=mask, time_contact=time_of_c)
+    sp.acceleration_to_nucleus(df, ax3, mask=mask, time_contact=time_of_c)
+    sp.distance_between_centrosomes(between_df, ax4, mask=mask_c, time_contact=time_of_c)
+    sp.speed_between_centrosomes(between_df, ax5, mask=mask_c, time_contact=time_of_c)
     sp.plot_acceleration_between_centrosomes(between_df, ax6, mask=mask_c, time_contact=time_of_c)
 
     # change y axis title properties for small plots
@@ -105,16 +105,15 @@ if __name__ == '__main__':
         os.makedirs('_html/img')
     _f = os.path.abspath('_html')
 
-    # df_disk = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
-    # df_msk_disk = pd.read_pickle('/Users/Fabio/mask.pandas')
-    # html_cond = ''
-    # for (cond_id, run_id), df_cond in df_disk.groupby(['condition', 'run']):
-    #     msk_cond = df_msk_disk[(df_msk_disk['condition'] == cond_id) & (df_msk_disk['run'] == run_id)]
-    #     html_cond += html_centrosomes_condition_run_subreport(df_cond, mask=msk_cond)
+    df_disk = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
+    df_msk_disk = pd.read_pickle('/Users/Fabio/mask.pandas')
+    html_cond = ''
+    for (cond_id, run_id), df_cond in df_disk.groupby(['condition', 'run']):
+        msk_cond = df_msk_disk[(df_msk_disk['condition'] == cond_id) & (df_msk_disk['run'] == run_id)]
+        html_cond += html_centrosomes_condition_run_subreport(df_cond, mask=msk_cond)
 
     df_disk = pd.read_pickle('/Users/Fabio/matlab.pandas')
     df_msk_disk = pd.DataFrame()
-    html_cond = ''
     for (cond_id, run_id), df_cond in df_disk.groupby(['condition', 'run']):
         html_cond += html_centrosomes_condition_run_subreport(df_cond)
 
