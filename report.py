@@ -46,7 +46,7 @@ def plots_for_individual(df, mask=None):
     ax6 = plt.subplot(gs[6, 0])
 
     between_df = df[df['CentrLabel'] == 'A']
-    mask_c = centr_masks(mask)
+    mask_c = centr_masks(mask) if mask is not None else None
     time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
     sp.plot_distance_to_nucleus(df, ax1, mask=mask, time_contact=time_of_c)
@@ -105,12 +105,18 @@ if __name__ == '__main__':
         os.makedirs('_html/img')
     _f = os.path.abspath('_html')
 
-    df_disk = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
-    df_msk_disk = pd.read_pickle('/Users/Fabio/mask.pandas')
+    # df_disk = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
+    # df_msk_disk = pd.read_pickle('/Users/Fabio/mask.pandas')
+    # html_cond = ''
+    # for (cond_id, run_id), df_cond in df_disk.groupby(['condition', 'run']):
+    #     msk_cond = df_msk_disk[(df_msk_disk['condition'] == cond_id) & (df_msk_disk['run'] == run_id)]
+    #     html_cond += html_centrosomes_condition_run_subreport(df_cond, mask=msk_cond)
+
+    df_disk = pd.read_pickle('/Users/Fabio/matlab.pandas')
+    df_msk_disk = pd.DataFrame()
     html_cond = ''
     for (cond_id, run_id), df_cond in df_disk.groupby(['condition', 'run']):
-        msk_cond = df_msk_disk[(df_msk_disk['condition'] == cond_id) & (df_msk_disk['run'] == run_id)]
-        html_cond += html_centrosomes_condition_run_subreport(df_cond, mask=msk_cond)
+        html_cond += html_centrosomes_condition_run_subreport(df_cond)
 
     master_template = """<!DOCTYPE html>
             <html>
