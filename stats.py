@@ -26,12 +26,12 @@ def dataframe_centered_in_time_of_contact(df):
     print 'Re-centering timeseries in time of contact...'
     df_tofc_center = pd.DataFrame()
     for _, fdf in df.groupby(['condition', 'run', 'Nuclei']):
-        fdf['Centrosome'] = fdf['CentrLabel']
+        fdf.loc[:, 'Centrosome'] = fdf['CentrLabel']
         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(fdf, ImagejPandas.DIST_THRESHOLD)
         if time_of_c is not None:
             _df = fdf[fdf['CentrLabel'] == 'A']
-            _df['Time'] -= time_of_c
-            _df['Frame'] -= frame_of_c
+            _df.loc[:, 'Time'] -= time_of_c
+            _df.loc[:, 'Frame'] -= frame_of_c
             if 'datetime' in _df:
                 dt = pd.to_datetime(datetime.datetime.fromtimestamp(time.mktime(time.gmtime(time_of_c * 60.0))))
                 _df['datetime'] -= dt

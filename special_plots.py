@@ -1,12 +1,13 @@
 import matplotlib.lines as mlines
+import matplotlib.pyplot as plt
 import seaborn as sns
 
 from imagej_pandas import ImagejPandas
 
 
-def anotated_boxplot(data_grouped, var):
-    sns.boxplot(data=data_grouped, y=var, x='condition')
-    ax = sns.swarmplot(data=data_grouped, y=var, x='condition')
+def anotated_boxplot(data_grouped, var, size=5):
+    sns.boxplot(data=data_grouped, y=var, x='condition', linewidth=0.5)
+    ax = sns.swarmplot(data=data_grouped, y=var, x='condition', size=size)
     for i, artist in enumerate(ax.artists):
         artist.set_facecolor('None')
 
@@ -16,11 +17,14 @@ def anotated_boxplot(data_grouped, var):
         _max_y = ax.axis()[3]
         count = d.count()
         mean = d.mean()
-        ax.text(x, _max_y * 0.9, '$\mu=%0.3f$' % mean, ha='center')
-        ax.text(x, _max_y * 0.8, '$n=%d$' % count, ha='center')
+        median = d.median()
+        ax.text(x, _max_y * 0.5, '$\mu=%0.3f$  $\\tilde\mu=%0.3f$  $n=%d$' % (mean, median, count),
+                rotation='vertical', ha='center', va='bottom')
+
+    plt.xticks(ax.get_xticks(), rotation='vertical')
 
 
-def plot_distance_to_nucleus(df, ax, mask=None, time_contact=None):
+def distance_to_nucleus(df, ax, mask=None, time_contact=None):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
@@ -53,7 +57,7 @@ def plot_distance_to_nucleus(df, ax, mask=None, time_contact=None):
     ax.set_ylabel('Distance to\nnuclei $[\mu m]$')
 
 
-def plot_distance_between_centrosomes(df, ax, mask=None, time_contact=None):
+def distance_between_centrosomes(df, ax, mask=None, time_contact=None):
     color = sns.color_palette()[0]
     track = df.set_index('Time').sort_index()
 
@@ -78,7 +82,7 @@ def plot_distance_between_centrosomes(df, ax, mask=None, time_contact=None):
     ax.set_ylim([0, max(ax.get_ylim())])
 
 
-def plot_speed_to_nucleus(df, ax, mask=None, time_contact=None):
+def speed_to_nucleus(df, ax, mask=None, time_contact=None):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
@@ -111,7 +115,7 @@ def plot_speed_to_nucleus(df, ax, mask=None, time_contact=None):
     ax.set_ylabel('Speed to\nnuclei $\\left[\\frac{\mu m}{min} \\right]$')
 
 
-def plot_speed_between_centrosomes(df, ax, mask=None, time_contact=None):
+def speed_between_centrosomes(df, ax, mask=None, time_contact=None):
     color = sns.color_palette()[0]
     track = df.set_index('Time').sort_index()
 
@@ -135,7 +139,7 @@ def plot_speed_between_centrosomes(df, ax, mask=None, time_contact=None):
     ax.set_ylabel('Speed between\ncentrosomes $\\left[\\frac{\mu m}{min} \\right]$')
 
 
-def plot_acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
+def acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
