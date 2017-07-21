@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 
+import stats
 from imagej_pandas import ImagejPandas
 
 pd.set_option('display.width', 320)
@@ -85,7 +86,15 @@ for _, _df in df_matlab.groupby(['condition', 'run', 'Nuclei']):
     _df.loc[idx2, 'AccCentr'] = dc[dc['Frame'] <= minframe2]['AccCentr'].values
     df_out = df_out.append(_df)
 
-df_out = df_out[['condition', 'run', 'Nuclei', 'Centrosome', 'CentrLabel',
-                 'Frame', 'Time', 'CentX', 'CentY', 'NuclX', 'NuclY', 'CNx', 'CNy',
-                 'Dist', 'Speed', 'Acc', 'DistCentr', 'SpeedCentr', 'AccCentr']]
+ordered_columns = ['condition', 'run', 'Nuclei', 'Centrosome', 'CentrLabel',
+                   'Frame', 'Time', 'CentX', 'CentY', 'NuclX', 'NuclY', 'CNx', 'CNy',
+                   'Dist', 'Speed', 'Acc', 'DistCentr', 'SpeedCentr', 'AccCentr', 'NuclBound']
+df_out['NuclBound'] = None
+df_out = df_out[ordered_columns]
 df_out.to_pickle('/Users/Fabio/matlab.pandas')
+
+df_c = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
+df_c = df_c.append(df_out)
+df_c = df_c[ordered_columns]
+df_c = stats.dataframe_centered_in_time_of_contact(df_c)
+df_c.to_pickle('/Users/Fabio/merge_centered.pandas')
