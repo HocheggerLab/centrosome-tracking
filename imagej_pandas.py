@@ -33,9 +33,7 @@ class ImagejPandas(object):
     def get_contact_time(df, distance_threshold):
         # get all distances less than a threshold, order them by time and pick the earlier one
         cent_list = df.groupby('Centrosome').size().index
-        if len(cent_list) <= 1:
-            return 0, 0, 0
-        elif len(cent_list) == 2:
+        if len(cent_list) == 2:
             dsf = ImagejPandas.dist_vel_acc_centrosomes(df)
             dsr = dsf[dsf['DistCentr'] <= distance_threshold]
 
@@ -58,12 +56,11 @@ class ImagejPandas(object):
     @staticmethod
     def vel_acc_nuclei(df):
         df = df.set_index('Frame').sort_index()
-        df['CNx'] = df['NuclX'] - df['CentX']
-        df['CNy'] = df['NuclY'] - df['CentY']
-        for c_i in df.groupby('Centrosome').groups.keys():
-            dc = df[df['Centrosome'] == c_i]
+        df.loc[:, 'CNx'] = df['NuclX'] - df['CentX']
+        df.loc[:, 'CNy'] = df['NuclY'] - df['CentY']
+        for c_i, dc in df.groupby('Centrosome'):
             dc.loc[:, 'Dist'] = np.sqrt(dc.CNx ** 2 + dc.CNy ** 2)  # relative to nuclei centroid
-            d = dc[['CNx', 'CNy', 'Dist', 'Time']].diff()
+            d = dc.loc[:, ['CNx', 'CNy', 'Dist', 'Time']].diff()
 
             df.loc[df['Centrosome'] == c_i, 'Dist'] = np.sqrt(dc.CNx ** 2 + dc.CNy ** 2)  # relative to nuclei centroid
             df.loc[df['Centrosome'] == c_i, 'Speed'] = d.Dist / d.Time
@@ -88,12 +85,12 @@ class ImagejPandas(object):
         ddx = dc['CNx'][cent_list[0]] - dc['CNx'][cent_list[1]]
         ddy = dc['CNy'][cent_list[0]] - dc['CNy'][cent_list[1]]
         ds = pd.DataFrame()
-        ds['DistCentr'] = np.sqrt(ddx ** 2 + ddy ** 2)
+        ds.loc[:, 'DistCentr'] = np.sqrt(ddx ** 2 + ddy ** 2)
 
         ds = ds.reset_index().set_index('Frame')
         d = ds.diff()
-        ds['SpeedCentr'] = d.DistCentr / d.Time
-        ds['AccCentr'] = d.DistCentr.diff() / d.Time
+        ds.loc[:, 'SpeedCentr'] = d.DistCentr / d.Time
+        ds.loc[:, 'AccCentr'] = d.DistCentr.diff() / d.Time
 
         return ds.reset_index()
 

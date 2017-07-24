@@ -1,5 +1,6 @@
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
+import pandas as pd
 import seaborn as sns
 
 from imagej_pandas import ImagejPandas
@@ -19,9 +20,36 @@ def anotated_boxplot(data_grouped, var, size=5):
         mean = d.mean()
         median = d.median()
         ax.text(x, _max_y * 0.5, '$\mu=%0.3f$  $\\tilde\mu=%0.3f$  $n=%d$' % (mean, median, count),
-                rotation='vertical', ha='center', va='bottom')
+                rotation='vertical', ha='center', va='bottom', fontsize='xx-small')
 
     plt.xticks(ax.get_xticks(), rotation='vertical')
+
+
+def congression(cg):
+    # plot centrosome congression as %
+    # compute congression signal
+    cg['cgr'] = 0
+    for id, idf in cg.groupby('indv'):
+        time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(idf, ImagejPandas.DIST_THRESHOLD)
+        if frame_of_c > 0:
+            cg.loc[(cg['CentrLabel'] == 'A') & (cg['indv'] == id) & (cg['Frame'] >= frame_of_c), 'cgr'] = 1
+
+    cg = cg[cg['CentrLabel'] == 'A']
+
+    cgr = pd.DataFrame()
+    for id, cdf in cg.groupby('condition'):
+        total_centrosome_pairs = float(len(cdf['indv'].unique()))
+        cdf = cdf.set_index(['indv', 'Time']).sort_index()
+        cgr1_p = cdf['cgr'].unstack('indv').fillna(method='ffill').sum(axis=1) / total_centrosome_pairs * 100.0
+        cgr1_p = cgr1_p.reset_index().rename(index=str, columns={0: 'congress'})
+        cgr1_p['condition'] = id
+        cgr = cgr.append(cgr1_p)
+
+    # PLOT centrosome congresion
+    g = sns.FacetGrid(cgr, hue='condition', aspect=3)
+    g.map(plt.plot, 'Time', 'congress', drawstyle='steps-pre', lw=1)
+    g.set_axis_labels(x_var='Time $[min]$', y_var='Congression ($d<%0.2f$ $[\mu m]$)' % ImagejPandas.DIST_THRESHOLD)
+    g.add_legend()
 
 
 def distance_to_nucleus(df, ax, mask=None, time_contact=None):

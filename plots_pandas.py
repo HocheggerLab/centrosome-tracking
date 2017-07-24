@@ -13,11 +13,14 @@ pd.set_option('display.width', 320)
 colors = ["windows blue", "amber", "greyish", "faded green", "dusty purple"]
 palette = sns.xkcd_palette(colors)
 
-df = pd.read_pickle('/Users/Fabio/matlab.pandas')
+df = pd.read_pickle('/Users/Fabio/merge.pandas')
 _df = pd.read_pickle('/Users/Fabio/merge_centered.pandas')
-# df['datetime'] = df['Time'].apply(
-#     lambda x: pd.to_datetime(datetime.datetime.fromtimestamp(time.mktime(time.gmtime(x * 60.0))))
-# )
+
+# congression plots
+plt.figure(120)
+df['indv'] = df['condition'] + '-' + df['run'] + '-' + df['Nuclei'].map(int).map(str)
+sp.congression(df)
+plt.savefig('/Users/Fabio/congression.svg', format='svg')
 
 new_dist_name = 'Distance relative\nto nuclei center $[\mu m]$'
 new_speed_name = 'Speed relative\nto nuclei center $\\left[\\frac{\mu m}{min} \\right]$'
@@ -35,20 +38,20 @@ _df.rename(columns={'SpeedCentr': new_speedcntr_name}, inplace=True)
 # filter original dataframe to get just data between centrosomes
 dfcentr = _df[_df['CentrLabel'] == 'A']
 dfcentr['indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['Nuclei'].map(int).map(str)
-# center data at time of contact
 dfcentr.drop(['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY'],
              axis=1, inplace=True)
 
 # average speed boxplot
 plt.figure(100)
-mua = dfcentr.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+dfc_cleaned = dfcentr.loc[dfcentr['Time'] <= 0, :]
+mua = dfc_cleaned.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
 mua.rename(columns={'SpeedCentr': new_speedcntr_name}, inplace=True)
 sp.anotated_boxplot(mua, new_speedcntr_name, size=2)
+plt.subplots_adjust(left=0.125, right=0.9, bottom=0.2, top=0.9, wspace=0.2, hspace=0.2)
 plt.savefig('/Users/Fabio/boxplot_avg_speed.svg', format='svg')
 
 plt.figure(102)
 ax = plt.gca()
-sns.set_palette(sns.color_palette(palette))
 sns.tsplot(data=dfcentr, time='Frame', value=new_distcntr_name, unit='indv', condition='condition', ax=ax)
 ax.set_xlim([-10, 5])
 plt.savefig('/Users/Fabio/dist_tsplot.svg', format='svg')
@@ -74,8 +77,8 @@ plt.savefig('/Users/Fabio/speed_vs_dist_timeofcontact.svg', format='svg')
 # distribution of speed against distance
 plt.figure(105)
 g = sns.FacetGrid(df, col='condition', col_wrap=2, size=5)
-g.map(plt.scatter, new_dist_name, new_speed_name, s=1)
-# g.map(sns.kdeplot, new_dist_name, new_speed_name, lw=3)
+g.map(plt.scatter, new_distcntr_name, new_speedcntr_name, s=1)
+# g.map(sns.kdeplot, new_distcntr_name, new_speedcntr_name, lw=3)
 g.add_legend()
 plt.savefig('/Users/Fabio/speed_vs_dist.svg', format='svg')
 
@@ -88,7 +91,7 @@ plt.savefig('/Users/Fabio/dist_distr.svg', format='svg')
 # plot of every distance between centrosome's, centered at time of contact
 plt.figure(110)
 sns.set_palette('Set2')
-df_idx_grp = dfcentr.set_index('Time').sort_index()
-g = sns.FacetGrid(dfcentr, col='condition', hue='indv', col_wrap=3, size=5)
+df_idx_grp = dfcentr.set_index('Time').sort_index().reset_index()
+g = sns.FacetGrid(df_idx_grp, col='condition', hue='indv', col_wrap=2, size=5)
 g.map(plt.plot, 'Time', new_distcntr_name, linewidth=1, alpha=0.5)
 plt.savefig('/Users/Fabio/dist_centrosomes_all.svg', format='svg')

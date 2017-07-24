@@ -20,7 +20,7 @@ for set_i in range(2):
     print tracks[set_i].shape, ',', 'conditions in the set.'
     for cond_i in range(len(tracks[set_i])):
         exp_name_cond_i = '%d_%s' % (set_i + 1, exp_names[set_i][cond_i].strip())
-        print exp_name_cond_i, tracks[set_i][cond_i].shape, ',',
+        print exp_name_cond_i, set_i + 1, cond_i + 1, tracks[set_i][cond_i].shape, ',',
         for run_j in range(len(tracks[set_i][cond_i])):
             print tracks[set_i][cond_i][run_j].shape, ',',
             for ind_k in range(len(tracks[set_i][cond_i][run_j])):
@@ -58,14 +58,9 @@ for set_i in range(2):
 print df_matlab['condition'].unique(), len(df_matlab['condition'].unique())
 
 # add time for every track
-_idx = df_matlab['condition'] == '2_MCAK'
-df_matlab.loc[_idx, 'Time'] = df_matlab.loc[_idx, 'Frame'] * 1.0
-df_matlab.loc[~_idx, 'Time'] = df_matlab.loc[~_idx, 'Frame'] * 5.0
+df_matlab.loc[:, 'Time'] = df_matlab.loc[:, 'Frame'] * 5.0
 
-# transform coordinates from pixels to um
-
-
-# add speed and acceleration calculations
+print 'Computing speed and acceleration for the dataset'
 df_matlab = ImagejPandas.vel_acc_nuclei(df_matlab)
 df_out = pd.DataFrame()
 for _, _df in df_matlab.groupby(['condition', 'run', 'Nuclei']):
@@ -78,23 +73,26 @@ for _, _df in df_matlab.groupby(['condition', 'run', 'Nuclei']):
 
     idx1 = (_df['CentrLabel'] == 'A') & (_df['Frame'] <= minframe1)
     idx2 = (_df['CentrLabel'] == 'B') & (_df['Frame'] <= minframe2)
-    _df.loc[idx1, 'DistCentr'] = dc[dc['Frame'] <= minframe1]['DistCentr'].values
-    _df.loc[idx1, 'SpeedCentr'] = -dc[dc['Frame'] <= minframe1]['SpeedCentr'].values
-    _df.loc[idx1, 'AccCentr'] = -dc[dc['Frame'] <= minframe1]['AccCentr'].values
-    _df.loc[idx2, 'DistCentr'] = -dc[dc['Frame'] <= minframe2]['DistCentr'].values
-    _df.loc[idx2, 'SpeedCentr'] = dc[dc['Frame'] <= minframe2]['SpeedCentr'].values
-    _df.loc[idx2, 'AccCentr'] = dc[dc['Frame'] <= minframe2]['AccCentr'].values
+    _df.loc[idx1, 'DistCentr'] = dc.loc[dc['Frame'] <= minframe1, 'DistCentr'].values
+    _df.loc[idx1, 'SpeedCentr'] = -dc.loc[dc['Frame'] <= minframe1, 'SpeedCentr'].values
+    _df.loc[idx1, 'AccCentr'] = -dc.loc[dc['Frame'] <= minframe1, 'AccCentr'].values
+    _df.loc[idx2, 'DistCentr'] = -dc.loc[dc['Frame'] <= minframe2, 'DistCentr'].values
+    _df.loc[idx2, 'SpeedCentr'] = dc.loc[dc['Frame'] <= minframe2, 'SpeedCentr'].values
+    _df.loc[idx2, 'AccCentr'] = dc.loc[dc['Frame'] <= minframe2, 'AccCentr'].values
     df_out = df_out.append(_df)
 
 ordered_columns = ['condition', 'run', 'Nuclei', 'Centrosome', 'CentrLabel',
                    'Frame', 'Time', 'CentX', 'CentY', 'NuclX', 'NuclY', 'CNx', 'CNy',
                    'Dist', 'Speed', 'Acc', 'DistCentr', 'SpeedCentr', 'AccCentr', 'NuclBound']
-df_out['NuclBound'] = None
+df_out.loc[:, 'NuclBound'] = None
 df_out = df_out[ordered_columns]
 df_out.to_pickle('/Users/Fabio/matlab.pandas')
 
+print 'Re-centering timeseries around time of contact...'
 df_c = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
 df_c = df_c.append(df_out)
 df_c = df_c[ordered_columns]
+df_c.to_pickle('/Users/Fabio/merge.pandas')
+
 df_c = stats.dataframe_centered_in_time_of_contact(df_c)
 df_c.to_pickle('/Users/Fabio/merge_centered.pandas')
