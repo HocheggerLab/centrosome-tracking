@@ -1,9 +1,12 @@
 import itertools
 
+import matplotlib.axes
 import matplotlib.colors
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
+from matplotlib.ticker import LinearLocator, FormatStrFormatter
 
 from imagej_pandas import ImagejPandas
 
@@ -71,8 +74,56 @@ def congression(cg, ax=None, order=None):
     ax.legend(dhandles, dlabels, loc='upper left')
 
 
-def ribbons():
-    pass
+def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8)):
+    if str(type(ax)) != "<class 'matplotlib.axes._subplots.Axes3DSubplot'>":
+        raise Exception('Not the right axes class for ribbon plot.')
+    if df['condition'].unique().size > 1:
+        raise Exception('Ribbon plot needs just one condition.')
+    if len(indiv_cols) != n_indiv:
+        if len(indiv_cols) != 8:
+            raise Exception('Number of individuals and pick must match.')
+        else:
+            indiv_cols = range(n_indiv)
+    # extract data
+    df = df[df['CentrLabel'] == 'A']
+    time_series = sorted(df['Time'].unique())
+    df = df.set_index(['Time', 'indv']).sort_index()
+    dmat = df['DistCentr'].unstack('indv').as_matrix()
+    x = np.array(time_series)
+    y = np.linspace(1, n_indiv, n_indiv)
+    z = dmat[:, indiv_cols]
+
+    numPts = x.shape[0]
+    numSets = y.shape[0]
+    # print x.shape, y.shape, z.shape, np.max(np.nan_to_num(z))
+
+    # create facet color matrix
+    _time_color_grad = sns.color_palette('coolwarm', len(time_series))
+    _colors = np.empty((len(time_series), len(time_series)), dtype=tuple)
+    for cy in range(len(time_series)):
+        for cx in range(len(time_series)):
+            _colors[cx, cy] = _time_color_grad[cx]
+
+    # plot each "ribbon" as a surface plot with a certain width
+    for i in np.arange(0, numSets):
+        X = np.vstack((x, x)).T
+        Y = np.ones((numPts, 2)) * i
+        Y[:, 1] = Y[:, 0] + ribbon_width
+        Z = np.vstack((z[:, i], z[:, i])).T
+        surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, shade=True, facecolors=_colors,
+                               linewidth=0, alpha=1)
+
+    ax.set_facecolor('white')
+    # ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax.zaxis.set_major_locator(LinearLocator(10))
+    ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
+    ax.set_title(df['condition'].unique()[0])
+    ax.set_xlabel('Time $[min]$')
+    ax.set_ylabel('Track')
+    ax.set_ylim((1, numSets))
+    ax.set_zlabel('Distance between centrosomes $[\mu m]$')
+    ax.set_zlim((0, np.max(np.nan_to_num(z))))
+    # ax.get_figure().colorbar(surf, shrink=0.5, aspect=5)
 
 
 def distance_to_nucleus(df, ax, mask=None, time_contact=None):

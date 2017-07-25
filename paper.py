@@ -27,9 +27,9 @@ def fig_1(df, dfc):
     ax1 = plt.subplot(gs[0, 0])
     ax2 = plt.subplot(gs[0, 1])
     ax3 = plt.subplot(gs[1, :])
-    # ax4 = plt.subplot(gs[2, 0])
-    # ax5 = plt.subplot(gs[2, 1])
-    # ax6 = plt.subplot(gs[6, 0])
+    ax4 = plt.subplot(gs[2, 0], projection='3d')
+    ax5 = plt.subplot(gs[2, 1], projection='3d')
+
 
     dfc = dfc.loc[dfc['Time'] <= 0, :]
     mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
@@ -44,6 +44,8 @@ def fig_1(df, dfc):
     ax2.set_ylabel(new_distcntr_name)
 
     sp.congression(df, ax=ax3, order=['-STLC', '+STLC'])
+    sp.ribbon(df[df['condition'] == '-STLC'], ax4)
+    sp.ribbon(df[df['condition'] == '+STLC'], ax5)
 
     # dfcig = dfc[dfc['condition'] == '+STLC'].set_index('Time').sort_index().groupby('indv')
     # dfcig.plot(y='DistCentr', linewidth=1, alpha=0.5, legend=False, ax=ax4)
