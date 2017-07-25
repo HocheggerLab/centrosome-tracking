@@ -1,12 +1,12 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
 import special_plots as sp
 
-sns.set_style('whitegrid')
-sns.set_context('paper')
-sns.set(font_scale=0.9)
+plt.style.use('ggplot')
+sns.set(font_scale=0.9, context='paper', style='whitegrid')
 pd.set_option('display.width', 320)
 
 # flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
@@ -46,19 +46,21 @@ plt.figure(100)
 dfc_cleaned = dfcentr.loc[dfcentr['Time'] <= 0, :]
 mua = dfc_cleaned.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
 mua.rename(columns={'SpeedCentr': new_speedcntr_name}, inplace=True)
-sp.anotated_boxplot(mua, new_speedcntr_name, size=2)
+sp.anotated_boxplot(mua, new_speedcntr_name, stats_rotation='vertical', size=2)
 plt.subplots_adjust(left=0.125, right=0.9, bottom=0.2, top=0.9, wspace=0.2, hspace=0.2)
 plt.savefig('/Users/Fabio/boxplot_avg_speed.svg', format='svg')
 
 plt.figure(102)
 ax = plt.gca()
-sns.tsplot(data=dfcentr, time='Frame', value=new_distcntr_name, unit='indv', condition='condition', ax=ax)
+sns.tsplot(data=dfcentr, time='Frame', value=new_distcntr_name, unit='indv', condition='condition',
+           estimator=np.nanmean, ax=ax)
 ax.set_xlim([-10, 5])
 plt.savefig('/Users/Fabio/dist_tsplot.svg', format='svg')
 
 plt.figure(103)
 ax = plt.gca()
-sns.tsplot(data=dfcentr, time='Frame', value=new_speedcntr_name, unit='indv', condition='condition', ax=ax)
+sns.tsplot(data=dfcentr, time='Frame', value=new_speedcntr_name, unit='indv', condition='condition',
+           estimator=np.nanmean, ax=ax)
 ax.set_xlim([-10, 5])
 plt.savefig('/Users/Fabio/speed_tsplot.svg', format='svg')
 
@@ -88,10 +90,22 @@ g = sns.FacetGrid(df, row='condition', size=1.7, aspect=4)
 g.map(sns.distplot, new_dist_name, hist=False, rug=True)
 plt.savefig('/Users/Fabio/dist_distr.svg', format='svg')
 
+column_order = ['1_P.C.', 'pc', '1_N.C.', '1_ASUND', '1_BICD2', '1_Bleb', '1_CENPF', '1_Cili+', '1_CyDT', '1_DIC',
+                '1_Dynei', '1_FAKI', '1_MCAK', '1_No10+', '1_No20+', '1_No50+', '1_chTOG', '2_CDK1_+', '2_CDK1_A',
+                '2_CDK1_DA', '2_CDK1_DC', '2_CDK1_DK', '2_CDK1_K', '2_Kines1', '2_MCAK', '2_cdTOG', 'hset',
+                'hset+kif25', 'kif25']
 # plot of every distance between centrosome's, centered at time of contact
 plt.figure(110)
 sns.set_palette('Set2')
 df_idx_grp = dfcentr.set_index('Time').sort_index().reset_index()
-g = sns.FacetGrid(df_idx_grp, col='condition', hue='indv', col_wrap=2, size=5)
+g = sns.FacetGrid(df_idx_grp, col='condition', hue='indv', col_wrap=2, col_order=column_order, size=5)
 g.map(plt.plot, 'Time', new_distcntr_name, linewidth=1, alpha=0.5)
 plt.savefig('/Users/Fabio/dist_centrosomes_all.svg', format='svg')
+
+# plot of every speed between centrosome's, centered at time of contact
+plt.figure(111)
+sns.set_palette('Set2')
+df_idx_grp = dfcentr.set_index('Time').sort_index().reset_index()
+g = sns.FacetGrid(df_idx_grp, col='condition', hue='indv', col_wrap=2, col_order=column_order, size=5)
+g.map(plt.plot, 'Time', new_speedcntr_name, linewidth=1, alpha=0.5)
+plt.savefig('/Users/Fabio/speed_centrosomes_all.svg', format='svg')

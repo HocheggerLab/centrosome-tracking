@@ -1,31 +1,37 @@
+import itertools
+
+import matplotlib.colors
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
-import pandas as pd
 import seaborn as sns
 
 from imagej_pandas import ImagejPandas
 
 
-def anotated_boxplot(data_grouped, var, size=5):
-    sns.boxplot(data=data_grouped, y=var, x='condition', linewidth=0.5)
-    ax = sns.swarmplot(data=data_grouped, y=var, x='condition', size=size)
-    for i, artist in enumerate(ax.artists):
+def anotated_boxplot(data_grouped, var, size=5, fontsize='small', stats_rotation='horizontal', order=None, ax=None):
+    sns.boxplot(data=data_grouped, y=var, x='condition', linewidth=0.5, fliersize=size, order=order, ax=ax)
+    _ax = sns.swarmplot(data=data_grouped, y=var, x='condition', size=size, order=order, ax=ax)
+    for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
 
     cat = data_grouped['condition'].unique()
     for x, c in enumerate(cat):
         d = data_grouped[data_grouped['condition'] == c][var]
-        _max_y = ax.axis()[3]
+        _max_y = _ax.axis()[3]
         count = d.count()
         mean = d.mean()
         median = d.median()
-        ax.text(x, _max_y * 0.5, '$\mu=%0.3f$  $\\tilde\mu=%0.3f$  $n=%d$' % (mean, median, count),
-                rotation='vertical', ha='center', va='bottom', fontsize='xx-small')
+        if stats_rotation == 'vertical':
+            _txt = '$\mu=%0.3f$  $\\tilde\mu=%0.3f$  $n=%d$' % (mean, median, count)
+        else:
+            _txt = '$\mu=%0.3f$\n$\\tilde\mu=%0.3f$\n$n=%d$' % (mean, median, count)
 
-    plt.xticks(ax.get_xticks(), rotation='vertical')
+        _ax.text(x, _max_y * 0.8, _txt, rotation=stats_rotation, ha='center', va='bottom', fontsize=fontsize)
+
+        plt.xticks(_ax.get_xticks(), rotation='vertical')
 
 
-def congression(cg):
+def congression(cg, ax=None, order=None):
     # plot centrosome congression as %
     # compute congression signal
     cg['cgr'] = 0
@@ -35,21 +41,38 @@ def congression(cg):
             cg.loc[(cg['CentrLabel'] == 'A') & (cg['indv'] == id) & (cg['Frame'] >= frame_of_c), 'cgr'] = 1
 
     cg = cg[cg['CentrLabel'] == 'A']
+    palette = itertools.cycle(sns.color_palette())
+    # palette = ax._get_lines.prop_cycler
 
-    cgr = pd.DataFrame()
-    for id, cdf in cg.groupby('condition'):
+    ax = ax if ax is not None else plt.gca()
+    order = order if order is not None else cg['condition'].unique()
+
+    dhandles, dlabels = list(), list()
+    for id in order:
+        cdf = cg[cg['condition'] == id]
         total_centrosome_pairs = float(len(cdf['indv'].unique()))
         cdf = cdf.set_index(['indv', 'Time']).sort_index()
         cgr1_p = cdf['cgr'].unstack('indv').fillna(method='ffill').sum(axis=1) / total_centrosome_pairs * 100.0
         cgr1_p = cgr1_p.reset_index().rename(index=str, columns={0: 'congress'})
         cgr1_p['condition'] = id
-        cgr = cgr.append(cgr1_p)
 
-    # PLOT centrosome congresion
-    g = sns.FacetGrid(cgr, hue='condition', aspect=3)
-    g.map(plt.plot, 'Time', 'congress', drawstyle='steps-pre', lw=1)
-    g.set_axis_labels(x_var='Time $[min]$', y_var='Congression ($d<%0.2f$ $[\mu m]$)' % ImagejPandas.DIST_THRESHOLD)
-    g.add_legend()
+        # PLOT centrosome congresion
+        _color = matplotlib.colors.to_hex(next(palette))
+        cgri = cgr1_p.set_index('Time').sort_index()
+        cgri.plot(y='congress', drawstyle='steps-pre', color=_color, lw=1, ax=ax)
+        dlbl = '%s' % (id)
+        dhandles.append(mlines.Line2D([], [], color=_color, marker=None, label=dlbl))
+        dlabels.append(dlbl)
+
+    _xticks = range(0, int(cg['Time'].max()), 20)
+    ax.set_xticks(_xticks)
+    ax.set_xlabel('Time $[min]$')
+    ax.set_ylabel('Congression in percentage ($d<%0.2f$ $[\mu m]$)' % ImagejPandas.DIST_THRESHOLD)
+    ax.legend(dhandles, dlabels, loc='upper left')
+
+
+def ribbons():
+    pass
 
 
 def distance_to_nucleus(df, ax, mask=None, time_contact=None):

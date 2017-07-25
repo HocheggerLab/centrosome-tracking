@@ -88,11 +88,11 @@ df_out.loc[:, 'NuclBound'] = None
 df_out = df_out[ordered_columns]
 df_out.to_pickle('/Users/Fabio/matlab.pandas')
 
-print 'Re-centering timeseries around time of contact...'
 df_c = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
 df_c = df_c.append(df_out)
 df_c = df_c[ordered_columns]
 df_c.to_pickle('/Users/Fabio/merge.pandas')
 
+print 'Re-centering timeseries around time of contact...'
 df_c = stats.dataframe_centered_in_time_of_contact(df_c)
 df_c.to_pickle('/Users/Fabio/merge_centered.pandas')

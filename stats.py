@@ -4,7 +4,7 @@ import pandas as pd
 from imagej_pandas import ImagejPandas
 
 
-def p_values(data, var, group_label, filename):
+def p_values(data, var, group_label, filename=None):
     from scipy.stats import ttest_ind
 
     cat = data[group_label].unique()
@@ -16,7 +16,9 @@ def p_values(data, var, group_label, filename):
             s, p = ttest_ind(d1, d2)
             pmat.append(p)
     pmat = np.array(pmat).reshape(len(cat), len(cat))
-    np.savetxt('out/img/%s-pvalues.txt' % filename, pmat, header=','.join(cat), fmt='%.4e')
+    if filename is not None:
+        np.savetxt('%s-pvalues.txt' % filename, pmat, header=','.join(cat), fmt='%.4e')
+    return pmat
 
 
 def dataframe_centered_in_time_of_contact(df):
