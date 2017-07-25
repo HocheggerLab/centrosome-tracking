@@ -6,7 +6,7 @@ import pandas as pd
 
 
 class ImagejPandas(object):
-    DIST_THRESHOLD = 1.0  # um before 1 frame of contact
+    DIST_THRESHOLD = 0.5  # um before 1 frame of contact
     TIME_BEFORE_CONTACT = 30
     MASK_INDEX = ['Frame', 'Nuclei', 'Centrosome']
 

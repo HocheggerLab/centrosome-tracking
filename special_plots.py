@@ -6,13 +6,13 @@ import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
+from matplotlib.ticker import FormatStrFormatter, LinearLocator
 
 from imagej_pandas import ImagejPandas
 
 
 def anotated_boxplot(data_grouped, var, size=5, fontsize='small', stats_rotation='horizontal', order=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x='condition', linewidth=0.5, fliersize=size, order=order, ax=ax)
+    sns.boxplot(data=data_grouped, y=var, x='condition', linewidth=0.5, width=0.2, fliersize=size, order=order, ax=ax)
     _ax = sns.swarmplot(data=data_grouped, y=var, x='condition', size=size, order=order, ax=ax)
     for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
@@ -30,7 +30,6 @@ def anotated_boxplot(data_grouped, var, size=5, fontsize='small', stats_rotation
             _txt = '$\mu=%0.3f$\n$\\tilde\mu=%0.3f$\n$n=%d$' % (mean, median, count)
 
         _ax.text(x, _max_y * 0.8, _txt, rotation=stats_rotation, ha='center', va='bottom', fontsize=fontsize)
-
         plt.xticks(_ax.get_xticks(), rotation='vertical')
 
 
@@ -110,8 +109,8 @@ def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8)):
         Y = np.ones((numPts, 2)) * i
         Y[:, 1] = Y[:, 0] + ribbon_width
         Z = np.vstack((z[:, i], z[:, i])).T
-        surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, shade=True, facecolors=_colors,
-                               linewidth=0, alpha=1)
+        surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=_colors,
+                               edgecolors='k', alpha=0.8, linewidth=0.25)
 
     ax.set_facecolor('white')
     # ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
@@ -120,9 +119,15 @@ def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8)):
     ax.set_title(df['condition'].unique()[0])
     ax.set_xlabel('Time $[min]$')
     ax.set_ylabel('Track')
-    ax.set_ylim((1, numSets))
+    ax.set_ylim((0, numSets))
     ax.set_zlabel('Distance between centrosomes $[\mu m]$')
     ax.set_zlim((0, np.max(np.nan_to_num(z))))
+    xticks = np.arange(0, np.max(time_series), 50)
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(['%d' % t for t in xticks])
+    yticks = np.arange(1, n_indiv)
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(['%d' % t for t in yticks])
     # ax.get_figure().colorbar(surf, shrink=0.5, aspect=5)
 
 

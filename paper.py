@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+# noinspection PyUnresolvedReferences
+from mpl_toolkits.mplot3d import Axes3D
 
 import special_plots as sp
 import stats as st
@@ -21,6 +23,14 @@ def fig_1(df, dfc):
     dfc.loc[dfc['condition'] == '1_N.C.', 'condition'] = '-STLC'
     dfc.loc[dfc['condition'] == '1_P.C.', 'condition'] = '+STLC'
 
+    df = df.groupby('indv').filter(lambda x: len(x) > 20)
+    dfc = dfc.groupby('indv').filter(lambda x: len(x) > 20)
+    df = df.loc[df['Time'] <= 160, :]
+    df = df.loc[df['Time'] >= 0, :]
+    dfc = dfc.loc[dfc['Time'] >= -160, :]
+    dfc = dfc.loc[dfc['Time'] <= 0, :]
+    # print df['Time'].unique(), dfc['Time'].unique()
+
     fig = matplotlib.pyplot.gcf()
     fig.set_size_inches(11.7, 16.5)
     gs = matplotlib.gridspec.GridSpec(3, 2)
@@ -30,33 +40,20 @@ def fig_1(df, dfc):
     ax4 = plt.subplot(gs[2, 0], projection='3d')
     ax5 = plt.subplot(gs[2, 1], projection='3d')
 
-
-    dfc = dfc.loc[dfc['Time'] <= 0, :]
     mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
     sp.anotated_boxplot(mua, 'SpeedCentr', order=['-STLC', '+STLC'], size=2, ax=ax1)
     pmat = st.p_values(mua, 'SpeedCentr', 'condition')
-    ax1.text(0.5, 1.0, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
+    ax1.text(0.5, 0.6, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
     ax1.set_ylabel('Avg. track speed between centrosomes $\\left[\\frac{\mu m}{min} \\right]$')
 
     sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition', estimator=np.nanmean,
-               ax=ax2)
+               ax=ax2, err_style=['ci_band'])
     ax2.set_xlabel('Time previous contact $[min]$')
     ax2.set_ylabel(new_distcntr_name)
 
     sp.congression(df, ax=ax3, order=['-STLC', '+STLC'])
     sp.ribbon(df[df['condition'] == '-STLC'], ax4)
     sp.ribbon(df[df['condition'] == '+STLC'], ax5)
-
-    # dfcig = dfc[dfc['condition'] == '+STLC'].set_index('Time').sort_index().groupby('indv')
-    # dfcig.plot(y='DistCentr', linewidth=1, alpha=0.5, legend=False, ax=ax4)
-    # ax4.set_xlabel('Time previous contact $[min]$')
-    # ax4.set_ylabel(new_distcntr_name)
-    #
-    # sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition', estimator=np.nanmean,
-    #            err_style='unit_traces', ax=ax5)
-    # ax5.set_xlabel('Time previous contact $[min]$')
-    # ax5.set_ylabel(new_distcntr_name)
-
 
     plt.savefig('/Users/Fabio/fig1.svg', format='svg')
 
