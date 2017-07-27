@@ -5,6 +5,7 @@ import matplotlib.colors
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import seaborn as sns
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 
@@ -37,14 +38,16 @@ def congression(cg, ax=None, order=None):
     # plot centrosome congression as %
     # compute congression signal
     cg['cgr'] = 0
-    for id, idf in cg.groupby('indv'):
+    _cg = pd.DataFrame()
+    for id, idf in cg.groupby(ImagejPandas.NUCLEI_INDIV_INDEX):
         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(idf, ImagejPandas.DIST_THRESHOLD)
         if frame_of_c > 0:
-            cg.loc[(cg['CentrLabel'] == 'A') & (cg['indv'] == id) & (cg['Frame'] >= frame_of_c), 'cgr'] = 1
+            idf.loc[idf['Frame'] >= frame_of_c, 'cgr'] = 1
+        _cg = _cg.append(idf)
+    cg = _cg
 
     cg = cg[cg['CentrLabel'] == 'A']
     palette = itertools.cycle(sns.color_palette())
-    # palette = ax._get_lines.prop_cycler
 
     ax = ax if ax is not None else plt.gca()
     order = order if order is not None else cg['condition'].unique()
