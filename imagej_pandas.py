@@ -9,6 +9,8 @@ class ImagejPandas(object):
     DIST_THRESHOLD = 0.5  # um before 1 frame of contact
     TIME_BEFORE_CONTACT = 30
     MASK_INDEX = ['Frame', 'Nuclei', 'Centrosome']
+    NUCLEI_INDIV_INDEX = ['condition', 'run', 'Nuclei']
+    CENTROSOME_INDIV_INDEX = NUCLEI_INDIV_INDEX + ['Centrosome']
 
     def __init__(self, filename):
         self.path_csv = filename
@@ -93,6 +95,24 @@ class ImagejPandas(object):
         ds.loc[:, 'AccCentr'] = d.DistCentr.diff() / d.Time
 
         return ds.reset_index()
+
+    @staticmethod
+    def msd_centrosomes(df):
+        """
+            Computes Mean Square Displacement as defined by:
+
+            {\rm {MSD}}\equiv \langle (x-x_{0})^{2}\rangle ={\frac {1}{N}}\sum _{n=1}^{N}(x_{n}(t)-x_{n}(0))^{2}
+        """
+        dfout = pd.DataFrame()
+        for id, _df in df.groupby(ImagejPandas.CENTROSOME_INDIV_INDEX):
+            _df = _df.set_index('Time').sort_index()
+            x0, y0 = _df['CentX'].iloc[0], _df['CentY'].iloc[0]
+            _msdx = _df.loc[:, 'CentX'].apply(lambda x: (x - x0) ** 2)
+            _msdy = _df.loc[:, 'CentY'].apply(lambda y: (y - y0) ** 2)
+            _df.loc[:, 'msd'] = _msdx + _msdy
+
+            dfout = dfout.append(_df.reset_index())
+        return dfout
 
     @staticmethod
     def interpolate_data(df):
