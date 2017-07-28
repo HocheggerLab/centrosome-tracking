@@ -12,9 +12,11 @@ from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from imagej_pandas import ImagejPandas
 
 
-def anotated_boxplot(data_grouped, var, size=5, fontsize='small', stats_rotation='horizontal', order=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x='condition', linewidth=0.5, width=0.2, fliersize=size, order=order, ax=ax)
-    _ax = sns.swarmplot(data=data_grouped, y=var, x='condition', size=size, order=order, ax=ax)
+def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_rotation='horizontal', order=None,
+                     ax=None):
+    sns.boxplot(data=data_grouped, y=var, x='condition', linewidth=0.5, width=0.2, fliersize=point_size, order=order,
+                ax=ax)
+    _ax = sns.swarmplot(data=data_grouped, y=var, x='condition', size=point_size, order=order, ax=ax)
     for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
 
