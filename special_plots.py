@@ -20,7 +20,7 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_ro
     for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
 
-    cat = data_grouped['condition'].unique()
+    cat = order if order is not None else data_grouped['condition'].unique()
     for x, c in enumerate(cat):
         d = data_grouped[data_grouped['condition'] == c][var]
         _max_y = _ax.axis()[3]
