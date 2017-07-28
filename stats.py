@@ -8,17 +8,25 @@ def p_values(data, var, group_label, filename=None):
     from scipy.stats import ttest_ind
 
     cat = data[group_label].unique()
-    pmat = list()
+    df_p = pd.DataFrame(np.zeros([len(cat), len(cat)]), index=cat, columns=cat)
+
     for c1 in cat:
         d1 = data[data[group_label] == c1][var]
         for c2 in cat:
             d2 = data[data[group_label] == c2][var]
             s, p = ttest_ind(d1, d2)
-            pmat.append(p)
-    pmat = np.array(pmat).reshape(len(cat), len(cat))
+            df_p.loc[c1, c2] = p
+
     if filename is not None:
-        np.savetxt('%s-pvalues.txt' % filename, pmat, header=','.join(cat), fmt='%.4e')
-    return pmat
+        writer = pd.ExcelWriter(filename)
+        df_p.to_excel(writer, 'p-values')
+        star_fn = lambda x: '****' if x <= 0.0001 else '***' if x <= 0.001 else '**' if x <= 0.01 else '*' if x <= 0.05 \
+            else 'ns'
+        star = df_p.applymap(star_fn)
+        star.to_excel(writer, 'star system')
+        writer.save()
+
+    return df_p.as_matrix()
 
 
 def dataframe_centered_in_time_of_contact(df):
