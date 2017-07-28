@@ -3,6 +3,7 @@ import re
 
 import numpy as np
 import pandas as pd
+from sklearn import linear_model
 
 
 class ImagejPandas(object):
@@ -110,6 +111,16 @@ class ImagejPandas(object):
             _msdx = _df.loc[:, 'CentX'].apply(lambda x: (x - x0) ** 2)
             _msdy = _df.loc[:, 'CentY'].apply(lambda y: (y - y0) ** 2)
             _df.loc[:, 'msd'] = _msdx + _msdy
+
+            # do linear regression of both tracks to see which has higher slope
+            x = _df.index.values
+            y = _df['msd'].values
+            length = len(x)
+            x = x.reshape(length, 1)
+            y = y.reshape(length, 1)
+            regr = linear_model.LinearRegression()
+            regr.fit(x, y)
+            _df.loc[:, 'msd_lfit_a'] = regr.coef_[0][0]
 
             dfout = dfout.append(_df.reset_index())
         return dfout
