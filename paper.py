@@ -42,6 +42,19 @@ def rename_conditions(df):
     return df
 
 
+def sorted_conditions(df, original_conds):
+    conditions = [names[c] for c in original_conds]
+    colors = sns.color_palette(n_colors=len(conditions)).as_hex()
+    dfc = df[df['condition'].isin(conditions)]
+
+    # sort by condition
+    sorter_index = dict(zip(original_conds, range(len(original_conds))))
+    dfc['cnd_idx'] = dfc['condition'].map(sorter_index)
+    dfc.sort_values(by='cnd_idx', inplace=True)
+
+    return dfc, conditions, colors
+
+
 def msd_tag(df):
     mvtag = pd.DataFrame()
     for id, _df in df.groupby(ImagejPandas.NUCLEI_INDIV_INDEX):
@@ -160,15 +173,8 @@ def fig_2(df):
 
 def fig_3(df, dfc):
     _conds = ['1_P.C.', '1_Dynei', '1_DIC']
-    conditions = [names[c] for c in _conds]
-    colors = dict(zip(_conds, sns.color_palette(n_colors=len(conditions))))
-    dfc = dfc[dfc['condition'].isin(conditions)]
-    df = df[df['condition'].isin(conditions)]
-
-    # sort by condition
-    sorter_index = dict(zip(conditions, range(len(conditions))))
-    dfc['cnd_idx'] = dfc['condition'].map(sorter_index)
-    dfc.sort_values(by='cnd_idx', inplace=True)
+    df, conds, colors = sorted_conditions(df, _conds)
+    dfc, conds, colors = sorted_conditions(dfc, _conds)
 
     fig = matplotlib.pyplot.gcf()
     fig.clf()
@@ -180,31 +186,22 @@ def fig_3(df, dfc):
     ax4 = plt.subplot(gs[1, 1])
 
     mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-    sp.anotated_boxplot(mua, 'SpeedCentr', order=conditions, point_size=2, ax=ax1, fontsize='medium')
+    sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1, fontsize='medium')
     # pmat = st.p_values(mua, 'SpeedCentr', 'condition')
     # ax1.text(0.5, 0.6, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
     ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
 
-    # sns.tsplot(data=dfc[dfc['condition'] == names['1_P.C.']], time='Time', value='DistCentr', unit='indv',
-    #            condition='condition', estimator=np.nanmean, ax=ax2, lw=3, color=colors['1_P.C.'], err_style=None)
-    sns.tsplot(data=dfc[dfc['condition'].isin([names[c] for c in ['1_P.C.', '1_Dynei']])],
+    sns.tsplot(data=dfc[dfc['condition'].isin(conds[0:2])],
                time='Time', value='DistCentr', unit='indv',
                condition='condition', estimator=np.nanmean, ax=ax2, lw=3,
                err_style=['unit_traces'], err_kws=_err_kws)
-    # my_cmap = ListedColormap(sns.color_palette([colors['1_Dynei']]).as_hex())
-    # dfc[dfc['condition'] == names['1_Dynei']].set_index('Time').sort_index().groupby('indv')['DistCentr'] \
-    #     .plot(ax=ax2, colormap=my_cmap, alpha=0.5)
-    # hndl = [mlines.Line2D([], [], color=colors['1_Dynei'], marker=None, label=names['1_Dynei'])]
-    # lbls = list()
-    # lbls.append(names['1_Dynei'])
-    # ax2.legend(hndl, lbls, loc='upper right')
     ax2.set_xlabel('Time previous contact $[min]$')
     ax2.set_ylabel(new_distcntr_name)
     ax2.legend(title=None, loc='upper left')
 
-    sp.congression(df, ax=ax3, order=conditions)
+    sp.congression(df, ax=ax3, order=conds)
 
-    df_msd = ImagejPandas.msd_centrosomes(df[(df['condition'] == names['1_DIC']) & (df['Time'] <= 100)])
+    df_msd = ImagejPandas.msd_centrosomes(df[df['condition'] == names['1_DIC']])
     df_msd = msd_tag(df_msd)
 
     sns.tsplot(
@@ -260,66 +257,26 @@ def fig_4(df, dfc):
     gs = matplotlib.gridspec.GridSpec(2, 2)
     ax1 = plt.subplot(gs[0, 0])
     ax2 = plt.subplot(gs[0, 1])
-    ax3 = plt.subplot(gs[1, 0])
-    ax4 = plt.subplot(gs[1, 1])
 
-    _conds = ['1_P.C.', '1_Dynei', '1_CENPF', '2_CDK1_DC']
-    conditions = [names[c] for c in _conds]
-    colors = sns.color_palette(n_colors=len(conditions)).as_hex()
-    print colors
-    dfc1 = dfc[dfc['condition'].isin(conditions)]
-    df1 = df[df['condition'].isin(conditions)]
-
-    # sort by condition
-    sorter_index = dict(zip(conditions, range(len(conditions))))
-    dfc1['cnd_idx'] = dfc1['condition'].map(sorter_index)
-    dfc1.sort_values(by='cnd_idx', inplace=True)
+    _conds = ['1_P.C.', '1_Dynei', '1_CENPF', '1_BICD2']
+    df1, conds, colors = sorted_conditions(df, _conds)
 
     with sns.color_palette(colors):
-        mua = dfc1.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        sp.anotated_boxplot(mua, 'SpeedCentr', order=conditions, point_size=2, ax=ax1, fontsize='medium')
-        ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
-
-        sp.congression(df1, ax=ax2, order=conditions)
+        sp.congression(df1, ax=ax1, order=conds)
 
     # ----------------
     # condition change
     # ----------------
     _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
-    conditions = [names[c] for c in _conds]
-    colors = colors[0:2] + [sns.xkcd_rgb['medium green'], sns.xkcd_rgb['pale red']]
-    print colors
-    dfc1 = dfc[dfc['condition'].isin(conditions)]
-    df1 = df[df['condition'].isin(conditions)]
-
-    # sort by condition
-    sorter_index = dict(zip(conditions, range(len(conditions))))
-    dfc1['cnd_idx'] = dfc1['condition'].map(sorter_index)
-    dfc1.sort_values(by='cnd_idx', inplace=True)
+    df1, conds, colors = sorted_conditions(df, _conds)
 
     with sns.color_palette(colors):
-        mua = dfc1.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        sp.anotated_boxplot(mua, 'SpeedCentr', order=conditions, point_size=2, ax=ax3, fontsize='medium')
-        ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
-
-        sp.congression(df1, ax=ax4, order=conditions)
+        sp.congression(df1, ax=ax2, order=conds)
 
     plt.savefig('/Users/Fabio/fig4.pdf', format='pdf')
 
-    _conds = ['1_P.C.', '1_Dynei', '1_CENPF', '2_CDK1_DC', '2_Kines1', '2_CDK1_DK']
-    conditions = [names[c] for c in _conds]
-    dfc1 = dfc[dfc['condition'].isin(conditions)]
-    _mua = dfc1.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-    pmat = st.p_values(_mua, 'SpeedCentr', 'condition', filename='/Users/Fabio/fig4_pvalues.xlsx')
-
 
 def fig_4sup(df, dfc):
-    _conds = ['1_P.C.', '1_Dynei', '1_BICD2']
-    conditions = [names[c] for c in _conds]
-    colors = dict(zip(_conds, sns.color_palette(n_colors=len(conditions))))
-    dfc1 = dfc[dfc['condition'].isin(conditions)]
-    df1 = df[df['condition'].isin(conditions)]
-
     fig = matplotlib.pyplot.gcf()
     fig.clf()
     fig.set_size_inches(11.7, 11.7)
@@ -328,29 +285,22 @@ def fig_4sup(df, dfc):
     ax2 = plt.subplot(gs[0, 1])
     ax3 = plt.subplot(gs[1, 0])
 
-    # sort by condition
-    sorter_index = dict(zip(conditions, range(len(conditions))))
-    dfc1['cnd_idx'] = dfc1['condition'].map(sorter_index)
-    dfc1.sort_values(by='cnd_idx', inplace=True)
+    _conds = ['1_P.C.', '1_Dynei', '1_BICD2']
+    df1, conds, colors = sorted_conditions(df, _conds)
+    dfc1, conds, colors = sorted_conditions(dfc, _conds)
 
-    with sns.color_palette([c for k, c in colors.iteritems()]):
+    with sns.color_palette(colors):
         mua = dfc1.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        sp.anotated_boxplot(mua, 'SpeedCentr', order=conditions, point_size=2, ax=ax1, fontsize='medium')
+        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1, fontsize='medium')
         ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
 
-        sp.congression(df1, ax=ax2, order=conditions)
+        sp.congression(df1, ax=ax2, order=conds)
 
     # --------------------------
     # tracks for Dynein & CenpF
     # --------------------------
     _conds = ['1_Dynei', '1_CENPF']
-    conditions = [names[c] for c in _conds]
-    dfc = dfc[dfc['condition'].isin(conditions)]
-
-    # sort by condition
-    sorter_index = dict(zip(conditions, range(len(conditions))))
-    dfc['cnd_idx'] = dfc['condition'].map(sorter_index)
-    dfc.sort_values(by='cnd_idx', inplace=True)
+    dfc, conds, colors = sorted_conditions(dfc, _conds)
 
     sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv',
                condition='condition', estimator=np.nanmean, ax=ax3, lw=3,
