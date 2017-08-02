@@ -7,7 +7,7 @@ from imagej_pandas import ImagejPandas
 
 pd.set_option('display.width', 320)
 
-x = sio.loadmat('/Users/Fabio/finalData_2016_10_07.mat', squeeze_me=True)
+x = sio.loadmat('/Users/Fabio/data/finalData_2016_10_07.mat', squeeze_me=True)
 exp_names = x['namesExperiment']
 mtr_names = x['metricsName']
 metrics = x['metrics']
