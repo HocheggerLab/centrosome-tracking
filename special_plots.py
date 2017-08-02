@@ -136,7 +136,7 @@ def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8)):
     # ax.get_figure().colorbar(surf, shrink=0.5, aspect=5)
 
 
-def distance_to_nucleus(df, ax, mask=None, time_contact=None):
+def distance_to_nucleus(df, ax, mask=None, time_contact=None, plot_interp=False):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
@@ -154,11 +154,15 @@ def distance_to_nucleus(df, ax, mask=None, time_contact=None):
             interp = track['Dist'][~tmask['Dist']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
-            if len(interp) > 0:
-                interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
+            if plot_interp:
+                if len(interp) > 0:
+                    interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
+                track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+            else:
+                orig.plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
         else:
             print 'plotting distance to nuclei with no mask.'
-        track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+            track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
 
     # plot time of contact
     if time_contact is not None:
