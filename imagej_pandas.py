@@ -147,7 +147,7 @@ class ImagejPandas(object):
 
         s = u.set_index(ImagejPandas.MASK_INDEX).sort_index().unstack('Centrosome')
         # where are the NaN's?
-        nans_are_in = s['Frame'].transpose().isnull().any(axis=1)
+        nans_are_in = s['Time'].transpose().isnull().any(axis=1)
         values_where_nans_are_in = nans_are_in.keys().values
 
         mask = s.isnull().stack().reset_index()
