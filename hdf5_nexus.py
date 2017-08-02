@@ -13,8 +13,9 @@ from imagej_pandas import ImagejPandas as dfij
 
 
 class LabHDF5NeXusFile():
-    def __init__(self, filename='fabio_data_hochegger_lab.nexus.hdf5', fileflag='r'):
+    def __init__(self, filename='fabio_data_hochegger_lab.nexus.hdf5', imagesfile=None, fileflag='r'):
         self.filename = filename
+        self.imagefile = imagesfile
 
         # open the HDF5 NeXus file
         if fileflag == 'w':
@@ -30,11 +31,11 @@ class LabHDF5NeXusFile():
                 f.attrs['HDF5_Version'] = h5py.version.hdf5_version
                 f.attrs['h5py_version'] = h5py.version.version
 
-    def add_experiment(self, group, experiment_tag, timestamp=None, tags=None):
-        with h5py.File(self.filename, 'a') as f:
-            timestamp = timestamp if timestamp is not None else datetime.datetime.now().isoformat()
+    def add_experiment(self, group, experiment_tag, timestamp=None):
+        gr = '%s/%s' % (group, experiment_tag)
+        timestamp = timestamp if timestamp is not None else datetime.datetime.now().isoformat()
 
-            gr = '%s/%s' % (group, experiment_tag)
+        with h5py.File(self.filename, 'a') as f:
             if gr in f: del f[gr]
 
             # create the NXentry experiment group
@@ -52,53 +53,74 @@ class LabHDF5NeXusFile():
             nxentry_proc = nxentry.create_group('processed')
             nxentry_proc.attrs['NX_class'] = 'NXgroup'
 
-    def add_tiff_sequence(self, tiffpath, experiment_tag, run):
-        # open the HDF5 NeXus file
-        f = h5py.File(self.filename, 'a')
+        with h5py.File(self.imagefile, 'a') as i:
+            rawgr = '%s/%s/raw' % (group, experiment_tag)
+            # create the NXentry experiment group
+            nxentry = i.require_group(rawgr)
+            nxentry.attrs['NX_class'] = 'NXentry'
+            nxentry.attrs['datetime'] = timestamp
+            i[rawgr].attrs['NX_class'] = 'NXgroup'
 
-        # create the NXentry group
-        nxdata = f['%s/%s/raw' % (experiment_tag, run)]
+    def add_tiff_sequence(self, tiffpath, experiment_tag, run):
+        _grp = '%s/%s/raw' % (experiment_tag, run)
+        # open the HDF5 NeXus file
+        if self.imagefile is None:
+            f = h5py.File(self.filename, 'a')
+        else:
+            f = h5py.File(self.imagefile, 'a')
+
+        # update the NXentry group
+        nxdata = f[_grp]
         nxdata.attrs['NX_class'] = 'NXdata'
         nxdata.attrs['signal'] = 'Y'  # Y axis of default plot
         nxdata.attrs['axes'] = 'X'  # X axis of default plot
         nxdata.attrs['units'] = 'um'  # default units
 
-        with tf.TiffFile(tiffpath, fastij=True) as tif:
-            if tif.is_imagej is not None:
-                sizeT, channels = tif.pages[0].imagej_tags.frames, tif.pages[0].imagej_tags.channels
-                sizeZ, sizeX, sizeY = 1, tif.pages[0].image_width, tif.pages[0].image_length
+        nframes = len(nxdata.items())
+        print nxdata
+        if nframes == 0:
+            with tf.TiffFile(tiffpath, fastij=True) as tif:
+                if tif.is_imagej is not None:
+                    sizeT, channels = tif.pages[0].imagej_tags.frames, tif.pages[0].imagej_tags.channels
+                    sizeZ, sizeX, sizeY = 1, tif.pages[0].image_width, tif.pages[0].image_length
 
-                res = 'n/a'
-                if tif.pages[0].resolution_unit == 'centimeter':
-                    # asuming square pixels
-                    xr = tif.pages[0].x_resolution
-                    res = float(xr[0]) / float(xr[1])  # pixels per cm
-                    res = res / 1e4  # pixels per um
-                elif tif.pages[0].imagej_tags.unit == 'micron':
-                    # asuming square pixels
-                    xr = tif.pages[0].x_resolution
-                    res = float(xr[0]) / float(xr[1])  # pixels per um
+                    res = 'n/a'
+                    if tif.pages[0].resolution_unit == 'centimeter':
+                        # asuming square pixels
+                        xr = tif.pages[0].x_resolution
+                        res = float(xr[0]) / float(xr[1])  # pixels per cm
+                        res = res / 1e4  # pixels per um
+                    elif tif.pages[0].imagej_tags.unit == 'micron':
+                        # asuming square pixels
+                        xr = tif.pages[0].x_resolution
+                        res = float(xr[0]) / float(xr[1])  # pixels per um
 
-                if sizeT > 1:
-                    p1a = tif.pages[0].asarray()
-                    for i in range(sizeT):
-                        outImg = np.zeros((1, channels, sizeX, sizeY), np.uint16)
-                        outImg[0][0] = p1a[i][0]
-                        # create a NXentry frame group
-                        nxframe = nxdata.create_group('%03d' % i)
-                        nxframe.attrs['units'] = 'um'
-                        nxframe.attrs['resolution'] = res
-                        nxframe.attrs['long_name'] = 'image um (micrometers)'  # suggested X axis plot label
+                    if sizeT > 1:
+                        p1a = tif.pages[0].asarray()
+                        for i in range(sizeT):
+                            outImg = np.zeros((1, channels, sizeX, sizeY), np.uint16)
+                            outImg[0][0] = p1a[i][0]
+                            # create a NXentry frame group
+                            nxframe = nxdata.create_group('%03d' % i)
+                            nxframe.attrs['units'] = 'um'
+                            nxframe.attrs['resolution'] = res
+                            nxframe.attrs['long_name'] = 'image um (micrometers)'  # suggested X axis plot label
 
-                        # save XY data
-                        ch1 = nxframe.create_dataset('channel-1', data=p1a[channels * i], dtype=np.uint16)
-                        ch2 = nxframe.create_dataset('channel-2', data=p1a[channels * i + 1], dtype=np.uint16)
-                        ch3 = nxframe.create_dataset('channel-3', data=p1a[channels * i + 2], dtype=np.uint16)
-                        for ch in [ch1, ch2, ch3]:
-                            ch.attrs['CLASS'] = np.string_('IMAGE')
-                            ch.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
-                            ch.attrs['IMAGE_VERSION'] = np.string_('1.2')
+                            # save XY data
+                            ch1 = nxframe.create_dataset('channel-1', data=p1a[channels * i], dtype=np.uint16)
+                            ch2 = nxframe.create_dataset('channel-2', data=p1a[channels * i + 1], dtype=np.uint16)
+                            ch3 = nxframe.create_dataset('channel-3', data=p1a[channels * i + 2], dtype=np.uint16)
+                            for ch in [ch1, ch2, ch3]:
+                                ch.attrs['CLASS'] = np.string_('IMAGE')
+                                ch.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
+                                ch.attrs['IMAGE_VERSION'] = np.string_('1.2')
+
         f.close()
+
+        if self.imagefile is not None and nframes == 0:
+            with h5py.File(self.filename, 'a') as f:
+                del f[_grp]
+                f[_grp] = h5py.ExternalLink(self.imagefile, _grp)
 
     def add_measurements(self, csvpath, experiment_tag, run):
         dfc = dfij(csvpath)
@@ -132,7 +154,7 @@ class LabHDF5NeXusFile():
                 nxcid.create_dataset('sample_y', data=cy, dtype=cy.dtype)
 
             visitedCentrosomes = []
-            for (centr_id), filt_centr_df in dfct.groupby('Centrosome'):
+            for _, filt_centr_df in dfct.groupby('Centrosome'):
                 nuc_id = filt_centr_df['Nuclei'].unique()[0]
                 centrosomesOfNuclei = dfct[dfct['Nuclei'] == nuc_id].groupby('Centrosome')
                 if len(centrosomesOfNuclei.groups) >= 2:
@@ -146,7 +168,7 @@ class LabHDF5NeXusFile():
 
     @property
     def dataframe(self):
-        df_out = outmsk = pd.DataFrame()
+        df_out = pd.DataFrame()
         with h5py.File(self.filename, 'r') as f:
             for experiment_tag in f:
                 for run in f['%s' % experiment_tag]:
@@ -195,6 +217,7 @@ class LabHDF5NeXusFile():
         centrosome_inclusion_dict = dict()
         centrosome_exclusion_dict = dict()
         centrosome_equivalence_dict = dict()
+        nuclei_list = list()
         with h5py.File(self.filename, 'r') as f:
             if 'centrosomes' not in f['%s/%s/measurements' % (experiment_tag, run)]:
                 raise KeyError('No data for selected condition-run.')
@@ -372,8 +395,31 @@ class LabHDF5NeXusFile():
                         return True
         return False
 
-    def add_processed(self, experiment_tag, run):
-        pass
+
+def move_images(filefrom, fileto):
+    src = h5py.File(filefrom, 'a')
+    dst = h5py.File(fileto, 'a')
+    for cond in src.iterkeys():
+        for run in src[cond].iterkeys():
+            _grp = '%s/%s/raw' % (cond, run)
+            if isinstance(src[_grp], h5py.SoftLink):
+                print _grp, 'group already a soft link'
+            if isinstance(src[_grp], h5py.HardLink):
+                print _grp, 'group already a hard link'
+            if isinstance(src[_grp], h5py.Group):
+                # Get the name of the parent for the group we want to copy
+                group_path = src[_grp].parent.name
+                # Check that this group exists in the destination file; if it doesn't, create it
+                # This will create the parents too, if they don't exist
+                group_id = dst.require_group(group_path)
+                # Copy src -> dst
+                if _grp not in dst:
+                    print _grp, 'copying raw images'
+                    src.copy(_grp, group_id, name='raw')
+                del src[_grp]
+                src[_grp] = h5py.ExternalLink(fileto, _grp)
+    src.close()
+    dst.close()
 
 
 def process_dir(path, hdf5f):
@@ -408,9 +454,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Create hdf5 file if it doesn't exist
-    hdf5 = LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5', fileflag='a')
+    hdf5 = LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5',
+                            imagesfile='/Users/Fabio/centrosomes-images.nexus.hdf5', fileflag='a')
     try:
         process_dir(args.input, hdf5)
+        move_images('/Users/Fabio/centrosomes.nexus.hdf5', '/Users/Fabio/centrosomes-images.nexus.hdf5')
 
         print '\r\n\r\n--------------------------------------------------------------'
         print 'shrinking file size...'
