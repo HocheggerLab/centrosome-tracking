@@ -136,6 +136,74 @@ def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8)):
     # ax.get_figure().colorbar(surf, shrink=0.5, aspect=5)
 
 
+def _msd_tag(df):
+    mvtag = pd.DataFrame()
+    for id, _df in df.groupby(ImagejPandas.NUCLEI_INDIV_INDEX):
+        cond = id[0]
+        c_a = _df[_df['CentrLabel'] == 'A']['msd_lfit_a'].unique()[0]
+        c_b = _df[_df['CentrLabel'] == 'B']['msd_lfit_a'].unique()[0]
+        if c_a > c_b:
+            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' moving more'
+            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' moving less'
+        else:
+            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' moving more'
+            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' moving less'
+        mvtag = mvtag.append(_df)
+    return mvtag
+
+
+def msd_indivs(df, ax, time='Time'):
+    if df.empty:
+        raise Exception('Need non-empty dataframe..')
+    if df['condition'].unique().size > 1:
+        raise Exception('Need just one condition for using this plotting function.')
+
+    _err_kws = {'alpha': 0.3, 'lw': 1}
+    cond = df['condition'].unique()[0]
+    df_msd = ImagejPandas.msd_centrosomes(df)
+    df_msd = _msd_tag(df_msd)
+
+    sns.tsplot(
+        data=df_msd[df_msd['condition'] == cond], lw=3,
+        err_style=['unit_traces'], err_kws=_err_kws,
+        time='Time', value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+    ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
+    ax.legend(title=None, loc='upper left')
+    if time == 'Frame':
+        ax.set_xlabel('Time delay $[frames]$')
+        ax.set_xticks(range(0, df['Frame'].max(), 5))
+        ax.set_xlim([0, df['Frame'].max()])
+    else:
+        ax.set_xlabel('Time delay $[min]$')
+
+
+def msd(df, ax, time='Time'):
+    if df.empty:
+        raise Exception('Need non-empty dataframe..')
+    if df['condition'].unique().size > 1:
+        raise Exception('Need just one condition for using this plotting function.')
+
+    cond = df['condition'].unique()[0]
+    df_msd = ImagejPandas.msd_centrosomes(df)
+    df_msd = _msd_tag(df_msd)
+
+    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving more'],
+               color='k', linestyle='-',
+               time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving less'],
+               color='k', linestyle='--',
+               time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+    ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
+    ax.set_xticks(np.arange(0, df_msd['Time'].max(), 20.0))
+    ax.legend(title=None, loc='upper left')
+    if time == 'Frame':
+        ax.set_xlabel('Time delay $[frames]$')
+        ax.set_xticks(range(0, df['Frame'].max(), 5))
+        ax.set_xlim([0, df['Frame'].max()])
+    else:
+        ax.set_xlabel('Time delay $[min]$')
+
+
 def distance_to_nucleus(df, ax, mask=None, time_contact=None, plot_interp=False):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
