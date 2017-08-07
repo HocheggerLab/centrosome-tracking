@@ -39,15 +39,14 @@ def discrepancy(df):
 
 df = pd.read_pickle('/Users/Fabio/merge.pandas')
 _df = pd.read_pickle('/Users/Fabio/merge_centered.pandas')
+# print df['datetime'].apply(lambda t: t.strftime('%R'))
 
 # congression plots
 plt.figure(120)
-df['indv'] = df['condition'] + '-' + df['run'] + '-' + df['Nuclei'].map(int).map(str) + '-' + \
-             df['Centrosome'].map(int).map(str)
+df.loc[:, 'indv'] = df['condition'] + '-' + df['run'] + '-' + df['Nuclei'].map(int).map(str) + '-' + \
+                    df['Centrosome'].map(int).map(str)
 sp.congression(df)
 plt.savefig('/Users/Fabio/congression.pdf', format='pdf')
-
-discrepancy(_df.loc[(_df['CentrLabel'] == 'A') & (_df['Time'] <= 0) & (_df['condition'].isin(['1_P.C.', 'pc'])), :])
 
 new_dist_name = 'Distance relative\nto nuclei center $[\mu m]$'
 new_speed_name = 'Speed relative\nto nuclei center $\\left[\\frac{\mu m}{min} \\right]$'
@@ -64,9 +63,11 @@ _df.rename(columns={'SpeedCentr': new_speedcntr_name}, inplace=True)
 
 # filter original dataframe to get just data between centrosomes
 dfcentr = _df[_df['CentrLabel'] == 'A']
-dfcentr['indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['Nuclei'].map(int).map(str)
+dfcentr.loc[:, 'indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['Nuclei'].map(int).map(str)
 dfcentr.drop(['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY'],
              axis=1, inplace=True)
+
+# discrepancy(df.loc[(df['CentrLabel'] == 'A') & (df['Time'] <= 0) & (df['condition'].isin(['1_P.C.', 'pc'])), :])
 
 # average speed boxplot
 plt.figure(100)

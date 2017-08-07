@@ -1,6 +1,9 @@
+from collections import OrderedDict
+
 import matplotlib
 import matplotlib.axes
 import matplotlib.gridspec
+import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -22,20 +25,24 @@ sns.set(context='paper', style='whitegrid', font='Arial', font_scale=0.9)
 pd.set_option('display.width', 320)
 plt.style.use('bmh')
 
-names = {'1_N.C.': '-STLC',
-         '1_P.C.': '+STLC',
-         '1_DIC': 'DIC+STLC',
-         '1_Dynei': 'DHC+STLC',
-         '1_CENPF': 'CenpF',
-         '1_BICD2': 'Bicaudal',
-         '2_Kines1': 'Kinesin1',
-         '2_CDK1_DK': 'DHC+Kinesin1',
-         'hset': 'Hset',
-         'kif25': 'Kif25',
-         'hset+kif25': 'Hset+Kif25'
-         }
+names = OrderedDict([('1_N.C.', '-STLC'),
+                     ('1_P.C.', '+STLC'),
+                     ('1_DIC', 'DIC+STLC'),
+                     ('1_Dynei', 'DHC+STLC'),
+                     ('1_CENPF', 'CenpF'),
+                     ('1_BICD2', 'Bicaudal'),
+                     ('2_Kines1', 'Kinesin1'),
+                     ('2_CDK1_DK', 'DHC+Kinesin1'),
+                     ('hset', 'Hset'),
+                     ('kif25', 'Kif25'),
+                     ('hset+kif25', 'Hset+Kif25')])
+col_palette = ["#e74c3c", "#34495e", "#3498db", sns.xkcd_rgb["teal green"], "#9b59b6", "#2ecc71",
+               sns.xkcd_rgb["windows blue"], sns.xkcd_rgb["medium green"], '#91744B',
+               sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"]]
+cond_colors = dict(zip(names.keys(), col_palette))
 _fig_size_A3 = (11.7, 16.5)
 _err_kws = {'alpha': 0.3, 'lw': 1}
+msd_ylim = [0, 420]
 
 
 def rename_conditions(df):
@@ -50,7 +57,7 @@ def custom_round(x, base=1):
 
 def sorted_conditions(df, original_conds):
     conditions = [names[c] for c in original_conds]
-    colors = sns.color_palette(n_colors=len(conditions)).as_hex()
+    _colors = [cond_colors[c] for c in original_conds]
     dfc = df[df['condition'].isin(conditions)]
 
     # sort by condition
@@ -58,13 +65,13 @@ def sorted_conditions(df, original_conds):
     dfc.loc[:, 'cnd_idx'] = dfc['condition'].map(sorter_index)
     dfc = dfc.set_index(['cnd_idx', 'run', 'Nuclei', 'Frame', 'Time']).sort_index().reset_index()
 
-    return dfc, conditions, colors
+    return dfc, conditions, _colors
 
 
 def fig_1(df, dfc):
-    conditions = ['-STLC', '+STLC']
-    dfc = dfc[dfc['condition'].isin(conditions)]
-    df = df[df['condition'].isin(conditions)]
+    _conds = ['1_N.C.', '1_P.C.']
+    df, conds, colors = sorted_conditions(df, _conds)
+    dfc, conds, colors = sorted_conditions(dfc, _conds)
 
     fig = matplotlib.pyplot.gcf()
     fig.clf()
@@ -76,19 +83,21 @@ def fig_1(df, dfc):
     ax4 = plt.subplot(gs[2, 0], projection='3d')
     ax5 = plt.subplot(gs[2, 1], projection='3d')
 
-    mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-    sp.anotated_boxplot(mua, 'SpeedCentr', order=conditions, point_size=2, ax=ax1)
-    pmat = st.p_values(mua, 'SpeedCentr', 'condition')
-    ax1.text(0.5, 0.6, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
-    ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
+    with sns.color_palette(colors):
+        mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1)
+        pmat = st.p_values(mua, 'SpeedCentr', 'condition')
+        ax1.text(0.5, 0.6, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
+        ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
 
-    sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition', estimator=np.nanmean, lw=3,
-               ax=ax2, err_style=['unit_traces'], err_kws=_err_kws)
-    ax2.set_xlabel('Time previous contact $[min]$')
-    ax2.set_ylabel(new_distcntr_name)
-    ax2.legend(title=None, loc='upper left')
+        sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition', estimator=np.nanmean,
+                   lw=3,
+                   ax=ax2, err_style=['unit_traces'], err_kws=_err_kws)
+        ax2.set_xlabel('Time previous contact $[min]$')
+        ax2.set_ylabel(new_distcntr_name)
+        ax2.legend(title=None, loc='upper left')
 
-    sp.congression(df, ax=ax3, order=conditions)
+        sp.congression(df, ax=ax3, order=conds)
 
     sp.ribbon(df[df['condition'] == '-STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax4)
     sp.ribbon(df[df['condition'] == '+STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax5)
@@ -101,7 +110,9 @@ def fig_1(df, dfc):
 
 
 def fig_2(df):
-    df = df[df['condition'].isin([names['1_P.C.'], names['1_N.C.']])]
+    _conds = ['1_N.C.', '1_P.C.']
+    df, conds, colors = sorted_conditions(df, _conds)
+
     df = df[df['Time'] <= 50]
 
     fig = matplotlib.pyplot.gcf()
@@ -113,10 +124,10 @@ def fig_2(df):
     ax3 = plt.subplot(gs[1, 0])
     ax4 = plt.subplot(gs[1, 1])
 
-    sp.msd(df[df['condition'] == names['1_N.C.']], ax1)
-    sp.msd(df[df['condition'] == names['1_P.C.']], ax2)
-    sp.msd_indivs(df[df['condition'] == names['1_N.C.']], ax3)
-    sp.msd_indivs(df[df['condition'] == names['1_P.C.']], ax4)
+    sp.msd(df[df['condition'] == names['1_N.C.']], ax1, ylim=msd_ylim)
+    sp.msd(df[df['condition'] == names['1_P.C.']], ax2, ylim=msd_ylim)
+    sp.msd_indivs(df[df['condition'] == names['1_N.C.']], ax3, ylim=msd_ylim)
+    sp.msd_indivs(df[df['condition'] == names['1_P.C.']], ax4, ylim=msd_ylim)
 
     ax1.set_ylim(ax2.get_ylim())
     ax3.set_ylim(ax4.get_ylim())
@@ -138,20 +149,21 @@ def fig_3(df, dfc):
     ax3 = plt.subplot(gs[1, 0])
     ax4 = plt.subplot(gs[1, 1])
 
-    mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-    sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1, fontsize='medium')
-    ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
+    with sns.color_palette(colors):
+        mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1, fontsize='medium')
+        ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
 
-    sns.tsplot(data=dfc[dfc['condition'].isin(conds[0:2])],
-               time='Time', value='DistCentr', unit='indv',
-               condition='condition', estimator=np.nanmean, ax=ax2, lw=3,
-               err_style=['unit_traces'], err_kws=_err_kws)
-    ax2.set_xlabel('Time previous contact $[min]$')
-    ax2.set_ylabel(new_distcntr_name)
-    ax2.legend(title=None, loc='upper left')
+        sns.tsplot(data=dfc[dfc['condition'].isin(conds[0:2])],
+                   time='Time', value='DistCentr', unit='indv',
+                   condition='condition', estimator=np.nanmean, ax=ax2, lw=3,
+                   err_style=['unit_traces'], err_kws=_err_kws)
+        ax2.set_xlabel('Time previous contact $[min]$')
+        ax2.set_ylabel(new_distcntr_name)
+        ax2.legend(title=None, loc='upper left')
 
-    sp.congression(df, ax=ax3, order=conds)
-    sp.msd(df[df['condition'] == names['1_DIC']], ax4)
+        sp.congression(df, ax=ax3, order=conds)
+    sp.msd(df[df['condition'] == names['1_DIC']], ax4, ylim=msd_ylim)
 
     # bugfix: rotate xticks for last subplot
     for tick in ax4.get_xticklabels():
@@ -253,6 +265,13 @@ def fig_5(df, dfc):
     df, conds, colors = sorted_conditions(df, _conds)
     dfc, conds, colors = sorted_conditions(dfc, _conds)
 
+    dfc1 = dfc[dfc['condition'].isin([conds[0], conds[1]])]
+    colrs1 = [colors[0], colors[1]]
+    dfc2 = dfc[dfc['condition'].isin([conds[0], conds[2]])]
+    colrs2 = [colors[0], colors[2]]
+    dfc3 = dfc[dfc['condition'].isin([conds[0], conds[3]])]
+    colrs3 = [colors[0], colors[3]]
+
     with PdfPages('/Users/Fabio/fig5.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
@@ -265,43 +284,39 @@ def fig_5(df, dfc):
         ax5 = plt.subplot(gs[2, 0])
         ax6 = plt.subplot(gs[2, 1])
 
-        mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1, fontsize='medium')
-        ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
+        with sns.color_palette(colors):
+            mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax6, fontsize='medium')
+            ax6.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
 
-        sp.congression(df, ax=ax2, order=conds)
+            sp.congression(df, ax=ax4, order=conds)
 
-        # dfc.loc[:,'Time'] = dfc['Time'].map(lambda x: custom_round(x))
-        dfc.loc[:, 'Time'] = dfc['Time'].round(1)
-        print dfc[dfc['condition'] == names['hset']]['Time'].unique()
-        print dfc[dfc['condition'] == names['hset']]['Frame'].unique()
+        dfc1.set_index('Time').sort_index().groupby('indv')['DistCentr'].plot(ax=ax2, lw=1, color=colors[1], alpha=0.5)
+        hndl = [mlines.Line2D([], [], color=colors[1], marker=None, label=conds[1])]
+        lbls = list(conds[1])
+        ax2.legend(hndl, lbls, loc='upper right')
+        ax2.set_xlabel('Time previous contact $[min]$')
+        ax2.set_ylabel(new_distcntr_name)
 
-        sns.tsplot(data=dfc[dfc['condition'].isin([conds[0], conds[1]])], ax=ax3, lw=3,
-                   time='Frame', value='DistCentr', unit='indv',
+        sns.tsplot(data=dfc1, ax=ax1, lw=3, color=colrs1,
+                   time='Time', value='DistCentr', unit='indv',
                    condition='condition', estimator=np.nanmean,
                    err_style=['unit_traces'], err_kws=_err_kws)
-        ax3.set_xlabel('Time previous contact $[frame]$')
-        ax3.set_ylabel(new_distcntr_name)
-        ax3.set_xticks(range(dfc['Frame'].min(), 0, 5))
-        ax3.legend(title=None, loc='upper left')
 
-        sns.tsplot(data=dfc[dfc['condition'].isin([conds[0], conds[2]])], ax=ax4, lw=3,
-                   time='Frame', value='DistCentr', unit='indv',
+        sns.tsplot(data=dfc2, ax=ax3, lw=3, color=colrs2,
+                   time='Time', value='DistCentr', unit='indv',
                    condition='condition', estimator=np.nanmean,
                    err_style=['unit_traces'], err_kws=_err_kws)
-        ax4.set_xlabel('Time previous contact $[frame]$')
-        ax4.set_ylabel(new_distcntr_name)
-        ax4.set_xticks(range(dfc['Frame'].min(), 0, 5))
-        ax4.legend(title=None, loc='upper left')
 
-        sns.tsplot(data=dfc[dfc['condition'].isin([conds[0], conds[3]])], ax=ax5, lw=3,
-                   time='Frame', value='DistCentr', unit='indv',
+        sns.tsplot(data=dfc3, ax=ax5, lw=3, color=colrs3,
+                   time='Time', value='DistCentr', unit='indv',
                    condition='condition', estimator=np.nanmean,
                    err_style=['unit_traces'], err_kws=_err_kws)
-        ax5.set_xlabel('Time previous contact $[frame]$')
-        ax5.set_ylabel(new_distcntr_name)
-        ax5.set_xticks(range(dfc['Frame'].min(), 0, 5))
-        ax5.legend(title=None, loc='upper left')
+
+        for ax in [ax1, ax3, ax5]:
+            ax.set_xlabel('Time previous contact $[min]$')
+            ax.set_ylabel(new_distcntr_name)
+            ax.legend(title=None, loc='upper left')
 
         # bugfix: rotate xticks for last subplot
         for tick in ax6.get_xticklabels():
@@ -322,12 +337,14 @@ def fig_5(df, dfc):
         ax5 = plt.subplot(gs[2, 0])
         ax6 = plt.subplot(gs[2, 1])
 
-        sp.msd(df[df['condition'] == conds[1]], ax1, time='Frame')
-        sp.msd(df[df['condition'] == conds[2]], ax3, time='Frame')
-        sp.msd(df[df['condition'] == conds[3]], ax5, time='Frame')
-        sp.msd_indivs(df[df['condition'] == conds[1]], ax2, time='Frame')
-        sp.msd_indivs(df[df['condition'] == conds[2]], ax4, time='Frame')
-        sp.msd_indivs(df[df['condition'] == conds[3]], ax6, time='Frame')
+        df = df[df['Time'] <= 50]
+
+        sp.msd(df[df['condition'] == conds[1]], ax1, ylim=msd_ylim)
+        sp.msd(df[df['condition'] == conds[2]], ax3, ylim=msd_ylim)
+        sp.msd(df[df['condition'] == conds[3]], ax5, ylim=msd_ylim)
+        sp.msd_indivs(df[df['condition'] == conds[1]], ax2, ylim=msd_ylim)
+        sp.msd_indivs(df[df['condition'] == conds[2]], ax4, ylim=msd_ylim)
+        sp.msd_indivs(df[df['condition'] == conds[3]], ax6, ylim=msd_ylim)
         # bugfix: rotate xticks for last subplot
         for tick in ax6.get_xticklabels():
             tick.set_rotation('horizontal')
@@ -335,6 +352,16 @@ def fig_5(df, dfc):
         plt.close()
 
 
+def color_keys(dfc):
+    fig = matplotlib.pyplot.gcf()
+    fig.clf()
+    coldf, conds, colors = sorted_conditions(dfc, names.keys())
+    # print names.keys(), conds
+    with sns.color_palette(colors):
+        mua = coldf.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds)
+        fig.gca().set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
+        fig.savefig('/Users/Fabio/colors.pdf', format='pdf')
 
 
 if __name__ == '__main__':
@@ -366,6 +393,14 @@ if __name__ == '__main__':
     df_m = rename_conditions(df_m)
     dfcentr = rename_conditions(dfcentr)
 
+    # filter starting distances greater than a threshold
+    indivs_filter = dfcentr.set_index(['Time', 'indv']).unstack('indv')['DistCentr'].fillna(method='bfill').iloc[0]
+    indivs_filter = indivs_filter[indivs_filter > 5].index.values
+    print indivs_filter
+    dfcentr = dfcentr[dfcentr['indv'].isin(indivs_filter)]
+
+    color_keys(dfcentr)
+
     fig_1(df_m, dfcentr)
     fig_2(df_m)
     fig_3(df_m, dfcentr)
@@ -373,3 +408,15 @@ if __name__ == '__main__':
     fig_4(df_m, dfcentr)
     fig_4sup(df_m, dfcentr)
     fig_5(df_m, dfcentr)
+
+    # # d = df_m[df_m['CentrLabel'] == 'A']
+    # d = dfcentr
+    # dfct = d[d['condition'] == names['hset']]
+    #
+    # # plot of every speed between centrosome's, centered at time of contact
+    # plt.figure(111, figsize=(10, 10))
+    # g = sns.FacetGrid(dfct, col='condition', hue='indv', size=10)
+    # g.map(plt.plot, 'Time', 'DistCentr', linewidth=1, alpha=0.5)
+    # g.map(plt.scatter, 'Time', 'DistCentr', s=1)
+    # g.set_xticklabels(labels=sorted(dfct['Time'].unique()))
+    # plt.savefig('/Users/Fabio/1.pdf', format='pdf')

@@ -152,7 +152,7 @@ def _msd_tag(df):
     return mvtag
 
 
-def msd_indivs(df, ax, time='Time'):
+def msd_indivs(df, ax, time='Time', ylim=None):
     if df.empty:
         raise Exception('Need non-empty dataframe..')
     if df['condition'].unique().size > 1:
@@ -175,9 +175,11 @@ def msd_indivs(df, ax, time='Time'):
         ax.set_xlim([0, df['Frame'].max()])
     else:
         ax.set_xlabel('Time delay $[min]$')
+    if ylim is not None:
+        ax.set_ylim(ylim)
 
 
-def msd(df, ax, time='Time'):
+def msd(df, ax, time='Time', ylim=None):
     if df.empty:
         raise Exception('Need non-empty dataframe..')
     if df['condition'].unique().size > 1:
@@ -202,6 +204,8 @@ def msd(df, ax, time='Time'):
         ax.set_xlim([0, df['Frame'].max()])
     else:
         ax.set_xlabel('Time delay $[min]$')
+    if ylim is not None:
+        ax.set_ylim(ylim)
 
 
 def distance_to_nucleus(df, ax, mask=None, time_contact=None, plot_interp=False):
