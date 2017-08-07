@@ -33,12 +33,17 @@ names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_BICD2', 'Bicaudal'),
                      ('2_Kines1', 'Kinesin1'),
                      ('2_CDK1_DK', 'DHC+Kinesin1'),
+                     ('1_No10+', 'Nocodazole 10ng'),
+                     ('1_CyDT', 'Cytochalsin D'),
+                     ('1_FAKI', 'FAKi'),
                      ('hset', 'Hset'),
                      ('kif25', 'Kif25'),
                      ('hset+kif25', 'Hset+Kif25')])
-col_palette = ["#e74c3c", "#34495e", "#3498db", sns.xkcd_rgb["teal green"], "#9b59b6", "#2ecc71",
-               sns.xkcd_rgb["windows blue"], sns.xkcd_rgb["medium green"], '#91744B',
-               sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"]]
+col_palette = ["#e74c3c", "#34495e",
+               "#3498db", sns.xkcd_rgb["teal green"], "#9b59b6", "#2ecc71",
+               sns.xkcd_rgb["windows blue"], sns.xkcd_rgb["medium green"],
+               '#91744B', sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"],
+               '#91744B', sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"]]
 cond_colors = dict(zip(names.keys(), col_palette))
 _fig_size_A3 = (11.7, 16.5)
 _err_kws = {'alpha': 0.3, 'lw': 1}
@@ -352,6 +357,90 @@ def fig_5(df, dfc):
         plt.close()
 
 
+def fig_6(df, dfc):
+    _conds = ['1_P.C.', '1_CyDT', '1_FAKI', '1_No10+']
+    df, conds, colors = sorted_conditions(df, _conds)
+    dfc, conds, colors = sorted_conditions(dfc, _conds)
+
+    dfc1 = dfc[dfc['condition'].isin([conds[1]])]
+    colrs1 = ["#34495e"]
+    dfc2 = dfc[dfc['condition'].isin([conds[2]])]
+    colrs2 = ["#34495e"]
+    dfc3 = dfc[dfc['condition'].isin([conds[3]])]
+    colrs3 = ["#34495e"]
+
+    with PdfPages('/Users/Fabio/fig6.pdf') as pdf:
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches(_fig_size_A3)
+        gs = matplotlib.gridspec.GridSpec(3, 2)
+        ax1 = plt.subplot(gs[0, 0])
+        ax2 = plt.subplot(gs[0, 1])
+        ax3 = plt.subplot(gs[1, 0])
+        ax4 = plt.subplot(gs[1, 1])
+        ax5 = plt.subplot(gs[2, 0])
+
+        with sns.color_palette(colors):
+            mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2, fontsize='medium')
+            ax2.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
+
+            sp.congression(df, ax=ax4, order=conds)
+
+        sns.tsplot(data=dfc1, ax=ax1, lw=3, color=colrs1,
+                   time='Time', value='DistCentr', unit='indv',
+                   condition='condition', estimator=np.nanmean,
+                   err_style=['unit_traces'], err_kws=_err_kws)
+
+        sns.tsplot(data=dfc2, ax=ax3, lw=3, color=colrs2,
+                   time='Time', value='DistCentr', unit='indv',
+                   condition='condition', estimator=np.nanmean,
+                   err_style=['unit_traces'], err_kws=_err_kws)
+
+        sns.tsplot(data=dfc3, ax=ax5, lw=3, color=colrs3,
+                   time='Time', value='DistCentr', unit='indv',
+                   condition='condition', estimator=np.nanmean,
+                   err_style=['unit_traces'], err_kws=_err_kws)
+
+        for ax in [ax1, ax3, ax5]:
+            ax.set_xlabel('Time previous contact $[min]$')
+            ax.set_ylabel(new_distcntr_name)
+            ax.legend(title=None, loc='upper left')
+
+        # bugfix: rotate xticks for last subplot
+        for tick in ax5.get_xticklabels():
+            tick.set_rotation('horizontal')
+
+        pdf.savefig()
+        plt.close()
+
+        fig.clf()
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches(_fig_size_A3)
+        gs = matplotlib.gridspec.GridSpec(3, 2)
+        ax1 = plt.subplot(gs[0, 0])
+        ax2 = plt.subplot(gs[0, 1])
+        ax3 = plt.subplot(gs[1, 0])
+        ax4 = plt.subplot(gs[1, 1])
+        ax5 = plt.subplot(gs[2, 0])
+        ax6 = plt.subplot(gs[2, 1])
+
+        df = df[df['Time'] <= 50]
+
+        sp.msd(df[df['condition'] == conds[1]], ax1, ylim=msd_ylim)
+        sp.msd(df[df['condition'] == conds[2]], ax3, ylim=msd_ylim)
+        sp.msd(df[df['condition'] == conds[3]], ax5, ylim=msd_ylim)
+        sp.msd_indivs(df[df['condition'] == conds[1]], ax2, ylim=msd_ylim)
+        sp.msd_indivs(df[df['condition'] == conds[2]], ax4, ylim=msd_ylim)
+        sp.msd_indivs(df[df['condition'] == conds[3]], ax6, ylim=msd_ylim)
+        # bugfix: rotate xticks for last subplot
+        for tick in ax6.get_xticklabels():
+            tick.set_rotation('horizontal')
+        pdf.savefig()
+        plt.close()
+
+
 def color_keys(dfc):
     fig = matplotlib.pyplot.gcf()
     fig.clf()
@@ -396,7 +485,7 @@ if __name__ == '__main__':
     # filter starting distances greater than a threshold
     indivs_filter = dfcentr.set_index(['Time', 'indv']).unstack('indv')['DistCentr'].fillna(method='bfill').iloc[0]
     indivs_filter = indivs_filter[indivs_filter > 5].index.values
-    print indivs_filter
+    # print indivs_filter
     dfcentr = dfcentr[dfcentr['indv'].isin(indivs_filter)]
 
     color_keys(dfcentr)
@@ -407,7 +496,8 @@ if __name__ == '__main__':
     fig_3sup(dfcentr)
     fig_4(df_m, dfcentr)
     fig_4sup(df_m, dfcentr)
-    fig_5(df_m, dfcentr)
+    # fig_5(df_m, dfcentr)
+    fig_6(df_m, dfcentr)
 
     # # d = df_m[df_m['CentrLabel'] == 'A']
     # d = dfcentr
