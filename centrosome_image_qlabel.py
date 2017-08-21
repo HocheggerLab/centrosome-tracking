@@ -17,6 +17,8 @@ class CentrosomeImageQLabel(QtGui.QLabel):
         self.frame = None
         self.resolution = None
         self.image_pixmap = None
+        self.dwidth = 0
+        self.dheight = 0
 
         self.clear()
 
@@ -52,9 +54,11 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                 ch2 = f['%s/%s/raw/%03d/channel-2' % (self.condition, self.run, self.frame)]
                 data = ch2[:]
                 self.resolution = ch2.parent.attrs['resolution']
+
+            self.dwidth, self.dheight = data.shape
             # map the data range to 0 - 255
             img_8bit = ((data - data.min()) / (data.ptp() / 255.0)).astype(np.uint8)
-            qtimage = QtGui.QImage(img_8bit.repeat(4), 512, 512, QtGui.QImage.Format_RGB32)
+            qtimage = QtGui.QImage(img_8bit.repeat(4), self.dwidth, self.dheight, QtGui.QImage.Format_RGB32)
             self.image_pixmap = QPixmap(qtimage)
             self.draw_measurements()
             self.setPixmap(self.image_pixmap)
@@ -104,7 +108,7 @@ class CentrosomeImageQLabel(QtGui.QLabel):
 
                     painter.setPen(QPen(QBrush(QColor('white')), 2))
                     painter.drawText(nx + 10, ny + 5, nucID)
-                    painter.drawText(10, 30, '%02d' % self.frame)
+                    painter.drawText(10, 30, '%02d - (%03d,%03d)' % (self.frame, self.dwidth, self.dheight))
 
                     # get nuclei boundary as a polygon
                     df_nucfr = df[(df['Nuclei'] == nid) & (df['Frame'] == self.frame)]
