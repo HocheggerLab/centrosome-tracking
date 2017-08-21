@@ -65,8 +65,27 @@ def baseround(x, base=5):
 def reconstruct_time(df):
     # reconstruct time of tracks analyzed with Fiji plugin to match Matlab
     odf = pd.DataFrame()
-    for _, _df in df.groupby(['condition', 'run', 'Nuclei', 'Centrosome']):
+    for _, _df in df.groupby(ImagejPandas.CENTROSOME_INDIV_INDEX):
         delta = baseround(_df['Time'][0:2].diff().iloc[1])
         _df.loc[:, 'Time'] = _df['Frame'] * delta
         odf = odf.append(_df)
+    return odf
+
+
+def extract_consecutive_timepoints(df):
+    odf = pd.DataFrame()
+    i = 0
+    edge_rise = False
+    for _ci, _df in df.groupby('indv'):
+        for _ti, _tdf in _df.groupby('Frame'):
+            if np.isnan(_tdf['DistCentr'].item()):
+                if edge_rise:
+                    edge_rise = False
+            else:
+                if not edge_rise:
+                    edge_rise = True
+                    i += 1
+                _tdf['timepoint_cluster_id'] = i
+                odf = odf.append(_tdf)
+        i += 1
     return odf
