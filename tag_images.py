@@ -27,7 +27,7 @@ if __name__ == '__main__':
                 print 'tif extension'
                 dir = os.path.basename(_root)
                 joinf = os.path.join(_root, fname)
-                groups = re.search('Capture (.+) - Position (.+).Project Maximum Z.tif$', fname).groups()
+                groups = re.search('Capture (.+) - Position (.+).Project Maximum Z', fname).groups()
                 capture_id = int(groups[0])
                 pos_id = int(groups[1])
 
