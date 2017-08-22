@@ -166,7 +166,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
     sns.tsplot(
         data=df_msd[df_msd['condition'] == cond], lw=3,
         err_style=['unit_traces'], err_kws=_err_kws,
-        time='Time', value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+        time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
     ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
     ax.legend(title=None, loc='upper left')
     if time == 'Frame':

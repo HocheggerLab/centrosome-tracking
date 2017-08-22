@@ -56,10 +56,6 @@ def rename_conditions(df):
     return df
 
 
-def custom_round(x, base=1):
-    return int(base * round(float(x) / base))
-
-
 def sorted_conditions(df, original_conds):
     conditions = [names[c] for c in original_conds]
     _colors = [cond_colors[c] for c in original_conds]
