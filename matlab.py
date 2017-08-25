@@ -7,7 +7,7 @@ from imagej_pandas import ImagejPandas
 
 pd.set_option('display.width', 320)
 
-x = sio.loadmat('/Users/Fabio/finalData_2016_10_07.mat', squeeze_me=True)
+x = sio.loadmat('/Users/Fabio/data/finalData_2016_10_07.mat', squeeze_me=True)
 exp_names = x['namesExperiment']
 mtr_names = x['metricsName']
 metrics = x['metrics']
@@ -86,11 +86,14 @@ ordered_columns = ['condition', 'run', 'Nuclei', 'Centrosome', 'CentrLabel',
                    'Dist', 'Speed', 'Acc', 'DistCentr', 'SpeedCentr', 'AccCentr', 'NuclBound']
 df_out.loc[:, 'NuclBound'] = None
 df_out = df_out[ordered_columns]
-df_out.to_pickle('/Users/Fabio/matlab.pandas')
 
 df_c = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
 df_c = df_c.append(df_out)
 df_c = df_c[ordered_columns]
+# df_c.loc[:, 'datetime'] = df_c['Time'].apply(
+#     lambda x: pd.to_datetime(datetime.datetime.fromtimestamp(time.mktime(time.gmtime(x * 60.0))))
+# )
+df_c = stats.reconstruct_time(df_c)
 df_c.to_pickle('/Users/Fabio/merge.pandas')
 
 print 'Re-centering timeseries around time of contact...'

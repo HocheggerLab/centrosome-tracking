@@ -4,6 +4,7 @@ import pandas as pd
 import seaborn as sns
 
 import special_plots as sp
+import stats as st
 
 plt.style.use('ggplot')
 sns.set(font_scale=0.9, context='paper', style='whitegrid')
@@ -13,13 +14,37 @@ pd.set_option('display.width', 320)
 colors = ["windows blue", "amber", "greyish", "faded green", "dusty purple"]
 palette = sns.xkcd_palette(colors)
 
+
+def discrepancy(df):
+    # plot of every distance between centrosome's, centered at time of contact
+    plt.figure(110)
+    sns.set_palette('Set2')
+    df_idx_grp = df.set_index('Time').sort_index().reset_index()
+    g = sns.FacetGrid(df_idx_grp, col='condition', hue='indv', col_wrap=2, size=5)
+    g.map(plt.plot, 'Time', 'DistCentr', linewidth=1, alpha=0.5)
+    g.set_axis_labels(x_var='Time [min]', y_var=new_distcntr_name)
+    plt.savefig('/Users/Fabio/dist_centrosomes_PC-pc.svg', format='svg')
+
+    # average speed boxplot
+    plt.figure(100)
+    mua = df.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+    sp.anotated_boxplot(mua, 'SpeedCentr', point_size=3)
+    plt.subplots_adjust(left=0.125, right=0.9, bottom=0.2, top=0.9, wspace=0.2, hspace=0.2)
+    plt.xlabel('Time [min]')
+    plt.ylabel(new_speedcntr_name)
+    pmat = st.p_values(mua, 'SpeedCentr', 'condition', '/Users/Fabio/pval_PC-pc.txt')
+    plt.text(0.5, 0.8, 'pvalue=%0.5f' % pmat[0, 1], ha='center')
+    plt.savefig('/Users/Fabio/boxplot_avg_speed_PC-pc.svg', format='svg')
+
+
 df = pd.read_pickle('/Users/Fabio/merge.pandas')
 _df = pd.read_pickle('/Users/Fabio/merge_centered.pandas')
+# print df['datetime'].apply(lambda t: t.strftime('%R'))
 
 # congression plots
 plt.figure(120)
-df['indv'] = df['condition'] + '-' + df['run'] + '-' + df['Nuclei'].map(int).map(str) + '-' + \
-             df['Centrosome'].map(int).map(str)
+df.loc[:, 'indv'] = df['condition'] + '-' + df['run'] + '-' + df['Nuclei'].map(int).map(str) + '-' + \
+                    df['Centrosome'].map(int).map(str)
 sp.congression(df)
 plt.savefig('/Users/Fabio/congression.pdf', format='pdf')
 
@@ -38,9 +63,11 @@ _df.rename(columns={'SpeedCentr': new_speedcntr_name}, inplace=True)
 
 # filter original dataframe to get just data between centrosomes
 dfcentr = _df[_df['CentrLabel'] == 'A']
-dfcentr['indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['Nuclei'].map(int).map(str)
+dfcentr.loc[:, 'indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['Nuclei'].map(int).map(str)
 dfcentr.drop(['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY'],
              axis=1, inplace=True)
+
+# discrepancy(df.loc[(df['CentrLabel'] == 'A') & (df['Time'] <= 0) & (df['condition'].isin(['1_P.C.', 'pc'])), :])
 
 # average speed boxplot
 plt.figure(100)
@@ -48,7 +75,7 @@ dfc_cleaned = dfcentr.loc[dfcentr['Time'] <= 0, :]
 mua = dfc_cleaned.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
 mua.rename(columns={'SpeedCentr': new_speedcntr_name}, inplace=True)
 sp.anotated_boxplot(mua, new_speedcntr_name, stats_rotation='vertical', point_size=2)
-plt.subplots_adjust(left=0.125, right=0.9, bottom=0.2, top=0.9, wspace=0.2, hspace=0.2)
+plt.subplots_adjust(left=0.125, right=0.9, bottom=0.2, top=0.7, wspace=0.2, hspace=0.2)
 plt.savefig('/Users/Fabio/boxplot_avg_speed.pdf', format='pdf')
 
 plt.figure(102)
@@ -138,7 +165,7 @@ plt.savefig('/Users/Fabio/speed_centrosomes_contact_all.pdf', format='pdf')
 names = ['1_N.C.', '1_P.C.', '1_DIC', '1_Dynei', '1_CENPF', '1_BICD2', '2_Kines1', '2_CDK1_DK', '2_CDK1_DC']
 spd = 0.4
 sdf = dfcentr.replace([np.inf, -np.inf], np.nan)
-sdf = sdf.loc[(sdf['condition'].isin(names)) & (sdf['SpeedCentr'] > spd)]
+sdf = sdf.loc[(sdf['condition'].isin(names)) & (sdf[new_speedcntr_name] > spd)]
 g = sns.FacetGrid(sdf, col='condition', col_wrap=4)
 g.map(sns.distplot, 'SpeedCentr', hist=False, rug=True)
 g.fig.subplots_adjust(top=0.9)
@@ -146,7 +173,7 @@ g.fig.suptitle('Centrosome pair speed distribution for speeds greater than %0.2f
 plt.savefig('/Users/Fabio/sfilt_speed_%d.pdf' % (spd * 10), format='pdf')
 
 g = sns.FacetGrid(sdf, col='condition', hue='indv', col_wrap=4)
-g.map(plt.plot, 'Time', 'DistCentr', linewidth=1, alpha=0.5)
+g.map(plt.plot, 'Time', new_distcntr_name, linewidth=1, alpha=0.5)
 g.fig.subplots_adjust(top=0.9)
 g.fig.suptitle('Centrosome pair distance tracks for speeds greater than %0.2f $[\mu m/min]$' % spd)
 plt.savefig('/Users/Fabio/sfilt_dist_%d.pdf' % (spd * 10), format='pdf')

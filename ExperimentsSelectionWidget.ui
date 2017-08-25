@@ -239,6 +239,22 @@
     <string>Clear Run</string>
    </property>
   </widget>
+  <zorder>movieImgLabel</zorder>
+  <zorder>experimentsTreeView</zorder>
+  <zorder>centrosomeListView</zorder>
+  <zorder>nucleiListView</zorder>
+  <zorder>nucleiTitleLbl</zorder>
+  <zorder>centrosomesTitleLbl</zorder>
+  <zorder>centrosomeListView_A</zorder>
+  <zorder>centrosomeListView_B</zorder>
+  <zorder>centrosomesTitleLbl_A</zorder>
+  <zorder>centrosomesTitleLbl_B</zorder>
+  <zorder>mplDistance</zorder>
+  <zorder>exportPandasButton</zorder>
+  <zorder>exportSelectionButton</zorder>
+  <zorder>importSelectionButton</zorder>
+  <zorder>clearRunButton</zorder>
+  <zorder>frameHSlider</zorder>
  </widget>
  <customwidgets>
   <customwidget>

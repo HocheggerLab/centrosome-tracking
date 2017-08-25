@@ -12,17 +12,16 @@ from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from imagej_pandas import ImagejPandas
 
 
-def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_rotation='horizontal', order=None,
-                     ax=None):
-    sns.boxplot(data=data_grouped, y=var, x='condition', linewidth=0.5, width=0.2, fliersize=point_size, order=order,
-                ax=ax)
-    _ax = sns.swarmplot(data=data_grouped, y=var, x='condition', size=point_size, order=order, ax=ax)
+def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_rotation='horizontal', cat='condition',
+                     order=None, ax=None):
+    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.2, fliersize=point_size, order=order, ax=ax)
+    _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, ax=ax)
     for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
 
-    cat = order if order is not None else data_grouped['condition'].unique()
-    for x, c in enumerate(cat):
-        d = data_grouped[data_grouped['condition'] == c][var]
+    order = order if order is not None else data_grouped[cat].unique()
+    for x, c in enumerate(order):
+        d = data_grouped[data_grouped[cat] == c][var]
         _max_y = _ax.axis()[3]
         count = d.count()
         mean = d.mean()
@@ -136,7 +135,79 @@ def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8)):
     # ax.get_figure().colorbar(surf, shrink=0.5, aspect=5)
 
 
-def distance_to_nucleus(df, ax, mask=None, time_contact=None):
+def _msd_tag(df):
+    mvtag = pd.DataFrame()
+    for id, _df in df.groupby(ImagejPandas.NUCLEI_INDIV_INDEX):
+        cond = id[0]
+        c_a = _df[_df['CentrLabel'] == 'A']['msd_lfit_a'].unique()[0]
+        c_b = _df[_df['CentrLabel'] == 'B']['msd_lfit_a'].unique()[0]
+        if c_a > c_b:
+            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' moving more'
+            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' moving less'
+        else:
+            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' moving more'
+            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' moving less'
+        mvtag = mvtag.append(_df)
+    return mvtag
+
+
+def msd_indivs(df, ax, time='Time', ylim=None):
+    if df.empty:
+        raise Exception('Need non-empty dataframe..')
+    if df['condition'].unique().size > 1:
+        raise Exception('Need just one condition for using this plotting function.')
+
+    _err_kws = {'alpha': 0.3, 'lw': 1}
+    cond = df['condition'].unique()[0]
+    df_msd = ImagejPandas.msd_centrosomes(df)
+    df_msd = _msd_tag(df_msd)
+
+    sns.tsplot(
+        data=df_msd[df_msd['condition'] == cond], lw=3,
+        err_style=['unit_traces'], err_kws=_err_kws,
+        time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+    ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
+    ax.legend(title=None, loc='upper left')
+    if time == 'Frame':
+        ax.set_xlabel('Time delay $[frames]$')
+        ax.set_xticks(range(0, df['Frame'].max(), 5))
+        ax.set_xlim([0, df['Frame'].max()])
+    else:
+        ax.set_xlabel('Time delay $[min]$')
+    if ylim is not None:
+        ax.set_ylim(ylim)
+
+
+def msd(df, ax, time='Time', ylim=None):
+    if df.empty:
+        raise Exception('Need non-empty dataframe..')
+    if df['condition'].unique().size > 1:
+        raise Exception('Need just one condition for using this plotting function.')
+
+    cond = df['condition'].unique()[0]
+    df_msd = ImagejPandas.msd_centrosomes(df)
+    df_msd = _msd_tag(df_msd)
+
+    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving more'],
+               color='k', linestyle='-',
+               time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving less'],
+               color='k', linestyle='--',
+               time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+    ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
+    ax.set_xticks(np.arange(0, df_msd['Time'].max(), 20.0))
+    ax.legend(title=None, loc='upper left')
+    if time == 'Frame':
+        ax.set_xlabel('Time delay $[frames]$')
+        ax.set_xticks(range(0, df['Frame'].max(), 5))
+        ax.set_xlim([0, df['Frame'].max()])
+    else:
+        ax.set_xlabel('Time delay $[min]$')
+    if ylim is not None:
+        ax.set_ylim(ylim)
+
+
+def distance_to_nucleus(df, ax, mask=None, time_contact=None, plot_interp=False):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
@@ -154,11 +225,15 @@ def distance_to_nucleus(df, ax, mask=None, time_contact=None):
             interp = track['Dist'][~tmask['Dist']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
-            if len(interp) > 0:
-                interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
+            if plot_interp:
+                if len(interp) > 0:
+                    interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
+                track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+            else:
+                orig.plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
         else:
             print 'plotting distance to nuclei with no mask.'
-        track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+            track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
 
     # plot time of contact
     if time_contact is not None:

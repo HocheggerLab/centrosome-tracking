@@ -9,7 +9,7 @@ from sklearn import linear_model
 class ImagejPandas(object):
     DIST_THRESHOLD = 0.5  # um before 1 frame of contact
     TIME_BEFORE_CONTACT = 30
-    MASK_INDEX = ['Frame', 'Nuclei', 'Centrosome']
+    MASK_INDEX = ['Frame', 'Time', 'Nuclei', 'Centrosome']
     NUCLEI_INDIV_INDEX = ['condition', 'run', 'Nuclei']
     CENTROSOME_INDIV_INDEX = NUCLEI_INDIV_INDEX + ['Centrosome']
 
@@ -147,17 +147,18 @@ class ImagejPandas(object):
 
         s = u.set_index(ImagejPandas.MASK_INDEX).sort_index().unstack('Centrosome')
         # where are the NaN's?
-        nans_are_in = s['Time'].transpose().isnull().any(axis=1)
-        values_where_nans_are_in = nans_are_in.keys().values
+        nans_are_in = s['Dist'].transpose().isnull().any(axis=1)
+        values_where_nans_are_in = nans_are_in[nans_are_in].keys().values
 
         mask = s.isnull().stack().reset_index()
 
-        if values_where_nans_are_in.size > 0:
+        if values_where_nans_are_in.size == 1:
+            _timeidx = s.index.levels[1]
             if values_where_nans_are_in[0] == cm:
-                g = s[s['Time'] > tc].transpose().fillna(method='ffill').transpose()
+                g = s[_timeidx > tc].transpose().fillna(method='ffill').transpose()
             else:
-                g = s[s['Time'] > tc].transpose().fillna(method='bfill').transpose()
-            s[s.index > tc] = g
+                g = s[_timeidx > tc].transpose().fillna(method='bfill').transpose()
+            s[_timeidx > tc] = g
         u = s.stack()
 
         return u.reset_index(), mask

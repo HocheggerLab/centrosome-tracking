@@ -83,6 +83,8 @@ class LabHDF5NeXusFile():
                 if tif.is_imagej is not None:
                     sizeT, channels = tif.pages[0].imagej_tags.frames, tif.pages[0].imagej_tags.channels
                     sizeZ, sizeX, sizeY = 1, tif.pages[0].image_width, tif.pages[0].image_length
+                    print 'N of frames=%d channels=%d, sizeZ=%d, sizeX=%d, sizeY=%d' % \
+                          (sizeT, channels, sizeZ, sizeX, sizeY)
 
                     res = 'n/a'
                     if tif.pages[0].resolution_unit == 'centimeter':
@@ -96,10 +98,8 @@ class LabHDF5NeXusFile():
                         res = float(xr[0]) / float(xr[1])  # pixels per um
 
                     if sizeT > 1:
-                        p1a = tif.pages[0].asarray()
+                        p1a = tif.pages[0].asarray().reshape([sizeT, channels, sizeX, sizeY])
                         for i in range(sizeT):
-                            outImg = np.zeros((1, channels, sizeX, sizeY), np.uint16)
-                            outImg[0][0] = p1a[i][0]
                             # create a NXentry frame group
                             nxframe = nxdata.create_group('%03d' % i)
                             nxframe.attrs['units'] = 'um'
@@ -107,9 +107,9 @@ class LabHDF5NeXusFile():
                             nxframe.attrs['long_name'] = 'image um (micrometers)'  # suggested X axis plot label
 
                             # save XY data
-                            ch1 = nxframe.create_dataset('channel-1', data=p1a[channels * i], dtype=np.uint16)
-                            ch2 = nxframe.create_dataset('channel-2', data=p1a[channels * i + 1], dtype=np.uint16)
-                            ch3 = nxframe.create_dataset('channel-3', data=p1a[channels * i + 2], dtype=np.uint16)
+                            ch1 = nxframe.create_dataset('channel-1', data=p1a[i][0], dtype=np.uint16)
+                            ch2 = nxframe.create_dataset('channel-2', data=p1a[i][1], dtype=np.uint16)
+                            ch3 = nxframe.create_dataset('channel-3', data=p1a[i][2], dtype=np.uint16)
                             for ch in [ch1, ch2, ch3]:
                                 ch.attrs['CLASS'] = np.string_('IMAGE')
                                 ch.attrs['IMAGE_SUBCLASS'] = np.string_('IMAGE_GRAYSCALE')
@@ -465,5 +465,8 @@ if __name__ == '__main__':
         call('h5repack /Users/Fabio/centrosomes.nexus.hdf5 /Users/Fabio/repack.hdf5', shell=True)
         os.remove('/Users/Fabio/centrosomes.nexus.hdf5')
         os.rename('/Users/Fabio/repack.hdf5', '/Users/Fabio/centrosomes.nexus.hdf5')
+        call('h5repack /Users/Fabio/centrosomes-images.nexus.hdf5 /Users/Fabio/repack.hdf5', shell=True)
+        os.remove('/Users/Fabio/centrosomes-images.nexus.hdf5')
+        os.rename('/Users/Fabio/repack.hdf5', '/Users/Fabio/centrosomes-images.nexus.hdf5')
     finally:
         print '\r\nfinished.'
