@@ -38,7 +38,7 @@ def dataframe_centered_in_time_of_contact(df):
         fdf.loc[:, 'Centrosome'] = fdf['CentrLabel']
         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(fdf, ImagejPandas.DIST_THRESHOLD)
         # print id, time_of_c,
-        _df = fdf[fdf['CentrLabel'] == 'A']
+        _df = fdf[fdf['CentrLabel'].isin(['A', 'B'])]
         if time_of_c is None:
             fdfi = fdf.set_index('Time')
             time_a = fdfi.loc[fdfi['CentrLabel'] == 'A', 'Dist'].dropna().index.max()

@@ -86,7 +86,6 @@ ordered_columns = ['condition', 'run', 'Nuclei', 'Centrosome', 'CentrLabel',
                    'Dist', 'Speed', 'Acc', 'DistCentr', 'SpeedCentr', 'AccCentr', 'NuclBound']
 df_out.loc[:, 'NuclBound'] = None
 df_out = df_out[ordered_columns]
-# df_out.to_pickle('/Users/Fabio/matlab.pandas')
 
 df_c = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
 df_c = df_c.append(df_out)
