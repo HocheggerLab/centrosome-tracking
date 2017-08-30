@@ -125,8 +125,8 @@ def fig_2(df):
     ax3 = plt.subplot(gs[1, 0])
     ax4 = plt.subplot(gs[1, 1])
 
-    sp.msd(df[df['condition'] == names['1_N.C.']], ax1, ylim=msd_ylim)
-    sp.msd(df[df['condition'] == names['1_P.C.']], ax2, ylim=msd_ylim)
+    sp.msd(df[df['condition'] == names['1_N.C.']], ax1, ylim=[0, 120])
+    sp.msd(df[df['condition'] == names['1_P.C.']], ax2, ylim=[0, 120])
     sp.msd_indivs(df[df['condition'] == names['1_N.C.']], ax3, ylim=msd_ylim)
     sp.msd_indivs(df[df['condition'] == names['1_P.C.']], ax4, ylim=msd_ylim)
 
@@ -424,12 +424,12 @@ def fig_6(df, dfc):
 
         df = df[df['Time'] <= 50]
 
-        sp.msd(df[df['condition'] == conds[1]], ax1, ylim=msd_ylim)
-        sp.msd(df[df['condition'] == conds[2]], ax3, ylim=msd_ylim)
-        sp.msd(df[df['condition'] == conds[3]], ax5, ylim=msd_ylim)
-        sp.msd_indivs(df[df['condition'] == conds[1]], ax2, ylim=msd_ylim)
-        sp.msd_indivs(df[df['condition'] == conds[2]], ax4, ylim=msd_ylim)
-        sp.msd_indivs(df[df['condition'] == conds[3]], ax6, ylim=msd_ylim)
+        sp.msd(df[df['condition'] == conds[1]], ax1, ylim=[0, 120])
+        sp.msd(df[df['condition'] == conds[2]], ax3, ylim=[0, 120])
+        sp.msd(df[df['condition'] == conds[3]], ax5, ylim=[0, 120])
+        sp.msd_indivs(df[df['condition'] == conds[1]], ax2, ylim=[0, 200])
+        sp.msd_indivs(df[df['condition'] == conds[2]], ax4, ylim=[0, 200])
+        sp.msd_indivs(df[df['condition'] == conds[3]], ax6, ylim=[0, 200])
         # bugfix: rotate xticks for last subplot
         for tick in ax6.get_xticklabels():
             tick.set_rotation('horizontal')
