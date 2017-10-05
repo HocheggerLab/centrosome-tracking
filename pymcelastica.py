@@ -1,4 +1,5 @@
-# import logging
+import logging
+
 import numpy as np
 import pymc
 from numpy import cos, sin
@@ -60,8 +61,10 @@ yn = ys + 0.5 * (0.5 - np.random.rand(ys.shape[0], ys.shape[1]))
 x = yn[0]
 
 # priors
-sig = pymc.Uniform('sig', 0.0, 10.0, value=1.)
-L = pymc.Uniform('L', 5.0, 20.0, value=8.0)
+sig = pymc.Uniform('sig', 0.0, 5.0, value=1.)
+sigl = pymc.Uniform('sigl', 0.0, 5.0, value=1.0)
+# L = pymc.Uniform('L', 5.0, 20.0, value=8.0)
+L = pymc.Normal('L', mu=8.0, tau=1.0 / sigl ** 2)
 E = pymc.Uniform('E', 0.0, 2.0, value=0.1)
 F = pymc.Uniform('F', 0.0, 2.0, value=0.05)
 a1 = pymc.Uniform('a1', 0.0, 1.0, value=0.1)
@@ -71,17 +74,29 @@ gamma = pymc.Uniform('gamma', -np.pi / 2, np.pi / 2, value=0.5)
 
 # model
 @pymc.deterministic(plot=True)
-def mod_heavyplanar(L=L, E=E, F=F, a1=a1, a2=a2, gamma=gamma):
-    _a1, _a2 = min(a1, a2), max(a1, a2)
-    a1, a2 = _a1, _a2
-    if 0 < a1 < 1 and 0 < a2 < 1 and a2 > a1:
-        print a1, a2, L, E, F, gamma
-        s = np.linspace(a1 * L, a2 * L, int((a2 - a1) * 100))
-        r = heavy_planar_bvp(s, F=F, E=E, gamma=gamma)
-        ys = r.sol(s)
-        return np.array(ys[0:2])
+def mod_heavyplanar(x=x, L=L, E=E, F=F, a1=a1, a2=a2, gamma=gamma):
+    # def mod_heavyplanar(x=x, L=L, E=E, F=F, gamma=gamma):
+    if 0 < a1 < 1 and 0 < a2 < 1:
+        _a1, _a2 = min(a1, a2), max(a1, a2)
+        a1, a2 = _a1, _a2
+    # print a1, a2, L, E, F, gamma
+    # s = np.linspace(a1 * L, a2 * L, int((a2 - a1) * 100))
+    r = heavy_planar_bvp(s, F=F, E=E, gamma=gamma)
+    sx = list()
+    for _x in x:
+        _sx = r.sol.solve(y=_x)[0]
+        # print  _x, _sx
+        logging.info(_sx)
+        # _sx = _sx[np.asarray(np.where((L * a1 < _sx) * (_sx < L * a2)))].flatten()
+        if _sx.size > 0:
+            sx.append(_sx[0])
+        else:
+            # sx.append(np.nan)
+            sx.append(0)
+    ys = r.sol(sx)
+    return np.array(ys[1])
 
 
 # likelihood
-y = pymc.MvNormal('y', mu=mod_heavyplanar, tau=np.eye(2), value=yn, observed=True)
-# y = pymc.Normal('y', mu=mod_heavyplanar, tau=1.0 / sig ** 2, value=yn, observed=True)
+# y = pymc.MvNormal('y', mu=mod_heavyplanar, tau=np.eye(2), value=yn, observed=True)
+y = pymc.Normal('y', mu=mod_heavyplanar, tau=1.0 / sig ** 2, value=yn[1], observed=True)
