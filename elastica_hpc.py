@@ -112,12 +112,16 @@ if __name__ == '__main__':
     # process input arguments
     parser = argparse.ArgumentParser(
         description='Fits data to heavy elastica model on HPC cluster.')
-    parser.add_argument('input', metavar='I', type=str, help='input directory where the files are')
-    # args = parser.parse_args()
+    parser.add_argument('task_id', metavar='id', type=int, default=-1, help='SGE task ID if available.')
+    parser.add_argument('--gen', dest='gen', action='store_true', help='generate configuration and pandas file.')
+    parser.add_argument('--repetitions', dest='rep', type=int, action='store', default=50,
+                        help='number of measuring repetitions, available when the --gen flag is set.')
+    args = parser.parse_args()
 
-    filename = 'elastica.cfg.txt'
-    if not os.path.isfile(filename):
-        with open(filename, 'w') as configfile:
+    config_fname = 'elastica.cfg.txt'
+    pandas_fname = 'elastica.pandas.csv'
+    if args.gen:
+        with open(config_fname, 'w') as configfile:
             config = ConfigParser.RawConfigParser()
             config.add_section('General')
             config.set('General', 'Version', 'v0.1')
@@ -133,24 +137,26 @@ if __name__ == '__main__':
         _yn = e.gen_test_data(a1, a2, L, E, F, gamma, x0, y0, theta, Np)
         comment = [a1, a2, L, E, F, gamma, x0, y0, theta]
 
-        numsec = 50
+        numsec = args.rep
         for r in range(0, numsec):
             # add_entry(a1, a2, L, E, F, gamma, x0, y0, theta, yn, run='instrument-'%r)
-            add_entry(0, 0, 0, 0, 0, 0, 0, 0, 0, _yn, run='instrument-%04d' % r, comment=comment, fname=filename)
+            add_entry(0, 0, 0, 0, 0, 0, 0, 0, 0, _yn, run='instrument-%04d' % r, comment=comment, fname=config_fname)
 
-    # write pandas
-    if not os.path.isfile('elastica.pandas.csv'):
+            # write pandas
         df = pd.DataFrame(data=[[-1, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
                           columns=['id', 'a1', 'a2', 'L', 'E', 'F', 'gamma', 'x0', 'y0', 'theta'])
-        with open('elastica.pandas.csv', 'w') as f:
+        with open(pandas_fname, 'w') as f:
             df.to_csv(f, index=False)
+    else:
+        if not os.path.isfile(config_fname) or not os.path.isfile(pandas_fname):
+            raise Exception('Couldn\'t find files to write results. Create them using --gen flag.')
 
     try:
         taskid = os.environ['SGE_TASK_ID']
         taskid = ast.literal_eval(taskid)
         section = 'instrument-%04d' % (taskid - 1)
         Np = 100
-        job(section, filename, Np)
+        job(section, config_fname, Np)
 
     except KeyError:
         print "Error: could not read SGE_TASK_ID from environment"
