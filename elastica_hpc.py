@@ -8,11 +8,9 @@ import sys
 import time
 
 import numpy as np
-import pandas as pd
 from scipy.optimize import basinhopping
 
 import elastica as e
-import simpleflock
 
 # reopen stdout file descriptor with write mode
 # and 0 as the buffer size (unbuffered)
@@ -58,18 +56,9 @@ def job(section, fname, Np=100):
                             (0, 512.), (0, 512.), (-np.pi, np.pi))
             x0 = [9.0, 0.2, 0.7, 0.1, 0.4, 0, 0, 0, 0]
             res = basinhopping(obj_minimize, x0, minimizer_kwargs={'bounds': param_bounds, 'args': (yn, Np)})
+            objf = obj_minimize(res.x, yn)
             print 'x0=[%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f] ' % tuple(res.x),
-            print 'objective function final: %0.2f' % obj_minimize(res.x, yn)
-
-            L, a1, a2, E, F, gamma, x0, y0, theta = res.x
-
-            # write pandas
-            if os.path.isfile('elastica.pandas.csv'):
-                with simpleflock.SimpleFlock('elastica.pandas.csv', timeout=3):
-                    df = pd.DataFrame(data=[[section, a1, a2, L, E, F, gamma, x0, y0, theta]],
-                                      columns=['id', 'a1', 'a2', 'L', 'E', 'F', 'gamma', 'x0', 'y0', 'theta'])
-                    with open('elastica.pandas.csv', 'a') as f:
-                        df.to_csv(f, header=False, index=False)
+            print 'objective function final: %0.2f' % objf
 
 
 def add_entry(a1, a2, L, E, F, gamma, x0, y0, theta, yn, run=None, comment=None, fname='elastica.cfg.txt'):
@@ -114,7 +103,7 @@ if __name__ == '__main__':
         description='Fits data to heavy elastica model on HPC cluster.')
     parser.add_argument('task_id', metavar='id', type=int, default=-1, help='SGE task ID if available.')
     parser.add_argument('--gen', dest='gen', action='store_true', help='generate configuration and pandas file.')
-    parser.add_argument('--repetitions', dest='rep', type=int, action='store', default=50,
+    parser.add_argument('--repetitions', dest='rep', type=int, action='store', default=100,
                         help='number of measuring repetitions, available when the --gen flag is set.')
     args = parser.parse_args()
 
@@ -139,14 +128,8 @@ if __name__ == '__main__':
 
         numsec = args.rep
         for r in range(0, numsec):
-            # add_entry(a1, a2, L, E, F, gamma, x0, y0, theta, yn, run='instrument-'%r)
             add_entry(0, 0, 0, 0, 0, 0, 0, 0, 0, _yn, run='instrument-%04d' % r, comment=comment, fname=config_fname)
 
-            # write pandas
-        df = pd.DataFrame(data=[[-1, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
-                          columns=['id', 'a1', 'a2', 'L', 'E', 'F', 'gamma', 'x0', 'y0', 'theta'])
-        with open(pandas_fname, 'w') as f:
-            df.to_csv(f, index=False)
     else:
         if not os.path.isfile(config_fname) or not os.path.isfile(pandas_fname):
             raise Exception('Couldn\'t find files to write results. Create them using --gen flag.')

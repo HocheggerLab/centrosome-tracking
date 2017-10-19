@@ -45,20 +45,20 @@ def eval_heavy_planar(s, pol, a1, a2):
 
 def gen_test_data(a1, a2, L, e, f, gamma, x0, y0, theta, num_points=100, ax=None):
     s = np.linspace(0, L, num_points)
-    r = heavy_planar_bvp(s, F=f, E=e)
+    r = heavy_planar_bvp(s, F=f, E=e, gamma=gamma)
     pol = r.sol
     xo = pol(s)[0:2, :]
     ys = eval_heavy_planar(s, pol, a1, a2)[0:2, :]
+
+    # add noise
+    yn = ys.copy()
+    yn[1] += 0.5 * (0.5 - np.random.rand(ys.shape[1]))
 
     # deal with rotations and translations
     sinth, costh = np.sin(theta), np.cos(theta)
     M = np.array([[costh, -sinth], [sinth, costh]])
     ys = np.matmul(M, ys) + np.array([x0, y0]).reshape((2, 1))
     xo = np.matmul(M, xo) + np.array([x0, y0]).reshape((2, 1))
-
-    # add noise
-    yn = ys.copy()
-    yn[1] += 0.5 * (0.5 - np.random.rand(ys.shape[1]))
 
     if ax is not None:
         ax.plot(xo[0], xo[1], lw=6, c='r', zorder=2)
@@ -68,7 +68,7 @@ def gen_test_data(a1, a2, L, e, f, gamma, x0, y0, theta, num_points=100, ax=None
     return yn
 
 
-def plot_heavyplanar(ax, L, a1, a2, E, F, gamma, x0, y0, theta, num_points=100, plot_options=None):
+def plot_heavyplanar(ax, L, a1, a2, E, F, gamma, x0, y0, theta, num_points=100):
     s = np.linspace(0, L, num_points)
     r = heavy_planar_bvp(s, F=F, E=E, gamma=gamma)
     pol = r.sol
