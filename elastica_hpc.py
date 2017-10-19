@@ -101,14 +101,13 @@ if __name__ == '__main__':
     # process input arguments
     parser = argparse.ArgumentParser(
         description='Fits data to heavy elastica model on HPC cluster.')
-    parser.add_argument('task_id', metavar='id', type=int, default=-1, help='SGE task ID if available.')
+    parser.add_argument('task_id', metavar='id', type=int, nargs='?', default=-1, help='SGE task ID if available.')
     parser.add_argument('--gen', dest='gen', action='store_true', help='generate configuration and pandas file.')
     parser.add_argument('--repetitions', dest='rep', type=int, action='store', default=100,
                         help='number of measuring repetitions, available when the --gen flag is set.')
     args = parser.parse_args()
 
     config_fname = 'elastica.cfg.txt'
-    pandas_fname = 'elastica.pandas.csv'
     if args.gen:
         with open(config_fname, 'w') as configfile:
             config = ConfigParser.RawConfigParser()
@@ -131,7 +130,7 @@ if __name__ == '__main__':
             add_entry(0, 0, 0, 0, 0, 0, 0, 0, 0, _yn, run='instrument-%04d' % r, comment=comment, fname=config_fname)
 
     else:
-        if not os.path.isfile(config_fname) or not os.path.isfile(pandas_fname):
+        if not os.path.isfile(config_fname):
             raise Exception('Couldn\'t find files to write results. Create them using --gen flag.')
 
     try:
