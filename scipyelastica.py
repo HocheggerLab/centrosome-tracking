@@ -11,9 +11,9 @@ L = 10.0
 a1, a2 = 0.1, 0.6
 E, F = 1.0, 0.1
 x0, y0 = 200, 250
-alpha, gamma = 0, np.pi / 2
+theta, gamma = 0, np.pi / 2
 Np = 100
-yn = e.gen_test_data(a1, a2, L, E, F, gamma, x0, y0, alpha, Np, ax=plt.gca())
+yn = e.gen_test_data(a1, a2, L, E, F, gamma, x0, y0, theta, Np, ax=plt.gca())
 
 
 def obj_minimize(p):
@@ -31,8 +31,7 @@ def obj_minimize(p):
 
 
 print np.pi / 2
-print L, a1, a2, E, F, gamma, x0, y0, alpha
-# L, a1, a2, E, F, gamma, x0, y0, alpha = p
+print L, a1, a2, E, F, gamma, x0, y0, theta
 param_bounds = ((5.0, 15.0), (0.1, 0.6), (0.5, 1.0), (0.01, 3.0), (0.1, 3.0), (-np.pi, np.pi),
                 (0, 512.), (0, 512.), (-np.pi, np.pi))
 x0 = [9.0, 0.2, 0.7, 0.1, 0.4, 0, 0, 0, 0]
@@ -40,7 +39,7 @@ res = basinhopping(obj_minimize, x0, minimizer_kwargs={'bounds': param_bounds})
 print 'x0=[%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f] ' % tuple(res.x),
 print 'objective function final: %0.2f' % obj_minimize(res.x)
 
-L, a1, a2, E, F, gamma, x0, y0, alpha = res.x
-e.plot_heavyplanar(plt.gca(), L, a1, a2, E, F, gamma, x0, y0, alpha)
+L, a1, a2, E, F, gamma, x0, y0, theta = res.x
+e.plot_heavyplanar(plt.gca(), L, a1, a2, E, F, gamma, x0, y0, theta)
 plt.savefig('/Users/Fabio/data/lab/figure.svg', format='svg')
 plt.show()
