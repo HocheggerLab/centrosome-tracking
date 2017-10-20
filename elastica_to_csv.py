@@ -28,7 +28,7 @@ for root, directories, filenames in os.walk(args.directory):
             jobid = re.search('^elastica_hpc.job.o[0-9]*.([0-9]*)$', file).group(1)
             seed = re.search('time seed:  ([0-9]*)', jobtxt).group(1)
             objf = re.search('objective function final: (.*)', jobtxt).group(1)
-            params = re.search('x0=(.+?) x=', jobtxt).group(1)
+            params = re.search('x0=(.+?) ', jobtxt).group(1)
             L, a1, a2, E, F, gamma, x0, y0, theta = ast.literal_eval(params)
 
             # write pandas

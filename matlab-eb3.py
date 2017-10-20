@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 import seaborn as sns
+import tifffile as tf
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn import linear_model
 
@@ -123,7 +124,7 @@ def trk_length(df):
     return dfout.set_index('trk')
 
 
-def stats_plots(df, df_stats, img_file=None):
+def stats_plots(df, df_stats, res, img_file=None):
     _df = df.reset_index()
     with PdfPages('/Users/Fabio/eb3_stats.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
@@ -134,15 +135,22 @@ def stats_plots(df, df_stats, img_file=None):
         ax3 = plt.subplot(gs[2, 0])
         ax4 = plt.subplot(gs[2, 1])
         max_frame = _df['frame'].max()
-        cmap = sns.color_palette('copper_r', n_colors=max_frame)
+        cmap = sns.color_palette('cool', n_colors=max_frame)
 
         # plot of each eb3 track
         _ax = ax1
         if img_file is not None:
             image = cv2.imread(img_file)
-            _ax.imshow(image)
+            _ax.imshow(image, extent=[0, 512 / res, 512 / res, 0])
         for _id, df in _df.groupby('trk'):
-            df.plot.scatter(x='x', y='y', c=cmap, ax=_ax)
+            df.plot.scatter(x='x', y='y', c=cmap, alpha=0.1, ax=_ax)
+
+        _ax.spines['top'].set_visible(False)
+        _ax.spines['right'].set_visible(False)
+        _ax.spines['bottom'].set_visible(False)
+        _ax.spines['left'].set_visible(False)
+        _ax.set_xlabel('X $[\mu m]$')
+        _ax.set_ylabel('Y $[\mu m]$')
 
         # plot MSD sum distribution on semilog space
         msd_bins = np.logspace(-2, 4, 100)
@@ -158,7 +166,7 @@ def stats_plots(df, df_stats, img_file=None):
         ax4.set_ylabel('Frequency')
         ax4.set_xlabel('Length $[\mu m]$')
 
-        pdf.savefig()
+        pdf.savefig(transparent=True)
         plt.close()
 
         # ---------------------------
@@ -317,7 +325,7 @@ def est_plots(df_matlab):
         # ax4 = plt.subplot(gs[2, 1])
 
         max_frame = df_matlab.reset_index()['frame'].max()
-        cmap = sns.color_palette('copper_r', n_colors=max_frame)
+        cmap = sns.color_palette('GnBu_r', n_colors=max_frame)
 
         # plot of each eb3 track and estimated lines
         _ax = ax1
@@ -354,16 +362,33 @@ def est_plots(df_matlab):
 
 
 if __name__ == '__main__':
-    do_compute = False
-    # do_filter_stats = True
-    do_filter_stats = False
+    do_compute = do_filter_stats = True
+    # do_compute = do_filter_stats = False
+    # do_compute, do_filter_stats = False, True
+    # do_compute, do_filter_stats = True, False
+
     _fig_size_A3 = (11.7, 16.5)
     _err_kws = {'alpha': 0.3, 'lw': 1}
 
     fname = '/Users/Fabio/data/lab/eb3-control/data/Result of U2OS CDK1as EB3 +1NM on controls only.sld - Capture 1/TrackingPackage/tracks/Channel_1_tracking_result.mat'
     imgname = '/Users/Fabio/data/lab/eb3-control/input/U2OS CDK1as EB3 +1NM on controls only.sld - Capture 1.tif'
+    with tf.TiffFile(imgname, fastij=True) as tif:
+        if tif.is_imagej is not None:
+            res = 'n/a'
+            if tif.pages[0].resolution_unit == 'centimeter':
+                # asuming square pixels
+                xr = tif.pages[0].x_resolution
+                res = float(xr[0]) / float(xr[1])  # pixels per cm
+                res = res / 1e4  # pixels per um
+            elif tif.pages[0].imagej_tags.unit == 'micron':
+                # asuming square pixels
+                xr = tif.pages[0].x_resolution
+                res = float(xr[0]) / float(xr[1])  # pixels per um
+
     if do_compute:
         df_matlab = import_eb3_matlab(fname).set_index('frame').sort_index()
+        df_matlab['x'] /= res
+        df_matlab['y'] /= res
         df_matlab = msd(df_matlab)
         # TODO: compute speed and acceleration
         df_matlab.to_pickle('/Users/Fabio/eb3.pandas')
