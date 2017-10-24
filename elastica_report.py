@@ -57,8 +57,7 @@ def fig_1(df):
         # ---------------------
         # plot initial model
         # ---------------------
-        # L, a1, a2, E, F, gamma, x0, y0, theta = inip
-        a1, a2, L, E, F, gamma, x0, y0, theta = inip
+        L, a1, a2, E, F, gamma, x0, y0, theta = inip
         s = np.linspace(0, L, num_points)
         r = e.heavy_planar_bvp(s, F=F, E=E, gamma=gamma)
         pol = r.sol

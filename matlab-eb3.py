@@ -47,13 +47,14 @@ def import_eb3_matlab(filename, tag=None):
 
 
 def df_filter(df, k=10, msd_thr=50.0):
+    logging.info('%d tracks before filter' % (df['trk'].unique().size))
     # filter dataframe for tracks having more than K points
     filtered_df = pd.DataFrame()
     for _tid, _tdf in df.groupby('trk'):
-        if _tdf.index.size > k:
+        if len(_tdf.index) > k:
             filtered_df = filtered_df.append(_tdf)
-    logging.info('filtered %d tracks after selecting tracks with more that k=%d points' % (df['trk'].unique().size, k))
     df = filtered_df
+    logging.info('filtered %d tracks after selecting tracks with more that k=%d points' % (df['trk'].unique().size, k))
 
     # filter dataframe based on track's mobility
     filtered_df = pd.DataFrame()
@@ -143,7 +144,7 @@ def stats_plots(df, df_stats, res, img_file=None):
             image = cv2.imread(img_file)
             _ax.imshow(image, extent=[0, 512 / res, 512 / res, 0])
         for _id, df in _df.groupby('trk'):
-            df.plot.scatter(x='x', y='y', c=cmap, alpha=0.1, ax=_ax)
+            df.plot.scatter(x='x', y='y', c=cmap, ax=_ax, s=5)
 
         _ax.spines['top'].set_visible(False)
         _ax.spines['right'].set_visible(False)
@@ -154,11 +155,15 @@ def stats_plots(df, df_stats, res, img_file=None):
 
         # plot MSD sum distribution on semilog space
         msd_bins = np.logspace(-2, 4, 100)
-        last_msd = [dm['msd'].iloc[-1] for _id, dm in df.groupby('trk')]
-        sns.distplot(last_msd, rug=True, bins=msd_bins, ax=ax3)
+        last_pt = [dm.iloc[-1] for _id, dm in df.groupby('trk')]
+        # sns.distplot(last_msd, rug=True, bins=msd_bins, ax=ax3)
+        msd_df = pd.DataFrame(last_pt)
+        msd_df['condition'] = 'dummy'
+        sns.stripplot(x=msd_df['msd'], jitter=True, ax=ax3)
         ax3.set_title('Distribution of $MSD(t_n)$')
         ax3.set_ylabel('Frequency')
         ax3.set_xlabel('$\sum MSD$ $[\mu m]$')
+        # ax3.set_xticks(range(0,20,5).extend(range(40,100,20)))
         # ax3.set_xscale('log')
 
         sns.distplot(df_stats['d'], rug=True, ax=ax4)
@@ -191,41 +196,49 @@ def stats_plots(df, df_stats, res, img_file=None):
 
 
 def msd_plots(df):
-    df = df.reset_index()
+    _df = df.reset_index()
     with PdfPages('/Users/Fabio/eb3_msd.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches(_fig_size_A3)
         gs = matplotlib.gridspec.GridSpec(3, 2)
         ax1 = plt.subplot(gs[0:2, :])
-        # ax3 = plt.subplot(gs[2, 0])
+        ax3 = plt.subplot(gs[2, 0])
         ax4 = plt.subplot(gs[2, 1])
 
         # plot of each eb3 track
-        max_frame = df['frame'].max()
+        max_frame = _df['frame'].max()
         cmap = sns.color_palette('copper_r', n_colors=max_frame)
-        for _id, df in df.groupby('trk'):
-            df.plot.scatter(x='x', y='y', c=cmap, ax=ax1)
-            dfi = df.set_index('frame').sort_index()
-            ax1.text(dfi['x'].iloc[0], dfi['y'].iloc[0], '%d - %0.1f' % (_id, df['msd'].iloc[-1]), fontsize=5)
+        for _id, _df in _df.groupby('trk'):
+            _df.plot.scatter(x='x', y='y', c=cmap, ax=ax1)
+            dfi = _df.set_index('frame').sort_index()
+            ax1.text(dfi['x'].iloc[0], dfi['y'].iloc[0], '%d - %0.1f' % (_id, _df['msd'].iloc[-1]), fontsize=5)
+
+        last_pt = [dm.iloc[-1] for _id, dm in df.groupby('trk')]
+        msd_df = pd.DataFrame(last_pt)
+        msd_df['condition'] = 'dummy'
+        sns.stripplot(x=msd_df['msd'], jitter=True, ax=ax3)
+        ax3.set_title('Distribution of %d individuals of $MSD(t_n)$' % len(msd_df.index))
+        ax3.set_ylabel('Population')
+        ax3.set_xlabel('Last MSD value $[\mu m]$')
 
         # plot of MSD for each track
         _ax = ax4
-        sns.tsplot(data=df, lw=3,
+        sns.tsplot(data=_df, lw=3,
                    err_style=['unit_traces'], err_kws=_err_kws,
                    time='frame', value='msd', unit='trk', estimator=np.nanmean, ax=_ax)
         _ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
-        _ax.set_xticks(np.arange(0, df['frame'].max(), 5))
+        _ax.set_xticks(np.arange(0, _df['frame'].max(), 5))
         _ax.legend(title=None, loc='upper left')
         _ax.set_xlabel('Time delay $[frames]$')
-        _ax.set_xticks(range(0, df['frame'].max(), 5))
-        _ax.set_xlim([0, df['frame'].max()])
+        _ax.set_xticks(range(0, _df['frame'].max(), 5))
+        _ax.set_xlim([0, _df['frame'].max()])
 
         pdf.savefig()
         plt.close()
 
 
-def est_lines(df, n, ax=None, dray=50.0):
+def est_lines(df, n, res, ax=None, dray=10.0):
     """
         Plots linear regression of the line constructed by the first n points
     """
@@ -287,7 +300,7 @@ def est_lines(df, n, ax=None, dray=50.0):
             xsi = xs[0]
             ysi = xs[1]
 
-            in_range = [0 < v and v < 512 for v in [l1['xs'], l1['xf'], l2['xs'], l2['xf']]]
+            in_range = [0 < v and v < 512 / res for v in [l1['xs'], l1['xf'], l2['xs'], l2['xf']]]
             in_l1x1 = l1['xs'] < xsi < l1['xf']
             in_l1x2 = l1['xf'] < xsi < l1['xs']
             in_l2x1 = l2['xs'] < xsi < l2['xf']
@@ -307,13 +320,12 @@ def est_lines(df, n, ax=None, dray=50.0):
     ax.scatter(xi, yi, s=20, c='k', lw=0)
     ax.scatter(trk_lr['xs'], trk_lr['ys'], s=10, c='b', lw=0, alpha=1)
     ax.scatter(trk_lr['xf'], trk_lr['yf'], s=5, c='r', lw=0, alpha=1)
-    ax.set_xlim([0, 512])
-    ax.set_ylim([0, 512])
+    ax.set_aspect('equal', 'datalim')
 
     return trk_lr, np.array([xi, yi]).T
 
 
-def est_plots(df_matlab):
+def est_plots(df_matlab, res):
     with PdfPages('/Users/Fabio/eb3_estimation.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
@@ -332,7 +344,7 @@ def est_plots(df_matlab):
         for _id, df in df_matlab.groupby('trk'):
             df.plot.scatter(x='x', y='y', c=cmap, ax=_ax)
             _ax.text(df['x'].iloc[0], df['y'].iloc[0], _id, fontsize=5)
-        trk_lr, xi = est_lines(df_matlab, 4, ax=_ax)
+        trk_lr, xi = est_lines(df_matlab, 4, res, ax=_ax)
         np.savetxt('/Users/Fabio/intersection.csv', xi, delimiter=',')
 
         # plot one track and fit model
@@ -353,9 +365,7 @@ def est_plots(df_matlab):
         fig.set_size_inches(_fig_size_A3)
 
         sns.jointplot(xi[:, 0], xi[:, 1], kind='kde')
-        fig.gca().set_xlim([0, 512])
-        fig.gca().set_ylim([0, 512])
-        fig.gca().set_aspect('equal')
+        fig.gca().set_aspect('equal', 'datalim')
 
         pdf.savefig()
         plt.close()
@@ -399,11 +409,21 @@ if __name__ == '__main__':
         df_stat = trk_length(df_matlab)
         df_stat.to_pickle('/Users/Fabio/eb3stats.pandas')
 
-        df_flt = df_filter(df_matlab, k=5, msd_thr=150)
+        df_flt = df_filter(df_matlab, k=10, msd_thr=5)
         df_flt.to_pickle('/Users/Fabio/eb3filter.pandas')
 
         # msd_lreg = msd_lreg(df_flt)
         # msd_lreg.to_pickle('/Users/Fabio/eb3reg.pandas')
+
+        # write csv eb3 track data
+        filename = '/Users/Fabio/eb3_tracks.csv'
+        with open(filename, 'w') as of:
+            of.write('id,frame,xm,ym\n')
+
+        for _id, df in df_flt.reset_index().groupby('trk'):
+            with open(filename, 'a') as f:
+                df[['trk', 'frame', 'x', 'y']].to_csv(f, header=False, index=False)
+
     else:
         df_stat = pd.read_pickle('/Users/Fabio/eb3stats.pandas')
         df_flt = pd.read_pickle('/Users/Fabio/eb3filter.pandas')
@@ -411,7 +431,7 @@ if __name__ == '__main__':
         logging.info('Loaded %d tracks after filters' % df_flt['trk'].unique().size)
 
     logging.info('making stat plots')
-    stats_plots(df_matlab, df_stat, img_file=imgname)
+    stats_plots(df_matlab, df_stat, res, img_file=imgname)
 
     logging.info('making msd plots')
     msd_plots(df_flt)

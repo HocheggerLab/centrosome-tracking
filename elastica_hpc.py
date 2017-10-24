@@ -8,6 +8,7 @@ import sys
 import time
 
 import numpy as np
+import pandas as pd
 from scipy.optimize import basinhopping
 
 import elastica as e
@@ -52,16 +53,19 @@ def job(section, fname, Np=100):
         if config.has_section(section):
             mstr = config.get(section, 'measure')
             yn = np.array(json.loads(mstr))
-            param_bounds = ((5.0, 15.0), (0.1, 0.6), (0.5, 1.0), (0.01, 3.0), (0.1, 3.0), (-np.pi, np.pi),
-                            (0, 512.), (0, 512.), (-np.pi, np.pi))
-            x0 = [9.0, 0.2, 0.7, 0.1, 0.4, 0, 0, 0, 0]
+            # L, a1, a2, E, F, gamma, x0, y0, theta
+            param_bounds = ((5.0, 20.0), (0.05, 0.6), (0.5, 1.0),
+                            (0.01, 2000.0), (0.0, 100.0), (-np.pi, np.pi),
+                            (0, 120.), (0, 120.), (-np.pi, np.pi))
+            x0 = [9.0, 0.2, 0.7, 0.1, 1000, 50, 0, 0, 0]
             res = basinhopping(obj_minimize, x0, minimizer_kwargs={'bounds': param_bounds, 'args': (yn, Np)})
             objf = obj_minimize(res.x, yn)
             print 'x0=[%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f] ' % tuple(res.x),
             print 'objective function final: %0.2f' % objf
 
 
-def add_entry(a1, a2, L, E, F, gamma, x0, y0, theta, yn, run=None, comment=None, fname='elastica.cfg.txt'):
+# def add_entry(L, a1, a2, E, F, gamma, x0, y0, theta, yn, run=None, comment=None, fname='elastica.cfg.txt'):
+def add_entry(yn, id, run=None, comment=None, fname='elastica.cfg.txt'):
     if os.path.isfile(fname):
         with open(fname, 'r') as configfile:
             config = ConfigParser.ConfigParser()
@@ -80,15 +84,16 @@ def add_entry(a1, a2, L, E, F, gamma, x0, y0, theta, yn, run=None, comment=None,
             section = 'Ground Truth Parameters'
         if not config.has_section(section):
             config.add_section(section)
-        config.set(section, 'a1', a1)
-        config.set(section, 'a2', a2)
-        config.set(section, 'L', L)
-        config.set(section, 'E', E)
-        config.set(section, 'F', F)
-        config.set(section, 'gamma', gamma)
-        config.set(section, 'x0', x0)
-        config.set(section, 'y0', y0)
-        config.set(section, 'theta', theta)
+        # config.set(section, 'a1', a1)
+        # config.set(section, 'a2', a2)
+        # config.set(section, 'L', L)
+        # config.set(section, 'E', E)
+        # config.set(section, 'F', F)
+        # config.set(section, 'gamma', gamma)
+        # config.set(section, 'x0', x0)
+        # config.set(section, 'y0', y0)
+        # config.set(section, 'theta', theta)
+        config.set(section, 'id', id)
         config.set(section, 'measure', json.dumps(yn.tolist()))
         if comment is not None:
             config.set(section, 'comment', comment)
@@ -103,40 +108,56 @@ if __name__ == '__main__':
         description='Fits data to heavy elastica model on HPC cluster.')
     parser.add_argument('task_id', metavar='id', type=int, nargs='?', default=-1, help='SGE task ID if available.')
     parser.add_argument('--gen', dest='gen', action='store_true', help='generate configuration and pandas file.')
-    parser.add_argument('--repetitions', dest='rep', type=int, action='store', default=100,
-                        help='number of measuring repetitions, available when the --gen flag is set.')
+    parser.add_argument('--eb3', dest='eb3', action='store', default=None,
+                        help='estimate model from data in eb3 csv file.')
+    parser.add_argument('-r', '--repetitions', dest='rep', type=int, action='store', default=100,
+                        help='number of measuring repetitions, available when the --gen or --eb3 flag is set.')
     args = parser.parse_args()
 
     config_fname = 'elastica.cfg.txt'
+    if args.gen and args.eb3 is not None:
+        raise Exception('Can\'t use --gen and --eb3 flags together.')
+
     if args.gen:
         with open(config_fname, 'w') as configfile:
             config = ConfigParser.RawConfigParser()
             config.add_section('General')
             config.set('General', 'Version', 'v0.1')
+            config.set('General', 'Mode', 'Playing with simulated data')
             config.write(configfile)
 
         # create some test data
-        L = 10.0
-        a1, a2 = 0.1, 0.6
-        E, F = 1.0, 0.1
-        x0, y0 = 200, 250
-        theta, gamma = np.pi / 6, np.pi / 2
+        L, a1, a2 = 10.0, 0.1, 0.6
+        E, F, gamma = 1.0, 0.1, np.pi / 2
+        x0, y0, theta = 200, 250, np.pi / 6
         Np = 100
-        _yn = e.gen_test_data(a1, a2, L, E, F, gamma, x0, y0, theta, Np)
-        comment = [a1, a2, L, E, F, gamma, x0, y0, theta]
+        _yn = e.gen_test_data(L, a1, a2, E, F, gamma, x0, y0, theta, Np)
+        comment = [L, a1, a2, E, F, gamma, x0, y0, theta]
 
-        numsec = args.rep
-        for r in range(0, numsec):
-            add_entry(0, 0, 0, 0, 0, 0, 0, 0, 0, _yn, run='instrument-%04d' % r, comment=comment, fname=config_fname)
+        for r in range(0, args.rep):
+            add_entry(_yn, run='measure-%09d' % r, comment=comment, fname=config_fname)
 
-    else:
-        if not os.path.isfile(config_fname):
-            raise Exception('Couldn\'t find files to write results. Create them using --gen flag.')
+    if args.eb3 is not None:
+        with open(config_fname, 'w') as configfile:
+            config = ConfigParser.RawConfigParser()
+            config.add_section('General')
+            config.set('General', 'Version', 'v0.1')
+            config.set('General', 'Mode', 'Estimating real data')
+            config.write(configfile)
+
+        eb3_df = pd.read_csv(args.eb3)
+        eb3_df = eb3_df.set_index('frame').sort_index()
+        i = 1
+        for id, df in eb3_df.groupby('id'):
+            yn = np.array([df['xm'].tolist(), df['ym'].tolist()])
+            for r in range(0, args.rep):
+                add_entry(yn, id, run='measure-%09d' % i, fname=config_fname)
+                i += 1
 
     try:
         taskid = os.environ['SGE_TASK_ID']
         taskid = ast.literal_eval(taskid)
-        section = 'instrument-%04d' % (taskid - 1)
+        section = 'measure-%09d' % (taskid - 1)
         Np = 100
         job(section, config_fname, Np)
 

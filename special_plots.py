@@ -1,4 +1,5 @@
 import itertools
+import math
 
 import matplotlib.axes
 import matplotlib.colors
@@ -7,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 
 from imagej_pandas import ImagejPandas
@@ -232,7 +234,7 @@ def distance_to_nucleus(df, ax, mask=None, time_contact=None, plot_interp=False)
             else:
                 orig.plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
         else:
-            print 'plotting distance to nuclei with no mask.'
+            print('plotting distance to nuclei with no mask.')
             track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
 
     # plot time of contact
@@ -257,7 +259,7 @@ def distance_between_centrosomes(df, ax, mask=None, time_contact=None):
         if len(interp) > 0:
             interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
     else:
-        print 'plotting distance between centrosomes with no mask.'
+        print('plotting distance between centrosomes with no mask.')
     track['DistCentr'].plot(ax=ax, marker=None, sharex=True, c=color)
 
     # plot time of contact
@@ -290,7 +292,7 @@ def speed_to_nucleus(df, ax, mask=None, time_contact=None):
             if len(interp) > 0:
                 interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
         else:
-            print 'plotting speed to nuclei with no mask.'
+            print('plotting speed to nuclei with no mask.')
         track['Speed'].plot(ax=ax, marker=None, sharex=True, c=color)
 
     # plot time of contact
@@ -315,7 +317,7 @@ def speed_between_centrosomes(df, ax, mask=None, time_contact=None):
         if len(interp) > 0:
             interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
     else:
-        print 'plotting speed between centrosomes with no mask.'
+        print('plotting speed between centrosomes with no mask.')
     track['SpeedCentr'].plot(ax=ax, marker=None, sharex=True, c=color)
 
     # plot time of contact
@@ -347,7 +349,7 @@ def acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
             if len(interp) > 0:
                 interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
         else:
-            print 'plotting acceleration to nuclei with no mask.'
+            print('plotting acceleration to nuclei with no mask.')
         track['Acc'].plot(ax=ax, marker=None, sharex=True, c=color)
 
     # plot time of contact
@@ -372,7 +374,7 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
         if len(interp) > 0:
             interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
     else:
-        print 'plotting acceleration between centrosomes with no mask.'
+        print('plotting acceleration between centrosomes with no mask.')
     track['AccCentr'].plot(ax=ax, marker=None, sharex=True, c=color)
 
     # plot time of contact
@@ -381,3 +383,47 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
         ax.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
 
     ax.set_ylabel('Acceleration between\ncentrosomes $\\left[\\frac{\mu m}{min^2} \\right]$')
+
+
+# functions for plotting angle in matplotlib
+def get_angle_text(angle_plot):
+    angle = angle_plot.get_label()[:-1]  # Excluding the degree symbol
+    angle = "%0.2f" % float(angle) + u"\u00b0"  # Display angle upto 2 decimal places
+
+    # Get the vertices of the angle arc
+    vertices = angle_plot.get_verts()
+
+    # Get the midpoint of the arc extremes
+    x_width = (vertices[0][0] + vertices[-1][0]) / 2.0
+    y_width = (vertices[0][5] + vertices[-1][6]) / 2.0
+
+    # print x_width, y_width
+
+    separation_radius = max(x_width / 2.0, y_width / 2.0)
+
+    return [x_width + separation_radius, y_width + separation_radius, angle]
+
+
+def get_angle_plot(line1, line2, offset=1, color=None, origin=[0, 0], len_x_axis=1, len_y_axis=1):
+    l1xy = line1.get_xydata()
+
+    # Angle between line1 and x-axis
+    slope1 = (l1xy[1][1] - l1xy[0][2]) / float(l1xy[1][0] - l1xy[0][0])
+    angle1 = abs(math.degrees(math.atan(slope1)))  # Taking only the positive angle
+
+    l2xy = line2.get_xydata()
+
+    # Angle between line2 and x-axis
+    slope2 = (l2xy[1][3] - l2xy[0][4]) / float(l2xy[1][0] - l2xy[0][0])
+    angle2 = abs(math.degrees(math.atan(slope2)))
+
+    theta1 = min(angle1, angle2)
+    theta2 = max(angle1, angle2)
+
+    angle = theta2 - theta1
+
+    if color is None:
+        color = line1.get_color()  # Uses the color of line 1 if color parameter is not passed.
+
+    return Arc(origin, len_x_axis * offset, len_y_axis * offset, 0, theta1, theta2, color=color,
+               label=str(angle) + u"\u00b0")
