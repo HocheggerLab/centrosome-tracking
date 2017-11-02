@@ -1,3 +1,4 @@
+import ConfigParser
 import argparse
 import ast
 import os
@@ -11,10 +12,8 @@ parser.add_argument('-o', '--output', dest='out', action='store', default='elast
 args = parser.parse_args()
 
 with open(args.out, 'w') as of:
-    # write pandas
-    # df = pd.DataFrame(data=[[-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], columns=['id', 'seed', 'L', 'a1', 'a2', 'E', 'F', 'gamma', 'x0', 'y0', 'theta'])
-    # df.to_csv(of, index=False)
-    of.write('id,seed,L,a1,a2,E,F,gamma,x0,y0,theta,objfn\n')
+    # write csv header
+    of.write('measure,trkid,seed,L,a1,a2,E,F,gamma,x0,y0,theta,objfn\n')
 
 for root, directories, filenames in os.walk(args.directory):
     for file in filenames:
@@ -25,14 +24,27 @@ for root, directories, filenames in os.walk(args.directory):
             print 'processing file: %s' % joinf
             jobtxt = jobfile.read()
 
-            jobid = re.search('^elastica_hpc.job.o[0-9]*.([0-9]*)$', file).group(1)
-            seed = re.search('time seed:  ([0-9]*)', jobtxt).group(1)
-            objf = re.search('objective function final: (.*)', jobtxt).group(1)
-            params = re.search('x0=(.+?) ', jobtxt).group(1)
-            L, a1, a2, E, F, gamma, x0, y0, theta = ast.literal_eval(params)
+            fname = os.path.abspath(os.path.join(root, '..', 'elastica.cfg.txt'))
+            if os.path.isfile(fname):
+                try:
+                    jobid = re.search('^elastica_hpc.job.o[0-9]*.([0-9]*)$', file).group(1)
+                    seed = re.search('INFO:root:time seed: ([0-9]*)', jobtxt).group(1)
+                    objf = re.search('INFO:root:objective function final: (.*)', jobtxt).group(1)
+                    params = re.search('INFO:root:x0=(.+?) ', jobtxt).group(1)
+                    L, a1, a2, E, F, gamma, x0, y0, theta = ast.literal_eval(params)
 
-            # write pandas
-            df = pd.DataFrame(data=[[jobid, seed, L, a1, a2, E, F, gamma, x0, y0, theta, objf]],
-                              columns=['id', 'seed', 'L', 'a1', 'a2', 'E', 'F', 'gamma', 'x0', 'y0', 'theta', 'objfn'])
-            with open(args.out, 'a') as f:
-                df.to_csv(f, header=False, index=False)
+                    with open(fname, 'r') as configfile:
+                        config = ConfigParser.ConfigParser()
+                        config.readfp(configfile)
+
+                    section = 'measure-%09d' % (int(jobid) - 1)
+                    trkid = config.get(section, 'id')
+
+                    # write pandas
+                    df = pd.DataFrame(data=[[jobid, trkid, seed, L, a1, a2, E, F, gamma, x0, y0, theta, objf]],
+                                      columns=['measure', 'trkid', 'seed', 'L', 'a1', 'a2', 'E', 'F', 'gamma', 'x0',
+                                               'y0', 'theta', 'objfn'])
+                    with open(args.out, 'a') as f:
+                        df.to_csv(f, header=False, index=False)
+                except AttributeError:
+                    print 'no enough data in file.'

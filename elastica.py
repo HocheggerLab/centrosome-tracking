@@ -43,7 +43,7 @@ def eval_heavy_planar(s, pol, a1, a2):
         return np.array(x_[0:2])
 
 
-def gen_test_data(a1, a2, L, e, f, gamma, x0, y0, theta, num_points=100, ax=None):
+def gen_test_data(L, a1, a2, e, f, gamma, x0, y0, theta, num_points=100, ax=None):
     s = np.linspace(0, L, num_points)
     r = heavy_planar_bvp(s, F=f, E=e, gamma=gamma)
     pol = r.sol

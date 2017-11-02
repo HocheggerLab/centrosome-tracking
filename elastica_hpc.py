@@ -2,6 +2,7 @@ import ConfigParser
 import argparse
 import ast
 import json
+import logging
 import os
 import os.path
 import sys
@@ -13,8 +14,10 @@ from scipy.optimize import basinhopping
 
 import elastica as e
 
-# reopen stdout file descriptor with write mode
-# and 0 as the buffer size (unbuffered)
+logging.basicConfig(level=logging.INFO)
+# np.set_printoptions(3, suppress=True)
+
+# reopen stdout file descriptor with write mode and 0 as the buffer size (unbuffered)
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 
 """
@@ -26,45 +29,45 @@ deactivate
 
 
 def obj_minimize(p, yn, Np=100):
-    print 'x=[%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f]. ' % tuple(p),
     slen = yn.shape[1]
     ymod = e.model_heavyplanar(p, num_points=Np)
     if ymod is not None and ymod.shape[1] >= slen:
         objfn = (ymod[0:2, 0:slen] - yn[0:2, 0:slen]).flatten()
         objfn = np.sum(objfn ** 2)
-        print 'Objective function f(x)=%0.2f' % objfn
+        logging.info(
+            'x=[%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f]. Obj f(x)=%0.3f' % (
+                p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[7], objfn))
         return objfn
     else:
-        print 'No solution for objective function.'
+        logging.info('No solution for objective function.')
         return np.finfo('float64').max
 
 
 def job(section, fname, Np=100):
     tseed = int(time.time() * 10e5 % 10e8)
-    print 'time seed: ', tseed
+    logging.info('time seed: %d' % tseed)
     np.random.seed(tseed)
     if os.path.isfile(fname):
         with open(fname, 'r') as configfile:
             config = ConfigParser.ConfigParser()
             config.readfp(configfile)
 
-        print 'sections found in file ', config.sections()
+            logging.debug('sections found in file ' + str(config.sections()))
 
         if config.has_section(section):
             mstr = config.get(section, 'measure')
             yn = np.array(json.loads(mstr))
             # L, a1, a2, E, F, gamma, x0, y0, theta
             param_bounds = ((5.0, 20.0), (0.05, 0.6), (0.5, 1.0),
-                            (0.01, 2000.0), (0.0, 100.0), (-np.pi, np.pi),
+                            (0.01, 2.0), (0.0, 10.0), (-np.pi, np.pi),
                             (0, 120.), (0, 120.), (-np.pi, np.pi))
-            x0 = [9.0, 0.2, 0.7, 0.1, 1000, 50, 0, 0, 0]
+            x0 = [9.0, 0.2, 0.7, 0.1, 2, 10, 0, 0, 0]
             res = basinhopping(obj_minimize, x0, minimizer_kwargs={'bounds': param_bounds, 'args': (yn, Np)})
             objf = obj_minimize(res.x, yn)
-            print 'x0=[%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f,%0.4f] ' % tuple(res.x),
-            print 'objective function final: %0.2f' % objf
+            logging.info('x0=[%f,%f,%f,%f,%f,%f,%f,%f,%f] ' % tuple(res.x))
+            logging.info('objective function final: %f' % objf)
 
 
-# def add_entry(L, a1, a2, E, F, gamma, x0, y0, theta, yn, run=None, comment=None, fname='elastica.cfg.txt'):
 def add_entry(yn, id, run=None, comment=None, fname='elastica.cfg.txt'):
     if os.path.isfile(fname):
         with open(fname, 'r') as configfile:
@@ -84,15 +87,6 @@ def add_entry(yn, id, run=None, comment=None, fname='elastica.cfg.txt'):
             section = 'Ground Truth Parameters'
         if not config.has_section(section):
             config.add_section(section)
-        # config.set(section, 'a1', a1)
-        # config.set(section, 'a2', a2)
-        # config.set(section, 'L', L)
-        # config.set(section, 'E', E)
-        # config.set(section, 'F', F)
-        # config.set(section, 'gamma', gamma)
-        # config.set(section, 'x0', x0)
-        # config.set(section, 'y0', y0)
-        # config.set(section, 'theta', theta)
         config.set(section, 'id', id)
         config.set(section, 'measure', json.dumps(yn.tolist()))
         if comment is not None:
@@ -102,7 +96,7 @@ def add_entry(yn, id, run=None, comment=None, fname='elastica.cfg.txt'):
 
 
 if __name__ == '__main__':
-    print 'numpy ', np.version.version
+    logging.debug('numpy ' + np.version.version)
     # process input arguments
     parser = argparse.ArgumentParser(
         description='Fits data to heavy elastica model on HPC cluster.')
@@ -135,7 +129,7 @@ if __name__ == '__main__':
         comment = [L, a1, a2, E, F, gamma, x0, y0, theta]
 
         for r in range(0, args.rep):
-            add_entry(_yn, run='measure-%09d' % r, comment=comment, fname=config_fname)
+            add_entry(_yn, 1, run='measure-%09d' % r, comment=comment, fname=config_fname)
 
     if args.eb3 is not None:
         with open(config_fname, 'w') as configfile:
@@ -162,5 +156,5 @@ if __name__ == '__main__':
         job(section, config_fname, Np)
 
     except KeyError:
-        print "Error: could not read SGE_TASK_ID from environment"
+        logging.error('Error: could not read SGE_TASK_ID from environment')
         exit(1)
