@@ -8,8 +8,91 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
+from mpl_toolkits.mplot3d import axes3d
 
 from imagej_pandas import ImagejPandas
+
+# sussex colors
+SUSSEX_FLINT = '#013035'
+SUSSEX_COBALT_BLUE = '#1E428A'
+SUSSEX_MID_GREY = '#94A596'
+SUSSEX_FUSCHIA_PINK = '#EB6BB0'
+SUSSEX_CORAL_RED = '#DF465A'
+SUSSEX_TURQUOISE = '#00AFAA'
+SUSSEX_WARM_GREY = '#D6D2C4'
+SUSSEX_SUNSHINE_YELLOW = '#FFB81C'
+SUSSEX_BURNT_ORANGE = '#DC582A'
+SUSSEX_SKY_BLUE = '#40B4E5'
+
+SUSSEX_NAVY_BLUE = '#1B365D'
+SUSSEX_CHINA_ROSE = '#C284A3'
+SUSSEX_POWDER_BLUE = '#7DA1C4'
+SUSSEX_GRAPE = '#5D3754'
+SUSSEX_CORN_YELLOW = '#F2C75C'
+SUSSEX_COOL_GREY = '#D0D3D4'
+SUSSEX_DEEP_AQUAMARINE = '#487A7B'
+
+
+# SUSSEX_NEON_BLUE=''
+# SUSSEX_NEON_BRIGHT_ORANGE=''
+# SUSSEX_NEON_GREEN=''
+# SUSSEX_NEON_LIGHT_ORANGE=''
+# SUSSEX_NEON_YELLOW=''
+# SUSSEX_NEON_SALMON=''
+# SUSSEX_NEON_PINK=''
+
+
+
+class MyAxes3D(axes3d.Axes3D):
+    def __init__(self, baseObject, sides_to_draw):
+        self.__class__ = type(baseObject.__class__.__name__,
+                              (self.__class__, baseObject.__class__),
+                              {})
+        self.__dict__ = baseObject.__dict__
+        self.sides_to_draw = list(sides_to_draw)
+        self.mouse_init()
+
+    def set_some_features_visibility(self, visible):
+        for t in self.w_zaxis.get_ticklines() + self.w_zaxis.get_ticklabels():
+            t.set_visible(visible)
+        self.w_zaxis.line.set_visible(visible)
+        self.w_zaxis.pane.set_visible(visible)
+        self.w_zaxis.label.set_visible(visible)
+
+    def draw(self, renderer):
+        # set visibility of some features False
+        self.set_some_features_visibility(False)
+        # draw the axes
+        super(MyAxes3D, self).draw(renderer)
+        # set visibility of some features True.
+        # This could be adapted to set your features to desired visibility,
+        # e.g. storing the previous values and restoring the values
+        self.set_some_features_visibility(True)
+
+        zaxis = self.zaxis
+        draw_grid_old = zaxis.axes._draw_grid
+        # disable draw grid
+        zaxis.axes._draw_grid = False
+
+        tmp_planes = zaxis._PLANES
+
+        if 'l' in self.sides_to_draw:
+            # draw zaxis on the left side
+            zaxis._PLANES = (tmp_planes[2], tmp_planes[3],
+                             tmp_planes[0], tmp_planes[1],
+                             tmp_planes[4], tmp_planes[5])
+            zaxis.draw(renderer)
+        if 'r' in self.sides_to_draw:
+            # draw zaxis on the right side
+            zaxis._PLANES = (tmp_planes[3], tmp_planes[2],
+                             tmp_planes[1], tmp_planes[0],
+                             tmp_planes[4], tmp_planes[5])
+            zaxis.draw(renderer)
+
+        zaxis._PLANES = tmp_planes
+
+        # disable draw grid
+        zaxis.axes._draw_grid = draw_grid_old
 
 
 def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_rotation='horizontal', cat='condition',
@@ -35,8 +118,7 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_ro
         plt.xticks(_ax.get_xticks(), rotation='vertical')
 
 
-def congression(cg, ax=None, order=None):
-    # plot centrosome congression as %
+def _compute_congression(cg):
     # compute congression signal
     cg['cgr'] = 0
     _cg = pd.DataFrame()
@@ -48,6 +130,23 @@ def congression(cg, ax=None, order=None):
     cg = _cg
 
     cg = cg[cg['CentrLabel'] == 'A']
+
+    dfout = pd.DataFrame()
+    for id, cdf in cg.groupby('condition'):
+        total_centrosome_pairs = float(len(cdf['indv'].unique()))
+        cdf = cdf.set_index(['indv', 'Time']).sort_index()
+        cgr1_p = cdf['cgr'].unstack('indv').fillna(method='ffill').sum(axis=1) / total_centrosome_pairs * 100.0
+        cgr1_p = cgr1_p.reset_index().rename(index=str, columns={0: 'congress'})
+        cgr1_p['condition'] = id
+        dfout = dfout.append(cgr1_p)
+
+    return dfout
+
+
+def congression(cg, ax=None, order=None):
+    # plot centrosome congression as %
+    # get congression signal
+    cgs = _compute_congression(cg)
     palette = itertools.cycle(sns.color_palette())
 
     ax = ax if ax is not None else plt.gca()
@@ -55,30 +154,27 @@ def congression(cg, ax=None, order=None):
 
     dhandles, dlabels = list(), list()
     for id in order:
-        cdf = cg[cg['condition'] == id]
-        total_centrosome_pairs = float(len(cdf['indv'].unique()))
-        cdf = cdf.set_index(['indv', 'Time']).sort_index()
-        cgr1_p = cdf['cgr'].unstack('indv').fillna(method='ffill').sum(axis=1) / total_centrosome_pairs * 100.0
-        cgr1_p = cgr1_p.reset_index().rename(index=str, columns={0: 'congress'})
-        cgr1_p['condition'] = id
-
+        cdf = cgs[cgs['condition'] == id]
         # PLOT centrosome congresion
         _color = matplotlib.colors.to_hex(next(palette))
-        cgri = cgr1_p.set_index('Time').sort_index()
+        cgri = cdf.set_index('Time').sort_index()
         cgri.plot(y='congress', drawstyle='steps-pre', color=_color, lw=1, ax=ax)
         dlbl = '%s' % (id)
         dhandles.append(mlines.Line2D([], [], color=_color, marker=None, label=dlbl))
         dlabels.append(dlbl)
 
-    _xticks = range(0, int(cg['Time'].max()), 20)
+    _xticks = range(0, int(cgs['Time'].max()), 20)
     ax.set_xticks(_xticks)
     ax.set_xlabel('Time $[min]$')
     ax.set_ylabel('Congression in percentage ($d<%0.2f$ $[\mu m]$)' % ImagejPandas.DIST_THRESHOLD)
     ax.legend(dhandles, dlabels, loc='upper left')
 
 
-def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8)):
-    if str(type(ax)) != "<class 'matplotlib.axes._subplots.Axes3DSubplot'>":
+def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8), z_max=None):
+    right_axes_class = (str(type(ax)) == "<class 'matplotlib.axes._subplots.Axes3DSubplot'>") or \
+                       (str(type(ax)) == "<class 'special_plots.Axes3DSubplot'>")
+
+    if not right_axes_class:
         raise Exception('Not the right axes class for ribbon plot.')
     if df['condition'].unique().size > 1:
         raise Exception('Ribbon plot needs just one condition.')
@@ -107,32 +203,41 @@ def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8)):
         for cx in range(len(time_series)):
             _colors[cx, cy] = _time_color_grad[cx]
 
+    zmax = z_max if z_max is not None else df['DistCentr'].max()
+
     # plot each "ribbon" as a surface plot with a certain width
     for i in np.arange(0, numSets):
         X = np.vstack((x, x)).T
         Y = np.ones((numPts, 2)) * i
         Y[:, 1] = Y[:, 0] + ribbon_width
         Z = np.vstack((z[:, i], z[:, i])).T
-        surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=_colors,
+        surf = ax.plot_surface(X, Y, Z, vmax=zmax, rstride=1, cstride=1, facecolors=_colors,
                                edgecolors='k', alpha=0.8, linewidth=0.25)
 
     ax.set_facecolor('white')
-    # ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+
     ax.zaxis.set_major_locator(LinearLocator(10))
     ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
     ax.set_title(df['condition'].unique()[0])
-    ax.set_xlabel('Time $[min]$')
-    ax.set_ylabel('Track')
-    ax.set_ylim((0, numSets))
-    ax.set_zlabel('Distance between centrosomes $[\mu m]$')
-    ax.set_zlim((0, np.max(np.nan_to_num(z))))
-    xticks = np.arange(0, np.max(time_series), 50)
+
+    ax.set_xlabel('Time $[min]$', labelpad=20)
+    ax.set_ylabel('Track', labelpad=15)
+    ax.set_zlabel('Distance between centrosomes $[\mu m]$', labelpad=10)
+
+    ax.set_ylim((0, numSets + 1))
+
+    xticks = np.arange(0, np.max(time_series), 20)
     ax.set_xticks(xticks)
     ax.set_xticklabels(['%d' % t for t in xticks])
-    yticks = np.arange(1, n_indiv)
+
+    yticks = np.arange(1, n_indiv, 2)
     ax.set_yticks(yticks)
     ax.set_yticklabels(['%d' % t for t in yticks])
-    # ax.get_figure().colorbar(surf, shrink=0.5, aspect=5)
+
+    zticks = np.arange(0, zmax, 10)
+    ax.set_zlim3d(0, zmax)
+    ax.set_zticks(zticks)
+    ax.set_zticklabels(['%d' % t for t in zticks])
 
 
 def _msd_tag(df):
@@ -178,7 +283,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
         ax.set_ylim(ylim)
 
 
-def msd(df, ax, time='Time', ylim=None):
+def msd(df, ax, time='Time', ylim=None, color='k'):
     if df.empty:
         raise Exception('Need non-empty dataframe..')
     if df['condition'].unique().size > 1:
@@ -189,10 +294,10 @@ def msd(df, ax, time='Time', ylim=None):
     df_msd = _msd_tag(df_msd)
 
     sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving more'],
-               color='k', linestyle='-',
+               color=color, linestyle='-',
                time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
     sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving less'],
-               color='k', linestyle='--',
+               color=color, linestyle='--',
                time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
     ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
     ax.set_xticks(np.arange(0, df_msd['Time'].max(), 20.0))

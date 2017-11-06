@@ -19,11 +19,13 @@ import stats as st
 print font_manager.OSXInstalledFonts()
 print font_manager.OSXFontDirectories
 
+plt.style.use('bmh')
+# plt.style.use('ggplot')
+# sns.set(context='paper', style='whitegrid', font='Helvetica Neue')
 matplotlib.rc('pdf', fonttype=42)
 matplotlib.rc('svg', fonttype='none')
-sns.set(context='paper', style='whitegrid', font='Arial', font_scale=0.9)
+
 pd.set_option('display.width', 320)
-plt.style.use('bmh')
 
 names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_P.C.', '+STLC'),
@@ -359,11 +361,11 @@ def fig_6(df, dfc):
     dfc, conds, colors = sorted_conditions(dfc, _conds)
 
     dfc1 = dfc[dfc['condition'].isin([conds[1]])]
-    colrs1 = ["#34495e"]
+    colrs1 = ['#34495e']
     dfc2 = dfc[dfc['condition'].isin([conds[2]])]
-    colrs2 = ["#34495e"]
+    colrs2 = ['#34495e']
     dfc3 = dfc[dfc['condition'].isin([conds[3]])]
-    colrs3 = ["#34495e"]
+    colrs3 = ['#34495e']
 
     with PdfPages('/Users/Fabio/fig6.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
