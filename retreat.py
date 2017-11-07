@@ -1,8 +1,11 @@
+import ConfigParser
+import json
 from collections import OrderedDict
 
 import matplotlib
 import matplotlib.axes
 import matplotlib.gridspec
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -12,6 +15,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 
+import elastica as e
 import report as r
 import special_plots as sp
 from imagej_pandas import ImagejPandas
@@ -35,12 +39,8 @@ matplotlib.rcParams.update({'ytick.color': sp.SUSSEX_COBALT_BLUE})
 matplotlib.rcParams.update({'text.color': sp.SUSSEX_COBALT_BLUE})
 matplotlib.rcParams.update({'lines.color': sp.SUSSEX_COBALT_BLUE})
 matplotlib.rcParams.update({'axes.labelcolor': sp.SUSSEX_COBALT_BLUE})
-# matplotlib.rcParams.update({'axes.edgecolor': sns.light_palette(sp.SUSSEX_COBALT_BLUE, 6)[2]})
 matplotlib.rcParams.update({'axes.edgecolor': '#FFFFFF00'})
-# matplotlib.rcParams.update({'figure.edgecolor': sns.light_palette(sp.SUSSEX_COBALT_BLUE, 6)[2]})
 matplotlib.rcParams.update({'grid.color': sns.light_palette(sp.SUSSEX_COBALT_BLUE, 6)[2]})
-# matplotlib.rcParams.update({'grid.color': sp.SUSSEX_COBALT_BLUE})
-# matplotlib.rcParams.update({'grid.alpha': 0.3})
 matplotlib.rcParams.update({'lines.color': sp.SUSSEX_COBALT_BLUE})
 matplotlib.rcParams.update({'legend.fontsize': 18})
 
@@ -128,21 +128,10 @@ def retreat0(_df, _mask):
         mask_c = r.centr_masks(mask)
         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
-        sp.distance_to_nucleus(df, ax1, mask=mask, time_contact=time_of_c, plot_interp=True)
-        # sp.speed_to_nucleus(df, ax2, mask=mask, time_contact=time_of_c)
-        # sp.acceleration_to_nucleus(df, ax3, mask=mask, time_contact=time_of_c)
-        sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c)
-        # sp.speed_between_centrosomes(between_df, ax5, mask=mask_c, time_contact=time_of_c)
-        # sp.plot_acceleration_between_centrosomes(between_df, ax6, mask=mask_c, time_contact=time_of_c)
-
-        # # change y axis title properties for small plots
-        # for _ax in [ax2, ax3, ax4, ax5, ax6]:
-        #     _ax.set_ylabel(_ax.get_ylabel(), rotation='horizontal', ha='right', fontsize=9, weight='ultralight')
-
-        # ax2.set_xticks(ax1.get_xticks())
-        # ax1.set_xticks(np.arange(0, df['Time'].max(), 10.0))
-        # ax2.set_xticks(np.arange(0, df['Time'].max(), 10.0))
-        # ax2.set_xticklabels(ax1.get_xticklabels())
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_TURQUOISE]):
+            sp.distance_to_nucleus(df, ax1, mask=mask, time_contact=time_of_c, plot_interp=True)
+        with sns.color_palette([sp.SUSSEX_COBALT_BLUE]):
+            sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c, )
         ax1.legend().remove()
 
         ax1.set_ylabel('$D_{nuclei}$ $[\mu m]$')
@@ -170,10 +159,6 @@ def retreat1(df, dfc):
         zm = _df['DistCentr'].max()
         sp.ribbon(_df[_df['condition'] == '-STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax1, z_max=zm)
         sp.ribbon(_df[_df['condition'] == '+STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax2, z_max=zm)
-
-        # bugfix: rotate xticks for last subplot
-        # for tick in ax5.get_xticklabels():
-        #     tick.set_rotation('horizontal')
 
         ax1.set_zlabel('$D_{between}$ $[\mu m]$')
         ax2.set_zlabel('')
@@ -216,7 +201,6 @@ def retreat1(df, dfc):
 
         ax2.yaxis.set_label_text('')
         ax2.yaxis.set_ticklabels([])
-        # ax2.set_xlabel('Time delay $[min]$')
         ax2.set_xlabel('')
         ax2.legend(title=None, loc='upper right')
 
@@ -389,6 +373,232 @@ def retreat4(df):
         pdf.savefig(transparent=True)
 
 
+def retreat5(df):
+    with PdfPages('/Users/Fabio/elastica.pdf') as pdf:
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches(5.27, 5.27)
+        gs = matplotlib.gridspec.GridSpec(2, 2)
+        ax1 = plt.subplot(gs[0:2, 0:2])
+
+        with open('/Users/Fabio/elastica.cfg.txt', 'r') as configfile:
+            config = ConfigParser.ConfigParser()
+            config.readfp(configfile)
+
+        print 'sections found in file ', config.sections()
+
+        section = config.sections()[1]
+        yn = np.array(json.loads(config.get(section, 'measure')))
+        inip = np.array(json.loads(config.get(section, 'comment')))
+
+        num_points = 500
+
+        # ---------------------
+        # plot initial model
+        # ---------------------
+        L, a1, a2, E, F, gamma, x0, y0, theta = inip
+        s = np.linspace(0, L, num_points)
+        r = e.heavy_planar_bvp(s, F=F, E=E, gamma=gamma)
+        pol = r.sol
+        xo = pol(s)[0:2, :]
+        ys = e.eval_heavy_planar(s, pol, a1, a2)[0:2, :]
+
+        # deal with rotations and translations
+        sinth, costh = np.sin(theta), np.cos(theta)
+        M = np.array([[costh, -sinth], [sinth, costh]])
+        ys = np.matmul(M, ys) + np.array([x0, y0]).reshape((2, 1))
+        xo = np.matmul(M, xo) + np.array([x0, y0]).reshape((2, 1))
+
+        _ax = ax1
+        _ax.plot(xo[0], xo[1], lw=3, c=sp.SUSSEX_CORAL_RED, zorder=2)
+        _ax.plot(ys[0], ys[1], lw=5, c=sp.SUSSEX_POWDER_BLUE, zorder=1)
+        _ax.scatter(yn[0], yn[1], c=sp.SUSSEX_POWDER_BLUE, marker='X', zorder=3)
+
+        # ---------------------
+        # plot estimations
+        # ---------------------
+        othr = 50
+        filter_df = df[df['objfn'] < othr]
+        print 'filtered %d rows' % len(filter_df.index)
+        for row in filter_df.iterrows():
+            row = row[1]
+            s = np.linspace(0, row['L'], num_points)
+            r = e.heavy_planar_bvp(s, F=row['F'], E=row['E'], gamma=row['gamma'])
+            pol = r.sol
+            xo = pol(s)[0:2, :]
+            xs, ys = e.eval_heavy_planar(s, pol, row['a1'], row['a2'])[0:2, :]
+            ys = np.array([xs, ys])
+
+            # deal with rotations and translations
+            sinth, costh = np.sin(row['theta']), np.cos(row['theta'])
+            M = np.array([[costh, -sinth], [sinth, costh]])
+            ys = np.matmul(M, ys) + np.array([row['x0'], row['y0']]).reshape((2, 1))
+            xo = np.matmul(M, xo) + np.array([row['x0'], row['y0']]).reshape((2, 1))
+
+            _ax.plot(xo[0], xo[1], lw=1, c=sp.SUSSEX_COBALT_BLUE, label='%0.1f' % row['E'], alpha=0.4, zorder=4)
+
+        # fig.suptitle('Solutions with an objective function lower than %0.1f' % othr)
+        # ax1.set_title('Solutions with an objective function lower than %0.1f' % othr)
+
+        red_patch = mpatches.Patch(color=sp.SUSSEX_COBALT_BLUE, label='Estimation')
+        green_patch = mpatches.Patch(color=sp.SUSSEX_CORAL_RED, label='Ground')
+        ax1.legend(handles=[red_patch, green_patch], loc='lower right')
+
+        pdf.savefig(transparent=True)
+        plt.close()
+
+
+def animations(_df, _mask):
+    import matplotlib.lines as lines
+    import h5py
+    matplotlib.rcParams.update(matplotlib.rcParamsDefault)
+    matplotlib.use('Agg')
+
+    _hdf5file = '/Volumes/LocalData HD/Users/fe56/centrosomes.nexus.hdf5'
+    _conds = ['pc']
+    df, conds, colors = sorted_conditions(_df, _conds)
+    mask, condsm, colorsm = sorted_conditions(_mask, _conds)
+
+    df = df[df['Nuclei'] == 2]
+    df = df[df['run'] == 'run_100']
+    mask = mask[mask['Nuclei'] == 2]
+    mask = mask[mask['run'] == 'run_100']
+
+    # condition = df['condition'].unique()[0]
+    condition = _conds[0]
+    run = df['run'].unique()[0]
+    nuclei = df['Nuclei'].unique()[0]
+
+    dpi_anim = 326
+    fig = plt.figure(dpi=dpi_anim)
+    fig.set_size_inches(4.87 / 3, 2.31)
+    plt.subplots_adjust(left=0.3)
+    ax = plt.gca()
+
+    with h5py.File(_hdf5file, 'r') as f:
+        ch2 = f['%s/%s/raw/%03d/channel-2' % (condition, run, 0)]
+        resolution = ch2.parent.attrs['resolution']
+
+    def cell_movie(ax, frame):
+        with h5py.File(_hdf5file, 'r') as f:
+            if 'pandas_dataframe' not in f['%s/%s/measurements' % (condition, run)]:
+                raise KeyError('No data for selected condition-run.')
+
+            nuclei_list = f['%s/%s/measurements/nuclei' % (condition, run)]
+            centrosome_list = f['%s/%s/measurements/centrosomes' % (condition, run)]
+            sel = f['%s/%s/selection' % (condition, run)]
+            df = pd.read_hdf(_hdf5file, key='%s/%s/measurements/pandas_dataframe' % (condition, run), mode='r')
+
+            with h5py.File(_hdf5file, 'r') as f:
+                ch2 = f['%s/%s/raw/%03d/channel-2' % (condition, run, frame)]
+                data = ch2[:]
+
+            ax.imshow(data, extent=[0, 512 / resolution, 512 / resolution, 0])
+
+            # for nucID in nuclei_list:
+            for nucID in ['N02']:
+                nuc = nuclei_list[nucID]
+                nid = int(nucID[1:])
+                if nid == 0: continue
+                nfxy = nuc['pos'].value
+                nuc_frames = nfxy.T[0]
+
+                fidx = nuc_frames.searchsorted(frame)
+                nx = nfxy[fidx][1] / resolution
+                ny = nfxy[fidx][2] / resolution
+
+                # is_in_selected_nuclei = int(nucID[1:]) == nuclei
+                # circle = mpatches.Circle((nx - 5, ny - 5), radius=1, color=sp.SUSSEX_CORN_YELLOW)
+                # ax.add_patch(circle)
+                # ax.text(nx + 10, ny + 5, nucID, color='white')
+                # ax.text(10, 30, '%02d - (%03d,%03d)' % (frame, dwidth, dheight))
+
+                # get nuclei boundary as a polygon
+                df_nucfr = df[(df['Nuclei'] == nid) & (df['Frame'] == frame)]
+                if len(df_nucfr['NuclBound'].values) > 0:
+                    nuc_boundary_str = df_nucfr['NuclBound'].values[0]
+                    if nuc_boundary_str[1:-1] != '':
+                        nucb_points = eval(nuc_boundary_str[1:-1])
+                        points = [[x, y] for x, y in nucb_points]
+                        nucleipol = plt.Polygon(points, closed=True, fill=None, lw=1,
+                                                edgecolor=sp.SUSSEX_CORN_YELLOW)
+                        ax.add_patch(nucleipol)
+
+            # for cntrID in centrosome_list:
+            for cntrID, txt, col in zip(['C201', 'C001'], ['C1', 'C2'], [sp.SUSSEX_CORAL_RED, sp.SUSSEX_TURQUOISE]):
+                cntr = centrosome_list[cntrID]
+                cfxy = cntr['pos'].value
+                cnt_frames = cfxy.T[0]
+
+                if frame in cnt_frames:
+                    fidx = cnt_frames.searchsorted(frame)
+                    cx = cfxy[fidx][1]
+                    cy = cfxy[fidx][2]
+
+                    circle = mpatches.Circle((cx, cy), radius=1, color=col, zorder=300)
+                    ax.add_patch(circle)
+                    ax.text(cx + 2, cy, txt, color='white')
+
+                    nuc = nuclei_list['N02']
+                    nfxy = nuc['pos'].value
+                    nuc_frames = nfxy.T[0]
+                    if frame in nuc_frames:
+                        fidx = nuc_frames.searchsorted(frame)
+                        nx = nfxy[fidx][1]
+                        ny = nfxy[fidx][2]
+
+                        circle = mpatches.Circle((nx, ny), radius=0.4, color=sp.SUSSEX_CORN_YELLOW, zorder=300)
+                        ax.add_patch(circle)
+                        line = lines.Line2D([nx, cx], [ny, cy], c='white', lw=1, zorder=100)
+                        ax.add_line(line)
+
+            ax.set_xlabel('$X$ $[\mu m]$')
+            ax.set_ylabel('$Y$ $[\mu m]$')
+            ax.set_xlim(0, 60)
+            ax.set_ylim(0, 60)
+            ax.set_xticks(range(0, 60, 20))
+        return ax
+
+    def dist_movie(frame, df):
+        figsiz = (4.87 / 3 * 2, 2.31)
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex='col',
+                                       gridspec_kw={'height_ratios': [2, 1]}, figsize=figsiz)
+        plt.subplots_adjust(left=0.15, bottom=0.22, right=0.9, top=0.99, wspace=0.2, hspace=0.1)
+        # fig.set_size_inches(2.31, 4.87 / 3 * 2)
+
+        max_time = df[df['Frame'] == 20]['Time'].values[0]
+        df = df[df['Frame'] <= frame]
+        mask['Time'] = mask['Time'].astype('int32')
+
+        between_df = df[df['CentrLabel'] == 'A']
+        mask_c = r.centr_masks(mask)
+        time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
+
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_TURQUOISE]):
+            sp.distance_to_nucleus(df, ax1, mask=mask, time_contact=time_of_c, plot_interp=True)
+            sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c)
+        ax1.legend().remove()
+
+        # print max_time
+        ax1.set_xlim(0, max_time)
+        ax1.set_ylim(0, df['Dist'].max())
+        ax1.set_ylabel('$D_{nuclei}$ $[\mu m]$')
+        ax2.set_ylabel('$D_{between}$')
+        ax2.set_xlabel('Time $[min]$')
+
+        return
+
+    for f in range(20):
+        ax.cla()
+        cell_movie(ax, f)
+        plt.savefig('/Volumes/LocalData HD/Users/fe56/mov/mov1_f%03d.png' % f, dpi=dpi_anim)
+
+    for f in range(20):
+        ax.cla()
+        dist_movie(f, df)
+        plt.savefig('/Volumes/LocalData HD/Users/fe56/mov/mov2_f%03d.png' % f, dpi=dpi_anim, transparent=True)
+
+
 def color_keys(dfc):
     fig = matplotlib.pyplot.gcf()
     fig.clf()
@@ -439,3 +649,5 @@ if __name__ == '__main__':
     retreat1(df_m, df_mc)
     retreat2(df_m)
     retreat4(df_m)
+    retreat5(df=pd.read_csv('/Users/Fabio/elastica.csv'))
+    animations(df_m, mask)
