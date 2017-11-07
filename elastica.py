@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 from numpy import cos, sin
 from scipy.integrate import solve_bvp
@@ -105,3 +107,18 @@ def model_heavyplanar(p, num_points=100):
         ys = np.matmul(M, ys) + np.array([x0, y0]).reshape((2, 1))
 
         return ys[0:2, s1:s2]
+
+
+def obj_minimize(p, yn, Np=100):
+    slen = yn.shape[1]
+    ymod = model_heavyplanar(p, num_points=Np)
+    if ymod is not None and ymod.shape[1] >= slen:
+        objfn = (ymod[0:2, 0:slen] - yn[0:2, 0:slen]).flatten()
+        objfn = np.sum(objfn ** 2)
+        logging.debug(
+            'x=[%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f]. Obj f(x)=%0.3f' % (
+                p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], objfn))
+        return objfn
+    else:
+        logging.debug('No solution for objective function.')
+        return np.finfo('float64').max

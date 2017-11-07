@@ -28,19 +28,6 @@ deactivate
 """
 
 
-def obj_minimize(p, yn, Np=100):
-    slen = yn.shape[1]
-    ymod = e.model_heavyplanar(p, num_points=Np)
-    if ymod is not None and ymod.shape[1] >= slen:
-        objfn = (ymod[0:2, 0:slen] - yn[0:2, 0:slen]).flatten()
-        objfn = np.sum(objfn ** 2)
-        logging.info(
-            'x=[%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f,\t%03.4f]. Obj f(x)=%0.3f' % (
-                p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[7], objfn))
-        return objfn
-    else:
-        logging.info('No solution for objective function.')
-        return np.finfo('float64').max
 
 
 def job(section, fname, Np=100):
@@ -62,8 +49,8 @@ def job(section, fname, Np=100):
                             (0.01, 2.0), (0.0, 10.0), (-np.pi, np.pi),
                             (0, 120.), (0, 120.), (-np.pi, np.pi))
             x0 = [9.0, 0.2, 0.7, 0.1, 2, 10, 0, 0, 0]
-            res = basinhopping(obj_minimize, x0, minimizer_kwargs={'bounds': param_bounds, 'args': (yn, Np)})
-            objf = obj_minimize(res.x, yn)
+            res = basinhopping(e.obj_minimize, x0, minimizer_kwargs={'bounds': param_bounds, 'args': (yn, Np)})
+            objf = e.obj_minimize(res.x, yn)
             logging.info('x0=[%f,%f,%f,%f,%f,%f,%f,%f,%f] ' % tuple(res.x))
             logging.info('objective function final: %f' % objf)
 
@@ -123,7 +110,7 @@ if __name__ == '__main__':
         # create some test data
         L, a1, a2 = 10.0, 0.1, 0.6
         E, F, gamma = 1.0, 0.1, np.pi / 2
-        x0, y0, theta = 200, 250, np.pi / 6
+        x0, y0, theta = 20, 35, np.pi / 6
         Np = 100
         _yn = e.gen_test_data(L, a1, a2, E, F, gamma, x0, y0, theta, Np)
         comment = [L, a1, a2, E, F, gamma, x0, y0, theta]

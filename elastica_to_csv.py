@@ -1,10 +1,13 @@
 import ConfigParser
 import argparse
 import ast
+import logging
 import os
 import re
 
 import pandas as pd
+
+logging.basicConfig(level=logging.INFO)
 
 parser = argparse.ArgumentParser(description='Traverses a folder containing SGE result files, constructing a csv file.')
 parser.add_argument('directory', metavar='D', type=str, help='initial directory')
@@ -47,4 +50,4 @@ for root, directories, filenames in os.walk(args.directory):
                     with open(args.out, 'a') as f:
                         df.to_csv(f, header=False, index=False)
                 except AttributeError:
-                    print 'no enough data in file.'
+                    print 'no enough data in file %s' % joinf
