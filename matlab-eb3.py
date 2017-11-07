@@ -346,13 +346,17 @@ def est_plots(df_matlab, res):
             _ax.text(df['x'].iloc[0], df['y'].iloc[0], _id, fontsize=5)
         trk_lr, xi = est_lines(df_matlab, 4, res, ax=_ax)
         np.savetxt('/Users/Fabio/intersection.csv', xi, delimiter=',')
+        _ax.set_xlabel('x $[\mu m]$')
+        _ax.set_ylabel('y $[\mu m]$')
 
         # plot one track and fit model
         _ax = ax3
-        trk__id = 1041
+        trk__id = 3615
         df = df_matlab[df_matlab['trk'] == trk__id]
         df.plot.scatter(x='x', y='y', c=cmap, ax=_ax)
         _ax.set_title(trk__id)
+        _ax.set_xlabel('x $[\mu m]$')
+        _ax.set_ylabel('y $[\mu m]$')
 
         pdf.savefig()
         plt.close()
@@ -372,8 +376,8 @@ def est_plots(df_matlab, res):
 
 
 if __name__ == '__main__':
-    do_compute = do_filter_stats = True
-    # do_compute = do_filter_stats = False
+    # do_compute = do_filter_stats = True
+    do_compute = do_filter_stats = False
     # do_compute, do_filter_stats = False, True
     # do_compute, do_filter_stats = True, False
 
@@ -431,10 +435,10 @@ if __name__ == '__main__':
         logging.info('Loaded %d tracks after filters' % df_flt['trk'].unique().size)
 
     logging.info('making stat plots')
-    stats_plots(df_matlab, df_stat, res, img_file=imgname)
+    # stats_plots(df_matlab, df_stat, res, img_file=imgname)
 
     logging.info('making msd plots')
-    msd_plots(df_flt)
+    # msd_plots(df_flt)
 
     logging.info('making estimation plots')
-    est_plots(df_flt)
+    est_plots(df_flt, res)

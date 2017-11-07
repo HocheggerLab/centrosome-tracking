@@ -11,6 +11,7 @@ from matplotlib.patches import Arc
 from pathlib import Path
 
 import elastica as e
+import label as l
 
 logging.basicConfig(level=logging.INFO)
 
@@ -85,14 +86,15 @@ def drawLine2P(x, y, ax=plt.gca()):
 def generate_figures(suffix, figure=lp.figure):
     with figure('elastica' + suffix):
         # create some test data
-        L, a1, a2, E, F, gamma, x0, y0, theta = 10.0, 0.1, 0.6, 1.0, 0.1, np.pi / 8, 200, 250, np.pi / 16
+        # L, a1, a2, E, F, gamma, x0, y0, theta = 10.0, 0.1, 0.6, 1.0, 0.1, np.pi / 8, 200, 250, np.pi / 16
+        L, a1, a2, E, F, gamma, x0, y0, theta = 10.0, 0.1, 0.6, 1.0, 0.1, np.pi / 8, 0, 0, 0
         Np = 100
         s = np.linspace(0, L, Np)
         r = e.heavy_planar_bvp(s, F=F, E=E, gamma=gamma)
         pol = r.sol
         xo = pol(s)[0:2, :]
         ys = e.eval_heavy_planar(s, pol, a1, a2)[0:2, :]
-        yn = e.gen_test_data(a1, a2, L, E, F, gamma, x0, y0, theta, Np)
+        yn = e.gen_test_data(L, a1, a2, E, F, gamma, x0, y0, theta, Np)
 
         # deal with rotations and translations
         sinth, costh = np.sin(theta), np.cos(theta)
@@ -103,25 +105,37 @@ def generate_figures(suffix, figure=lp.figure):
         ax = plt.gca()
         ax.plot(xo[0], xo[1], lw=1, c=winered, zorder=2)
         ax.plot(ys[0], ys[1], lw=2, c=mycyan, zorder=2)
-        ax.scatter(yn[0], yn[1], c=mycyan, marker='+', lw=0.1, zorder=3)
+        ax.scatter(yn[0], yn[1], c=mycyan, marker='X', lw=0.1, s=10, zorder=3)
         # ax.plot(xo[0, [0, -1]], xo[1, [0, -1]], lw=1, c=mygray, ls='--', zorder=1)
         ax.scatter(xo[0, -1], xo[1, -1], marker='o', c=mygray, zorder=4)
 
         xlims = ax.get_xlim()
         line_1 = drawLine2P(xo[0, [0, -1]], xo[1, [0, -1]])
         line_2 = drawLine2P([xlims[0], xlims[1]], [xo[1, -1], xo[1, -1]])
-        angle_plot = get_angle_plot(line_1, line_2, 1, origin=[xo[0, 0], xo[1, 0]])
-        angle_text = get_angle_text(angle_plot)
-        ax.add_line(line_1)
+        # ax.add_line(line_1)
         ax.add_line(line_2)
-        ax.add_patch(angle_plot)  # To display the angle arc
-        ax.text(*angle_text)  # To display the angle value
+        # angle_plot = get_angle_plot(line_1, line_2, 1, origin=[xo[0, 0], xo[1, 0]])
+        # angle_text = get_angle_text(angle_plot)
+        # ax.add_patch(angle_plot)  # To display the angle arc
+        # ax.text(*angle_text)  # To display the angle value
+
+        ax.arrow(xo[0, 0], xo[1, 0], np.cos(pol(s)[2, 0]), np.sin(pol(s)[2, 0]), color=mygray, head_width=0, ls='--')
+        ax.text(xo[0, 0] + 0.2, xo[1, 0] + 0.3, '$s=0$', color=mygray)
+        ax.text(xo[0, 0] - 0.8, xo[1, 0] - 0.2, '$\gamma$', color=mygray)
+        ax.text(xo[0, 0] + 0.4, xo[1, 0] - 0.25, '$\phi_0$', color=mygray)
+        ax.text(xo[0, 0] - 1.6 * np.cos(gamma), xo[1, 0] - 1.6 * np.sin(gamma), '$F$', color=mygray)
+
+        L = ax.plot(xo[0], xo[1] + 1, lw=1, c=mygray, zorder=2, label='L')
+        ax.arrow(xo[0, 0], xo[1, 0], -np.cos(gamma), -np.sin(gamma), color=mygray, head_width=0.1)
+        l.labelLines(L)
 
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         ax.spines['bottom'].set_visible(False)
         ax.spines['left'].set_visible(False)
         ax.set_aspect('equal', 'datalim')
+
+        plt.savefig('/Users/Fabio/elastica-latex.pdf', format='pdf')
 
 
 if __name__ == '__main__':
