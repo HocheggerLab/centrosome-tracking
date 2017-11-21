@@ -11,14 +11,18 @@ import scipy.io as sio
 import seaborn as sns
 import tifffile as tf
 from matplotlib.backends.backend_pdf import PdfPages
+from scipy import stats
 from sklearn import linear_model
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 pd.set_option('display.width', 320)
+indiv_idx = ['tag', 'trk']
 
 
-def import_eb3_matlab(filename, tag=None):
-    x = sio.loadmat(filename, squeeze_me=True)
+def import_eb3_matlab(gen_filename, trk_filename, tag=None):
+    g = sio.loadmat(gen_filename, squeeze_me=True)
+    x = sio.loadmat(trk_filename, squeeze_me=True)
+    time_interval = g['timeInterval']
     tracks = x['tracksFinal']
     tracked_particles = tracks['tracksCoordAmpCG']
     trk_events = tracks['seqOfEvents']
@@ -33,8 +37,9 @@ def import_eb3_matlab(filename, tag=None):
             if ini_frame is not None and end_frame is not None:
                 trk = np.reshape(_trk, [len(_trk) / 8, 8])
                 _df = pd.DataFrame(data=trk[:, 0:2], columns=['x', 'y'])
-                _df['trk'] = ti
-                _df['frame'] = np.arange(ini_frame, end_frame, 1, np.int16)
+                _df.loc[:, 'trk'] = ti
+                _df.loc[:, 'frame'] = np.arange(ini_frame, end_frame, 1, np.int16)
+                _df.loc[:, 'time'] = _df['frame'] * time_interval
 
                 df_out = df_out.append(_df)
             else:
@@ -50,7 +55,7 @@ def df_filter(df, k=10, msd_thr=50.0):
     logging.info('%d tracks before filter' % (df['trk'].unique().size))
     # filter dataframe for tracks having more than K points
     filtered_df = pd.DataFrame()
-    for _tid, _tdf in df.groupby('trk'):
+    for _tid, _tdf in df.groupby(indiv_idx):
         if len(_tdf.index) > k:
             filtered_df = filtered_df.append(_tdf)
     df = filtered_df
@@ -67,12 +72,26 @@ def df_filter(df, k=10, msd_thr=50.0):
     return df
 
 
-def msd(dfi):
+def speed_acc(df, x='x', y='y', time='time', frame='frame', group=None):
+    df = df.set_index(frame).sort_index()
+    dout = pd.DataFrame()
+    for c_i, dc in df.groupby(group):
+        dc.loc[:, 'dist'] = np.sqrt(dc[x] ** 2 + dc[y] ** 2)  # relative to nuclei centroid
+        d = dc.loc[:, [x, y, 'dist', time]].diff().rename(columns={x: 'dx', y: 'dy', 'dist': 'dD', time: 'dt'})
+        dc.loc[:, 'speed'] = d.dD / d.dt
+        df.loc[:, 'acc'] = d.dD.diff() / d.dt
+        dout = dout.append(dc)
+
+    return dout.reset_index()
+
+
+def msd(df, frame='frame'):
     """
         Computes Mean Square Displacement as defined by:
 
         {\rm {MSD}}\equiv \langle (x-x_{0})^{2}\rangle ={\frac {1}{N}}\sum _{n=1}^{N}(x_{n}(t)-x_{n}(0))^{2}
     """
+    dfi = df.set_index(frame).sort_index()
     dfout = pd.DataFrame()
     for _id, _df in dfi.groupby('trk'):
         x0, y0 = _df['x'].iloc[0], _df['y'].iloc[0]
@@ -123,6 +142,155 @@ def trk_length(df):
         dfout = dfout.append(dst)
 
     return dfout.set_index('trk')
+
+
+def indiv_plots(dff):
+    with PdfPages('/Users/Fabio/eb3_indv.pdf') as pdf:
+        _err_kws = {'alpha': 0.3, 'lw': 1}
+        flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+        palette = sns.color_palette(flatui)
+
+        # ---------------------------
+        #          FIRST PAGE
+        # ---------------------------
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches(_fig_size_A3)
+        gs = matplotlib.gridspec.GridSpec(3, 2)
+        ax1 = plt.subplot(gs[0, 0])
+        ax2 = plt.subplot(gs[0, 1])
+        ax3 = plt.subplot(gs[1, 0])
+        ax4 = plt.subplot(gs[1, 1])
+        ax5 = plt.subplot(gs[2, 0])
+        ax6 = plt.subplot(gs[2, 1])
+
+        a = 1.0
+
+        for (id, fdf), _color in zip(dff.groupby('tag'), palette):
+            fdf = fdf.groupby('trk')
+            fdf.plot(x='time', y='dist', c=_color, lw=1, alpha=a, legend=False, ax=ax1)
+            fdf.plot(x='time', y='dist_i', c=_color, lw=1, alpha=a, legend=False, ax=ax2)
+
+            fdf.plot(x='time_i', y='dist', c=_color, lw=1, alpha=a, legend=False, ax=ax3)
+            fdf.plot(x='time_i', y='dist_i', c=_color, lw=1, alpha=a, legend=False, ax=ax4)
+
+        fig.suptitle('Distance')
+        for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
+            #     ax.legend([])
+            ax.set_xlabel('Time $[s]$')
+
+        ax1.set_title('Absolute distance over time')
+        ax2.set_title('Incremental distance over time')
+
+        pdf.savefig()
+        plt.close()
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches(_fig_size_A3)
+        gs = matplotlib.gridspec.GridSpec(3, 2)
+        ax1 = plt.subplot(gs[0, 0])
+        ax2 = plt.subplot(gs[0, 1])
+        ax3 = plt.subplot(gs[1, 0])
+        ax4 = plt.subplot(gs[1, 1])
+        ax5 = plt.subplot(gs[2, 0])
+        ax6 = plt.subplot(gs[2, 1])
+
+        dff.loc[:, 'speed'] = dff['speed'].abs()
+        # construct average track speed and track length
+        df_avgspd = pd.DataFrame()
+        print dff.index
+        for id, fdf in dff.groupby(indiv_idx):
+            time_ini = fdf['time'].iloc[0]
+            df_spd = pd.DataFrame([{'tag': fdf['tag'].iloc[0], 'trk': id,
+                                    'time': time_ini, 'avg_spd': fdf['speed'].mean(),
+                                    'trk_len': fdf['dist'].size}])
+            df_avgspd = df_avgspd.append(df_spd)
+
+        a = 0.2
+        df = dff.reset_index()
+        with sns.color_palette(flatui):
+            sns.tsplot(data=df, time='time', value='speed', unit='trk', condition='tag',
+                       estimator=np.nanmean, err_style=['unit_traces'], err_kws=_err_kws, ax=ax1)
+            sns.tsplot(data=df, time='time', value='speed', unit='trk', condition='tag',
+                       estimator=np.nanmean, ax=ax2)
+
+            sns.tsplot(data=df, time='time_i', value='speed', unit='trk', condition='tag',
+                       estimator=np.nanmean, err_style=['unit_traces'], err_kws=_err_kws, ax=ax3)
+            sns.tsplot(data=df, time='time_i', value='speed', unit='trk', condition='tag',
+                       estimator=np.nanmean, ax=ax4)
+
+        for (id, adf), _color in zip(df_avgspd.groupby('tag'), palette):
+            kde_avgspd = stats.gaussian_kde(adf['avg_spd'])
+            kde_trklen = stats.gaussian_kde(adf['trk_len'])
+            y_avgspd = np.linspace(adf['avg_spd'].min(), adf['avg_spd'].max(), 100)
+            y_trklen = np.linspace(adf['trk_len'].min(), adf['trk_len'].max(), 100)
+            x_avgspd = kde_avgspd(y_avgspd) * 5.0
+            x_trklen = kde_trklen(y_trklen) * 100
+
+            adf.plot.scatter(x='time', y='avg_spd', color=_color, alpha=a, ax=ax5)
+            ax5.plot(x_avgspd, y_trklen, color=_color)  # gaussian kde
+
+            df_avgspd.plot.scatter(x='time', y='trk_len', color=_color, alpha=a, ax=ax6)
+            ax6.plot(x_trklen, y_trklen, color=_color)  # gaussian kde
+
+        ax1.set(yscale='log')
+        ax3.set(yscale='log')
+
+        fig.suptitle('Speed')
+        for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
+            ax.set_xlabel('Time $[s]$')
+        ax5.set_ylim(0, df_avgspd['avg_spd'].max())
+        ax6.set_ylim(0, df_avgspd['trk_len'].max())
+
+        pdf.savefig()
+        plt.close()
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches(_fig_size_A3)
+        gs = matplotlib.gridspec.GridSpec(3, 2)
+        ax1 = plt.subplot(gs[0, 0])
+        ax2 = plt.subplot(gs[0, 1])
+        ax3 = plt.subplot(gs[1, 0])
+        ax4 = plt.subplot(gs[1, 1])
+        ax5 = plt.subplot(gs[2, 0])
+        ax6 = plt.subplot(gs[2, 1])
+
+        for (id, adf), _color in zip(df_avgspd.groupby('tag'), palette):
+            kde_avgspd = stats.gaussian_kde(adf['avg_spd'])
+            kde_trklen = stats.gaussian_kde(adf['trk_len'])
+            x_avgspd = np.linspace(adf['avg_spd'].min(), adf['avg_spd'].max(), 100)
+            x_trklen = np.linspace(adf['trk_len'].min(), adf['trk_len'].max(), 100)
+
+            ax1.plot(x_avgspd, kde_avgspd(x_avgspd), color=_color)
+            ax2.plot(x_trklen, kde_trklen(x_trklen), color=_color)  # gaussian kde
+            adf['avg_spd'].plot.hist(20, color=_color, ax=ax3)
+
+        # kde of all runs
+        # kde_avgspd = stats.gaussian_kde(df_avgspd['avg_spd'])
+        # kde_trklen = stats.gaussian_kde(df_avgspd['trk_len'])
+        # x_avgspd = np.linspace(df_avgspd['avg_spd'].min(), df_avgspd['avg_spd'].max(), 100)
+        # x_trklen = np.linspace(df_avgspd['trk_len'].min(), df_avgspd['trk_len'].max(), 100)
+
+        sns.distplot(df_avgspd['avg_spd'], ax=ax5)
+        sns.distplot(df_avgspd['trk_len'], ax=ax6)
+
+        ax1.set_title('Avg speed per track')
+        ax2.set_title('Track length')
+        for ax in [ax1, ax3, ax5]:
+            ax.set_xlabel('Avg speed $[\mu m/s]$')
+        for ax in [ax2, ax4, ax6]:
+            ax.set_xlabel('N frames')
+
+        pdf.savefig()
+        plt.close()
 
 
 def stats_plots(df, df_stats, res, img_file=None):
@@ -180,16 +348,15 @@ def stats_plots(df, df_stats, res, img_file=None):
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches(_fig_size_A3)
+        gs = matplotlib.gridspec.GridSpec(3, 2)
+        ax1 = plt.subplot(gs[0, 0])
+        ax2 = plt.subplot(gs[0, 1])
+        ax3 = plt.subplot(gs[1, 0])
+        ax4 = plt.subplot(gs[1, 1])
 
-        # # g = sns.JointGr_id(x='d', y='msd_sum', data=df_stat, space=0)
-        # # g = g.plot_joint(sns.kdeplot, cmap='Blues_d')
-        # g = g.plot_joint(plt.scatter, color='.5', edgecolor='white')
-        # # g = g.plot_marginals(sns.kdeplot, shade=True,bins=msd_bins)
-        # ax = g.ax_joint
-        # ax.set_xscale('log')
-        # ax.set_yscale('log')
-        # # g.ax_marg_x.set_xscale('log')
-        # # g.ax_marg_y.set_yscale('log')
+        for _id, df in _df.groupby('trk'):
+            df.plot(x='time', y='dist', c=cmap, ax=ax1, lw=1, alpha=0.3, color='gr')
+            df.plot(x='time', y='speed', c=cmap, ax=ax2, lw=1, alpha=0.3, color='gr')
 
         pdf.savefig()
         plt.close()
@@ -376,48 +543,65 @@ def est_plots(df_matlab, res):
 
 
 if __name__ == '__main__':
-    # do_compute = do_filter_stats = True
-    do_compute = do_filter_stats = False
+    do_compute = do_filter_stats = True
+    # do_compute = do_filter_stats = False
     # do_compute, do_filter_stats = False, True
-    # do_compute, do_filter_stats = True, False
 
     _fig_size_A3 = (11.7, 16.5)
     _err_kws = {'alpha': 0.3, 'lw': 1}
 
-    fname = '/Users/Fabio/data/lab/eb3-control/data/Result of U2OS CDK1as EB3 +1NM on controls only.sld - Capture 1/TrackingPackage/tracks/Channel_1_tracking_result.mat'
-    imgname = '/Users/Fabio/data/lab/eb3-control/input/U2OS CDK1as EB3 +1NM on controls only.sld - Capture 1.tif'
-    with tf.TiffFile(imgname, fastij=True) as tif:
-        if tif.is_imagej is not None:
-            res = 'n/a'
-            if tif.pages[0].resolution_unit == 'centimeter':
-                # asuming square pixels
-                xr = tif.pages[0].x_resolution
-                res = float(xr[0]) / float(xr[1])  # pixels per cm
-                res = res / 1e4  # pixels per um
-            elif tif.pages[0].imagej_tags.unit == 'micron':
-                # asuming square pixels
-                xr = tif.pages[0].x_resolution
-                res = float(xr[0]) / float(xr[1])  # pixels per um
-
     if do_compute:
-        df_matlab = import_eb3_matlab(fname).set_index('frame').sort_index()
-        df_matlab['x'] /= res
-        df_matlab['y'] /= res
-        df_matlab = msd(df_matlab)
-        # TODO: compute speed and acceleration
-        df_matlab.to_pickle('/Users/Fabio/eb3.pandas')
+        df_matlab = pd.DataFrame()
+        for c in range(7)[1:]:
+            # Import
+            dir_base = '/Users/Fabio/data/lab/eb3-control'
+            dir_data = dir_base + '/data/Result of U2OS CDK1as EB3 +1NM on controls only.sld - Capture %d/' % (c)
+            dir_input = dir_base + '/input'
+            genfname = dir_data + 'time.mat'
+            trkfname = dir_data + '/TrackingPackage/tracks/Channel_1_tracking_result.mat'
+            imgname = dir_input + '/U2OS CDK1as EB3 +1NM on controls only.sld - Capture %d.tif' % (c)
+            with tf.TiffFile(imgname, fastij=True) as tif:
+                if tif.is_imagej is not None:
+                    res = 'n/a'
+                    if tif.pages[0].resolution_unit == 'centimeter':
+                        # asuming square pixels
+                        xr = tif.pages[0].x_resolution
+                        res = float(xr[0]) / float(xr[1])  # pixels per cm
+                        res = res / 1e4  # pixels per um
+                    elif tif.pages[0].imagej_tags.unit == 'micron':
+                        # asuming square pixels
+                        xr = tif.pages[0].x_resolution
+                        res = float(xr[0]) / float(xr[1])  # pixels per um
+            df_mtlb = import_eb3_matlab(genfname, trkfname, tag='eb3-control-%d' % (c))
+
+            # Process
+            df_mtlb['x'] /= res
+            df_mtlb['y'] /= res
+            df_mtlb = speed_acc(df_mtlb, group='trk')
+            df_mtlb = msd(df_mtlb)
+            df_matlab = df_matlab.append(df_mtlb)
+        df_matlab.to_pickle('/Users/Fabio/eb3-control.pandas')
     else:
-        df_matlab = pd.read_pickle('/Users/Fabio/eb3.pandas')
+        df_matlab = pd.read_pickle('/Users/Fabio/eb3-control.pandas')
 
     if do_filter_stats:
         df_stat = trk_length(df_matlab)
         df_stat.to_pickle('/Users/Fabio/eb3stats.pandas')
 
         df_flt = df_filter(df_matlab, k=10, msd_thr=5)
+        dfout = pd.DataFrame()
+        for id, fdf in df_flt.groupby(indiv_idx):
+            time_ini = fdf['time'].iloc[0]
+            dist_ini = fdf['dist'].iloc[0]
+            fdf.loc[:, 'time_i'] = fdf['time'] - time_ini
+            fdf.loc[:, 'dist_i'] = fdf['dist'] - dist_ini
+            dfout = dfout.append(fdf)
+        df_flt = dfout
         df_flt.to_pickle('/Users/Fabio/eb3filter.pandas')
 
         # msd_lreg = msd_lreg(df_flt)
         # msd_lreg.to_pickle('/Users/Fabio/eb3reg.pandas')
+
 
         # write csv eb3 track data
         filename = '/Users/Fabio/eb3_tracks.csv'
@@ -434,11 +618,14 @@ if __name__ == '__main__':
         # msd_lreg = pd.read_pickle('/Users/Fabio/eb3reg.pandas')
         logging.info('Loaded %d tracks after filters' % df_flt['trk'].unique().size)
 
+    logging.info('making indiv plots')
+    indiv_plots(df_flt)
+
     logging.info('making stat plots')
-    # stats_plots(df_matlab, df_stat, res, img_file=imgname)
+    stats_plots(df_matlab, df_stat, res, img_file=imgname)
 
     logging.info('making msd plots')
-    # msd_plots(df_flt)
+    msd_plots(df_flt)
 
     logging.info('making estimation plots')
     est_plots(df_flt, res)
