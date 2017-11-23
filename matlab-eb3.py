@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 import time
 
@@ -144,8 +145,8 @@ def trk_length(df):
     return dfout.set_index('trk')
 
 
-def indiv_plots(dff):
-    with PdfPages('/Users/Fabio/eb3_indv.pdf') as pdf:
+def indiv_plots(dff, pdf_fname='eb3_indv.pdf'):
+    with PdfPages('/Users/Fabio/data/lab/%s' % pdf_fname) as pdf:
         _err_kws = {'alpha': 0.3, 'lw': 1}
         flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
         palette = sns.color_palette(flatui)
@@ -551,42 +552,71 @@ if __name__ == '__main__':
     _err_kws = {'alpha': 0.3, 'lw': 1}
 
     if do_compute:
+        dir_base = '/Users/Fabio/data/lab/eb3'
+        logging.info('importing data from %s' % dir_base)
         df_matlab = pd.DataFrame()
-        for c in range(7)[1:]:
-            # Import
-            dir_base = '/Users/Fabio/data/lab/eb3-control'
-            dir_data = dir_base + '/data/Result of U2OS CDK1as EB3 +1NM on controls only.sld - Capture %d/' % (c)
-            dir_input = dir_base + '/input'
-            genfname = dir_data + 'time.mat'
-            trkfname = dir_data + '/TrackingPackage/tracks/Channel_1_tracking_result.mat'
-            imgname = dir_input + '/U2OS CDK1as EB3 +1NM on controls only.sld - Capture %d.tif' % (c)
-            with tf.TiffFile(imgname, fastij=True) as tif:
-                if tif.is_imagej is not None:
-                    res = 'n/a'
-                    if tif.pages[0].resolution_unit == 'centimeter':
-                        # asuming square pixels
-                        xr = tif.pages[0].x_resolution
-                        res = float(xr[0]) / float(xr[1])  # pixels per cm
-                        res = res / 1e4  # pixels per um
-                    elif tif.pages[0].imagej_tags.unit == 'micron':
-                        # asuming square pixels
-                        xr = tif.pages[0].x_resolution
-                        res = float(xr[0]) / float(xr[1])  # pixels per um
-            df_mtlb = import_eb3_matlab(genfname, trkfname, tag='eb3-control-%d' % (c))
 
-            # Process
-            df_mtlb['x'] /= res
-            df_mtlb['y'] /= res
-            df_mtlb = speed_acc(df_mtlb, group='trk')
-            df_mtlb = msd(df_mtlb)
-            df_matlab = df_matlab.append(df_mtlb)
-        df_matlab.to_pickle('/Users/Fabio/eb3-control.pandas')
+        # gathering data from u-track plugin
+        # 1st level = conditions
+        citems = [d for d in os.listdir(dir_base) if d[0] != '.']
+        for cit in citems:
+            cpath = os.path.join(dir_base, cit)
+            run_i = 1
+            if os.path.isdir(cpath):
+                # 2nd level = dates
+                ditems = [d for d in os.listdir(cpath) if d[0] != '.']
+                for dit in ditems:
+                    dpath = os.path.join(cpath, dit)
+                    if os.path.isdir(dpath):
+                        # 3rd level = results
+                        ritems = [d for d in os.listdir(dpath) if d[0] != '.']
+                        for rit in ritems:
+                            rpath = os.path.join(dpath, rit)
+                            if os.path.isdir(rpath):
+                                # 4rd level = matlab result file
+                                mitems = [d for d in os.listdir(rpath) if d[0] != '.']
+                                for mit in mitems:
+                                    mpath = os.path.join(rpath, mit)
+                                    if os.path.isfile(mpath) and mit != 'time.mat':
+                                        logging.info('importing %s' % mpath)
+
+                                        # Import
+                                        try:
+                                            dir_data = rpath
+                                            genfname = os.path.join(dir_data, 'time.mat')
+                                            trkfname = dir_data + '/TrackingPackage/tracks/Channel_1_tracking_result.mat'
+                                            imgname = os.path.join(dpath, mit[:-4] + '.tif')
+                                            with tf.TiffFile(imgname, fastij=True) as tif:
+                                                if tif.is_imagej is not None:
+                                                    res = 'n/a'
+                                                    if tif.pages[0].resolution_unit == 'centimeter':
+                                                        # asuming square pixels
+                                                        xr = tif.pages[0].x_resolution
+                                                        res = float(xr[0]) / float(xr[1])  # pixels per cm
+                                                        res = res / 1e4  # pixels per um
+                                                    elif tif.pages[0].imagej_tags.unit == 'micron':
+                                                        # asuming square pixels
+                                                        xr = tif.pages[0].x_resolution
+                                                        res = float(xr[0]) / float(xr[1])  # pixels per um
+                                            df_mtlb = import_eb3_matlab(genfname, trkfname, tag='%s-%d' % (cit, run_i))
+                                            df_mtlb['condition'] = cit
+                                            run_i += 1
+
+                                            # Process
+                                            df_mtlb['x'] /= res
+                                            df_mtlb['y'] /= res
+                                            df_mtlb = speed_acc(df_mtlb, group='trk')
+                                            df_mtlb = msd(df_mtlb)
+                                            df_matlab = df_matlab.append(df_mtlb)
+                                        except IOError as ioe:
+                                            logging.warning('could not import due to IO error: %s' % ioe)
+        df_matlab.to_pickle('/Users/Fabio/data/lab/eb3.pandas')
     else:
-        df_matlab = pd.read_pickle('/Users/Fabio/eb3-control.pandas')
+        df_matlab = pd.read_pickle('/Users/Fabio/data/lab/eb3.pandas')
 
     if do_filter_stats:
         df_stat = trk_length(df_matlab)
-        df_stat.to_pickle('/Users/Fabio/eb3stats.pandas')
+        df_stat.to_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
 
         df_flt = df_filter(df_matlab, k=10, msd_thr=5)
         dfout = pd.DataFrame()
@@ -597,14 +627,14 @@ if __name__ == '__main__':
             fdf.loc[:, 'dist_i'] = fdf['dist'] - dist_ini
             dfout = dfout.append(fdf)
         df_flt = dfout
-        df_flt.to_pickle('/Users/Fabio/eb3filter.pandas')
+        df_flt.to_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
 
         # msd_lreg = msd_lreg(df_flt)
         # msd_lreg.to_pickle('/Users/Fabio/eb3reg.pandas')
 
 
         # write csv eb3 track data
-        filename = '/Users/Fabio/eb3_tracks.csv'
+        filename = '/Users/Fabio/data/lab/eb3_tracks.csv'
         with open(filename, 'w') as of:
             of.write('id,frame,xm,ym\n')
 
@@ -613,13 +643,17 @@ if __name__ == '__main__':
                 df[['trk', 'frame', 'x', 'y']].to_csv(f, header=False, index=False)
 
     else:
-        df_stat = pd.read_pickle('/Users/Fabio/eb3stats.pandas')
-        df_flt = pd.read_pickle('/Users/Fabio/eb3filter.pandas')
+        df_stat = pd.read_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
+        df_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
         # msd_lreg = pd.read_pickle('/Users/Fabio/eb3reg.pandas')
         logging.info('Loaded %d tracks after filters' % df_flt['trk'].unique().size)
 
     logging.info('making indiv plots')
-    indiv_plots(df_flt)
+    df_flt['condition'] = df_flt['tag'].apply(lambda row: row[:-2])  # remove after fix
+    print df_flt['condition'].unique()
+    for id, dff in df_flt.groupby('condition'):
+        logging.info('Plotting individuals for %s group.' % id)
+        indiv_plots(dff, pdf_fname='eb3_indv-%s.pdf' % id)
 
     logging.info('making stat plots')
     stats_plots(df_matlab, df_stat, res, img_file=imgname)
