@@ -15,9 +15,14 @@ from imagej_pandas import ImagejPandas
 
 
 def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_rotation='horizontal', cat='condition',
-                     order=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.2, fliersize=point_size, order=order, ax=ax)
-    _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, ax=ax)
+                     swarm=True, order=None, ax=None):
+    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.2, fliersize=point_size, order=order, ax=ax,
+                zorder=100)
+    if swarm:
+        _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, ax=ax, zorder=10)
+    else:
+        _ax = sns.stripplot(data=data_grouped, y=var, x=cat, jitter=True, size=point_size, order=order, ax=ax,
+                            zorder=10)
     for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
 

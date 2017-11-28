@@ -15,12 +15,16 @@ from matplotlib.backends.backend_pdf import PdfPages
 from scipy import stats
 from sklearn import linear_model
 
+import mechanics as m
+import special_plots as sp
+import stats as st
+
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 pd.set_option('display.width', 320)
-indiv_idx = ['tag', 'trk']
+indiv_idx = ['condition', 'tag', 'trk']
 
 
-def import_eb3_matlab(gen_filename, trk_filename, tag=None):
+def import_eb3_matlab(gen_filename, trk_filename, tag=None, limit=None):
     g = sio.loadmat(gen_filename, squeeze_me=True)
     x = sio.loadmat(trk_filename, squeeze_me=True)
     time_interval = g['timeInterval']
@@ -32,6 +36,9 @@ def import_eb3_matlab(gen_filename, trk_filename, tag=None):
     logging.info('tracked_particles.shape=%s  trk_events.shape=%s' % (tracked_particles.shape, trk_events.shape))
 
     for ti, (_trk, _ev) in enumerate(zip(tracked_particles, trk_events)):
+        if ti == limit:
+            logging.debug('breaking on limit')
+            break
         if _ev.shape == (2, 4):
             ini_frame = _ev[0, 0] if _ev[0, 1] == 1 else None
             end_frame = _ev[1, 0] + 1 if _ev[1, 1] == 2 else None
@@ -49,103 +56,27 @@ def import_eb3_matlab(gen_filename, trk_filename, tag=None):
     if tag is not None:
         df_out['tag'] = tag
 
-    return df_out
+    return df_out.reset_index().drop('index', axis=1)
 
 
 def df_filter(df, k=10, msd_thr=50.0):
-    logging.info('%d tracks before filter' % (df['trk'].unique().size))
+    logging.info('%d tracks before filter' % (df.set_index(indiv_idx).index.unique().size))
     # filter dataframe for tracks having more than K points
-    filtered_df = pd.DataFrame()
-    for _tid, _tdf in df.groupby(indiv_idx):
-        if len(_tdf.index) > k:
-            filtered_df = filtered_df.append(_tdf)
-    df = filtered_df
-    logging.info('filtered %d tracks after selecting tracks with more that k=%d points' % (df['trk'].unique().size, k))
+    filtered_ix = df.set_index('frame').sort_index().groupby(indiv_idx).apply(lambda t: len(t.index) > k)
+    df = df.set_index(indiv_idx)[filtered_ix].reset_index()
+    logging.info('filtered %d tracks after selecting tracks with more that k=%d points' % (
+        df.set_index(indiv_idx).index.unique().size, k))
 
     # filter dataframe based on track's mobility
-    filtered_df = pd.DataFrame()
-    for _tid, _tdf in df.groupby('trk'):
-        if _tdf['msd'].iloc[-1] > msd_thr:
-            filtered_df = filtered_df.append(_tdf)
-    df = filtered_df
-    logging.info('filtered %d tracks after MSD filter with msd_thr=%0.1f' % (df['trk'].unique().size, msd_thr))
+    filtered_ix = df.set_index('frame').sort_index().groupby(indiv_idx).apply(lambda t: t['msd'].iloc[-1] > msd_thr)
+    df = df.set_index(indiv_idx)[filtered_ix].reset_index()
+    logging.info('filtered %d tracks after MSD filter with msd_thr=%0.1f' % (
+        df.set_index(indiv_idx).index.unique().size, msd_thr))
 
     return df
 
 
-def speed_acc(df, x='x', y='y', time='time', frame='frame', group=None):
-    df = df.set_index(frame).sort_index()
-    dout = pd.DataFrame()
-    for c_i, dc in df.groupby(group):
-        dc.loc[:, 'dist'] = np.sqrt(dc[x] ** 2 + dc[y] ** 2)  # relative to nuclei centroid
-        d = dc.loc[:, [x, y, 'dist', time]].diff().rename(columns={x: 'dx', y: 'dy', 'dist': 'dD', time: 'dt'})
-        dc.loc[:, 'speed'] = d.dD / d.dt
-        df.loc[:, 'acc'] = d.dD.diff() / d.dt
-        dout = dout.append(dc)
-
-    return dout.reset_index()
-
-
-def msd(df, frame='frame'):
-    """
-        Computes Mean Square Displacement as defined by:
-
-        {\rm {MSD}}\equiv \langle (x-x_{0})^{2}\rangle ={\frac {1}{N}}\sum _{n=1}^{N}(x_{n}(t)-x_{n}(0))^{2}
-    """
-    dfi = df.set_index(frame).sort_index()
-    dfout = pd.DataFrame()
-    for _id, _df in dfi.groupby('trk'):
-        x0, y0 = _df['x'].iloc[0], _df['y'].iloc[0]
-        _msdx = _df.loc[:, 'x'].apply(lambda x: (x - x0) ** 2)
-        _msdy = _df.loc[:, 'y'].apply(lambda y: (y - y0) ** 2)
-        _df.loc[:, 'msd'] = _msdx + _msdy
-        dfout = dfout.append(_df)
-
-    return dfout
-
-
-def msd_lreg(df):
-    """
-        Computes a linear regression of the Mean Square Displacement
-    """
-    msd_lr = pd.DataFrame()
-    for _id, _df in df.groupby('trk'):
-        # do linear regression of both tracks to see which has higher slope
-        x = _df.index.values
-        y = _df['msd'].values
-        length = len(x)
-        x = x.reshape(length, 1)
-        y = y.reshape(length, 1)
-        if np.isnan(y).any():
-            logging.warn('MSD of track tag %d contains NaNs.' % _id)
-        else:
-            regr = linear_model.LinearRegression()
-            regr.fit(x, y)
-            msdlr = pd.DataFrame()
-            msdlr['trk'] = _id
-            msdlr['msd_lfit_a'] = regr.coef_[0][0]
-            msdlr['msd_lfit_b'] = regr.intercept_[0]
-
-            msd_lr = msd_lr.append(msdlr)
-
-    return msd_lr
-
-
-def trk_length(df):
-    """
-        Computes path length for each track
-    """
-    dfout = pd.DataFrame()
-    for _id, _df in df.groupby('trk'):
-        _dx2 = _df.loc[:, 'x'].diff().apply(lambda x: x ** 2)
-        _dy2 = _df.loc[:, 'y'].diff().apply(lambda y: y ** 2)
-        dst = pd.DataFrame([{'trk': _id, 'd': np.sum(np.sqrt(_dx2 + _dy2))}])
-        dfout = dfout.append(dst)
-
-    return dfout.set_index('trk')
-
-
-def indiv_plots(dff, pdf_fname='eb3_indv.pdf'):
+def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
     with PdfPages('/Users/Fabio/data/lab/%s' % pdf_fname) as pdf:
         _err_kws = {'alpha': 0.3, 'lw': 1}
         flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
@@ -174,8 +105,8 @@ def indiv_plots(dff, pdf_fname='eb3_indv.pdf'):
 
             fdf.plot(x='time_i', y='dist', c=_color, lw=1, alpha=a, legend=False, ax=ax3)
             fdf.plot(x='time_i', y='dist_i', c=_color, lw=1, alpha=a, legend=False, ax=ax4)
-
         fig.suptitle('Distance')
+
         for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
             #     ax.legend([])
             ax.set_xlabel('Time $[s]$')
@@ -201,42 +132,34 @@ def indiv_plots(dff, pdf_fname='eb3_indv.pdf'):
         ax6 = plt.subplot(gs[2, 1])
 
         dff.loc[:, 'speed'] = dff['speed'].abs()
-        # construct average track speed and track length
-        df_avgspd = pd.DataFrame()
-        print dff.index
-        for id, fdf in dff.groupby(indiv_idx):
-            time_ini = fdf['time'].iloc[0]
-            df_spd = pd.DataFrame([{'tag': fdf['tag'].iloc[0], 'trk': id,
-                                    'time': time_ini, 'avg_spd': fdf['speed'].mean(),
-                                    'trk_len': fdf['dist'].size}])
-            df_avgspd = df_avgspd.append(df_spd)
-
         a = 0.2
         df = dff.reset_index()
         with sns.color_palette(flatui):
             sns.tsplot(data=df, time='time', value='speed', unit='trk', condition='tag',
                        estimator=np.nanmean, err_style=['unit_traces'], err_kws=_err_kws, ax=ax1)
-            sns.tsplot(data=df, time='time', value='speed', unit='trk', condition='tag',
-                       estimator=np.nanmean, ax=ax2)
+            sns.tsplot(data=df, time='time', value='speed', unit='trk', condition='tag', estimator=np.nanmean,
+                       legend=False, ax=ax2)
 
             sns.tsplot(data=df, time='time_i', value='speed', unit='trk', condition='tag',
                        estimator=np.nanmean, err_style=['unit_traces'], err_kws=_err_kws, ax=ax3)
-            sns.tsplot(data=df, time='time_i', value='speed', unit='trk', condition='tag',
-                       estimator=np.nanmean, ax=ax4)
+            sns.tsplot(data=df, time='time_i', value='speed', unit='trk', condition='tag', estimator=np.nanmean,
+                       legend=False, ax=ax4)
 
-        for (id, adf), _color in zip(df_avgspd.groupby('tag'), palette):
-            kde_avgspd = stats.gaussian_kde(adf['avg_spd'])
-            kde_trklen = stats.gaussian_kde(adf['trk_len'])
-            y_avgspd = np.linspace(adf['avg_spd'].min(), adf['avg_spd'].max(), 100)
-            y_trklen = np.linspace(adf['trk_len'].min(), adf['trk_len'].max(), 100)
-            x_avgspd = kde_avgspd(y_avgspd) * 5.0
-            x_trklen = kde_trklen(y_trklen) * 100
+        for (id, adf), _color in zip(df_stat.groupby('tag'), palette):
+            adf.plot.scatter(x='time', y='speed', color=_color, alpha=a, ax=ax5)
+            df_stat.plot.scatter(x='time', y='trk_len', color=_color, alpha=a, ax=ax6)
 
-            adf.plot.scatter(x='time', y='avg_spd', color=_color, alpha=a, ax=ax5)
-            ax5.plot(x_avgspd, y_trklen, color=_color)  # gaussian kde
-
-            df_avgspd.plot.scatter(x='time', y='trk_len', color=_color, alpha=a, ax=ax6)
-            ax6.plot(x_trklen, y_trklen, color=_color)  # gaussian kde
+            try:
+                kde_avgspd = stats.gaussian_kde(adf['speed'])
+                kde_trklen = stats.gaussian_kde(adf['trk_len'])
+                y_avgspd = np.linspace(adf['speed'].min(), adf['speed'].max(), 100)
+                y_trklen = np.linspace(adf['trk_len'].min(), adf['trk_len'].max(), 100)
+                x_avgspd = kde_avgspd(y_avgspd) * 5.0
+                x_trklen = kde_trklen(y_trklen) * 100
+                ax5.plot(x_avgspd, y_trklen, color=_color)  # gaussian kde
+                ax6.plot(x_trklen, y_trklen, color=_color)  # gaussian kde
+            except:
+                pass
 
         ax1.set(yscale='log')
         ax3.set(yscale='log')
@@ -244,8 +167,8 @@ def indiv_plots(dff, pdf_fname='eb3_indv.pdf'):
         fig.suptitle('Speed')
         for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
             ax.set_xlabel('Time $[s]$')
-        ax5.set_ylim(0, df_avgspd['avg_spd'].max())
-        ax6.set_ylim(0, df_avgspd['trk_len'].max())
+        ax5.set_ylim(0, df_stat['speed'].max())
+        ax6.set_ylim(0, df_stat['trk_len'].max())
 
         pdf.savefig()
         plt.close()
@@ -264,24 +187,23 @@ def indiv_plots(dff, pdf_fname='eb3_indv.pdf'):
         ax5 = plt.subplot(gs[2, 0])
         ax6 = plt.subplot(gs[2, 1])
 
-        for (id, adf), _color in zip(df_avgspd.groupby('tag'), palette):
-            kde_avgspd = stats.gaussian_kde(adf['avg_spd'])
-            kde_trklen = stats.gaussian_kde(adf['trk_len'])
-            x_avgspd = np.linspace(adf['avg_spd'].min(), adf['avg_spd'].max(), 100)
-            x_trklen = np.linspace(adf['trk_len'].min(), adf['trk_len'].max(), 100)
+        print df_stat['tag'].unique()
+        for (id, adf), _color in zip(df_stat.groupby('tag'), palette):
+            adf['speed'].plot.hist(20, color=_color, ax=ax3)
+            adf['trk_len'].plot.hist(20, color=_color, ax=ax4)
 
-            ax1.plot(x_avgspd, kde_avgspd(x_avgspd), color=_color)
-            ax2.plot(x_trklen, kde_trklen(x_trklen), color=_color)  # gaussian kde
-            adf['avg_spd'].plot.hist(20, color=_color, ax=ax3)
+            try:
+                kde_avgspd = stats.gaussian_kde(adf['speed'])
+                kde_trklen = stats.gaussian_kde(adf['trk_len'])
+                x_avgspd = np.linspace(adf['speed'].min(), adf['speed'].max(), 100)
+                x_trklen = np.linspace(adf['trk_len'].min(), adf['trk_len'].max(), 100)
+                ax1.plot(x_avgspd, kde_avgspd(x_avgspd), color=_color)
+                ax2.plot(x_trklen, kde_trklen(x_trklen), color=_color)  # gaussian kde
+            except:
+                pass
 
-        # kde of all runs
-        # kde_avgspd = stats.gaussian_kde(df_avgspd['avg_spd'])
-        # kde_trklen = stats.gaussian_kde(df_avgspd['trk_len'])
-        # x_avgspd = np.linspace(df_avgspd['avg_spd'].min(), df_avgspd['avg_spd'].max(), 100)
-        # x_trklen = np.linspace(df_avgspd['trk_len'].min(), df_avgspd['trk_len'].max(), 100)
-
-        sns.distplot(df_avgspd['avg_spd'], ax=ax5)
-        sns.distplot(df_avgspd['trk_len'], ax=ax6)
+        sns.distplot(df_stat['speed'], ax=ax5)
+        sns.distplot(df_stat['trk_len'], ax=ax6)
 
         ax1.set_title('Avg speed per track')
         ax2.set_title('Track length')
@@ -295,52 +217,39 @@ def indiv_plots(dff, pdf_fname='eb3_indv.pdf'):
 
 
 def stats_plots(df, df_stats, res, img_file=None):
-    _df = df.reset_index()
-    with PdfPages('/Users/Fabio/eb3_stats.pdf') as pdf:
+    with PdfPages('/Users/Fabio/data/lab/boxplot_spd.pdf') as pdf:
+        _err_kws = {'alpha': 0.3, 'lw': 1}
+        flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+        palette = sns.color_palette(flatui)
+
+        # ---------------------------
+        #          FIRST PAGE
+        # ---------------------------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(_fig_size_A3)
-        gs = matplotlib.gridspec.GridSpec(3, 2)
-        ax1 = plt.subplot(gs[0:2, :])
-        ax3 = plt.subplot(gs[2, 0])
-        ax4 = plt.subplot(gs[2, 1])
-        max_frame = _df['frame'].max()
-        cmap = sns.color_palette('cool', n_colors=max_frame)
+        fig.set_size_inches((10, 10))
+        gs = matplotlib.gridspec.GridSpec(2, 2)
+        ax1 = plt.subplot(gs[0, 0])
+        ax2 = plt.subplot(gs[0, 1])
+        ax3 = plt.subplot(gs[1, 0])
+        # ax4 = plt.subplot(gs[1, 1])
 
-        # plot of each eb3 track
-        _ax = ax1
-        if img_file is not None:
-            image = cv2.imread(img_file)
-            _ax.imshow(image, extent=[0, 512 / res, 512 / res, 0])
-        for _id, df in _df.groupby('trk'):
-            df.plot.scatter(x='x', y='y', c=cmap, ax=_ax, s=5)
+        ptsize = 0.5
+        with sns.color_palette(['grey', 'grey', 'grey', 'grey']):
+            sp.anotated_boxplot(df_stats, 'speed', swarm=False, point_size=ptsize, ax=ax1)
+            pmat = st.p_values(df_stats, 'speed', 'condition', filename='/Users/Fabio/data/lab/pvalues_spd.xls')
+            ax1.set_xlabel('Condition')
+            ax1.set_ylabel('Average Eb1 speed $[\mu m \cdot s^{-1}]$')
 
-        _ax.spines['top'].set_visible(False)
-        _ax.spines['right'].set_visible(False)
-        _ax.spines['bottom'].set_visible(False)
-        _ax.spines['left'].set_visible(False)
-        _ax.set_xlabel('X $[\mu m]$')
-        _ax.set_ylabel('Y $[\mu m]$')
+            sp.anotated_boxplot(df_stats, 'length', swarm=False, point_size=ptsize, ax=ax2)
+            ax2.set_xlabel('Condition')
+            ax2.set_ylabel('Average Eb1 length $[\mu m]$')
 
-        # plot MSD sum distribution on semilog space
-        msd_bins = np.logspace(-2, 4, 100)
-        last_pt = [dm.iloc[-1] for _id, dm in df.groupby('trk')]
-        # sns.distplot(last_msd, rug=True, bins=msd_bins, ax=ax3)
-        msd_df = pd.DataFrame(last_pt)
-        msd_df['condition'] = 'dummy'
-        sns.stripplot(x=msd_df['msd'], jitter=True, ax=ax3)
-        ax3.set_title('Distribution of $MSD(t_n)$')
-        ax3.set_ylabel('Frequency')
-        ax3.set_xlabel('$\sum MSD$ $[\mu m]$')
-        # ax3.set_xticks(range(0,20,5).extend(range(40,100,20)))
-        # ax3.set_xscale('log')
+            sp.anotated_boxplot(df_stats, 'trk_len', swarm=False, point_size=ptsize, ax=ax3)
+            ax3.set_xlabel('Condition')
+            ax3.set_ylabel('Eb1 track length $[a.u.]$')
 
-        sns.distplot(df_stats['d'], rug=True, ax=ax4)
-        ax4.set_title('Distribution of track lengths')
-        ax4.set_ylabel('Frequency')
-        ax4.set_xlabel('Length $[\mu m]$')
-
-        pdf.savefig(transparent=True)
+        pdf.savefig()
         plt.close()
 
         # ---------------------------
@@ -348,19 +257,87 @@ def stats_plots(df, df_stats, res, img_file=None):
         # ---------------------------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(_fig_size_A3)
-        gs = matplotlib.gridspec.GridSpec(3, 2)
-        ax1 = plt.subplot(gs[0, 0])
-        ax2 = plt.subplot(gs[0, 1])
-        ax3 = plt.subplot(gs[1, 0])
-        ax4 = plt.subplot(gs[1, 1])
+        fig.set_size_inches((10, 10))
 
-        for _id, df in _df.groupby('trk'):
-            df.plot(x='time', y='dist', c=cmap, ax=ax1, lw=1, alpha=0.3, color='gr')
-            df.plot(x='time', y='speed', c=cmap, ax=ax2, lw=1, alpha=0.3, color='gr')
+        dfi = df.set_index(['condition', 'tag', 'trk', 'frame']).sort_index()
+        totals = dfi.groupby('condition')['speed'].count()
+        spd_gt = dfi[dfi['speed'] > 0.1].groupby('condition').count()['speed'] / totals * 100
+
+        plt.bar(range(4), [100] * 4, color='r', edgecolor='white', width=0.85)
+        plt.bar(range(4), spd_gt, color='#b5ffb9', edgecolor='white', width=0.85)
+        plt.xticks(range(4), ['chtog', 'control', 'mcak', 'noc'], rotation='vertical')
+
+        plt.xlabel('Condition')
+        plt.ylabel('Percentage of speeds higher than a thr (green)')
 
         pdf.savefig()
         plt.close()
+
+        with PdfPages('/Users/Fabio/data/lab/eb3_stats.pdf') as pdf:
+            fig = matplotlib.pyplot.gcf()
+            fig.clf()
+            fig.set_size_inches(_fig_size_A3)
+            gs = matplotlib.gridspec.GridSpec(3, 2)
+            ax1 = plt.subplot(gs[0:2, :])
+            ax3 = plt.subplot(gs[2, 0])
+            ax4 = plt.subplot(gs[2, 1])
+            max_frame = df['frame'].max()
+            cmap = sns.color_palette('cool', n_colors=max_frame)
+
+            # plot of each eb3 track
+            _ax = ax1
+            if img_file is not None:
+                image = cv2.imread(img_file)
+                _ax.imshow(image, extent=[0, 512 / res, 512 / res, 0])
+            for _id, df in df.groupby('trk'):
+                df.plot.scatter(x='x', y='y', c=cmap, ax=_ax, s=5)
+
+            _ax.spines['top'].set_visible(False)
+            _ax.spines['right'].set_visible(False)
+            _ax.spines['bottom'].set_visible(False)
+            _ax.spines['left'].set_visible(False)
+            _ax.set_xlabel('X $[\mu m]$')
+            _ax.set_ylabel('Y $[\mu m]$')
+
+            # plot MSD sum distribution on semilog space
+            msd_bins = np.logspace(-2, 4, 100)
+            last_pt = [dm.iloc[-1] for _id, dm in df.groupby('trk')]
+            # sns.distplot(last_msd, rug=True, bins=msd_bins, ax=ax3)
+            msd_df = pd.DataFrame(last_pt)
+            msd_df['condition'] = 'dummy'
+            sns.stripplot(x=msd_df['msd'], jitter=True, ax=ax3)
+            ax3.set_title('Distribution of $MSD(t_n)$')
+            ax3.set_ylabel('Frequency')
+            ax3.set_xlabel('$\sum MSD$ $[\mu m]$')
+            # ax3.set_xticks(range(0,20,5).extend(range(40,100,20)))
+            # ax3.set_xscale('log')
+
+            # sns.distplot(df_stats['d'], rug=True, ax= ax4)
+            ax4.set_title('Distribution of track lengths')
+            ax4.set_ylabel('Frequency')
+            ax4.set_xlabel('Length $[\mu m]$')
+
+            pdf.savefig(transparent=True)
+            plt.close()
+
+            # ---------------------------
+            #          NEXT PAGE
+            # ---------------------------
+            fig = matplotlib.pyplot.gcf()
+            fig.clf()
+            fig.set_size_inches(_fig_size_A3)
+            gs = matplotlib.gridspec.GridSpec(3, 2)
+            ax1 = plt.subplot(gs[0, 0])
+            ax2 = plt.subplot(gs[0, 1])
+            ax3 = plt.subplot(gs[1, 0])
+            ax4 = plt.subplot(gs[1, 1])
+
+            for _id, df in df.groupby('trk'):
+                df.plot(x='time', y='dist', c=cmap, ax=ax1, lw=1, alpha=0.3, color='gr')
+                df.plot(x='time', y='speed', c=cmap, ax=ax2, lw=1, alpha=0.3, color='gr')
+
+            pdf.savefig()
+            plt.close()
 
 
 def msd_plots(df):
@@ -599,64 +576,63 @@ if __name__ == '__main__':
                                                         xr = tif.pages[0].x_resolution
                                                         res = float(xr[0]) / float(xr[1])  # pixels per um
                                             df_mtlb = import_eb3_matlab(genfname, trkfname, tag='%s-%d' % (cit, run_i))
-                                            df_mtlb['condition'] = cit
+                                            df_mtlb.loc[:, 'condition'] = cit
                                             run_i += 1
-
                                             # Process
                                             df_mtlb['x'] /= res
                                             df_mtlb['y'] /= res
-                                            df_mtlb = speed_acc(df_mtlb, group='trk')
-                                            df_mtlb = msd(df_mtlb)
                                             df_matlab = df_matlab.append(df_mtlb)
                                         except IOError as ioe:
                                             logging.warning('could not import due to IO error: %s' % ioe)
+        # compute speed and msd
+        df_matlab = m.get_speed_acc(df_matlab, group=indiv_idx)
+        df_matlab = m.get_msd(df_matlab, group=indiv_idx)
+
         df_matlab.to_pickle('/Users/Fabio/data/lab/eb3.pandas')
     else:
         df_matlab = pd.read_pickle('/Users/Fabio/data/lab/eb3.pandas')
 
     if do_filter_stats:
-        df_stat = trk_length(df_matlab)
-        df_stat.to_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
-
-        df_flt = df_filter(df_matlab, k=10, msd_thr=5)
-        dfout = pd.DataFrame()
-        for id, fdf in df_flt.groupby(indiv_idx):
-            time_ini = fdf['time'].iloc[0]
-            dist_ini = fdf['dist'].iloc[0]
-            fdf.loc[:, 'time_i'] = fdf['time'] - time_ini
-            fdf.loc[:, 'dist_i'] = fdf['dist'] - dist_ini
-            dfout = dfout.append(fdf)
-        df_flt = dfout
+        df_flt = df_filter(df_matlab, k=1, msd_thr=3)
+        df_flt = m.get_center_df(df_flt, group=indiv_idx)
+        df_flt = m.get_trk_length(df_flt, group=indiv_idx)
         df_flt.to_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
 
-        # msd_lreg = msd_lreg(df_flt)
-        # msd_lreg.to_pickle('/Users/Fabio/eb3reg.pandas')
-
+        # construct average track speed and track length
+        dfi = df_flt.set_index('frame').sort_index()
+        dfi['speed'] = dfi['speed'].abs()
+        _df_avg = dfi.groupby(indiv_idx)['time', 'speed'].mean()
+        _df_avg.loc[:, 'time'] = dfi.groupby(indiv_idx)['time'].first()
+        _df_avg.loc[:, 'trk_len'] = dfi.groupby(indiv_idx)['x'].count()
+        _df_avg.loc[:, 'length'] = df_matlab.groupby(indiv_idx).apply(m.agg_trk_length)
+        _df_avg = _df_avg.reset_index()
+        _df_avg.to_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
 
         # write csv eb3 track data
         filename = '/Users/Fabio/data/lab/eb3_tracks.csv'
         with open(filename, 'w') as of:
-            of.write('id,frame,xm,ym\n')
+            of.write('condition,run,id,frame,xm,ym\n')
 
         for _id, df in df_flt.reset_index().groupby('trk'):
             with open(filename, 'a') as f:
-                df[['trk', 'frame', 'x', 'y']].to_csv(f, header=False, index=False)
+                df[['condition', 'tag', 'trk', 'frame', 'x', 'y']].to_csv(f, header=False, index=False)
 
     else:
-        df_stat = pd.read_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
+        _df_avg = pd.read_pickle('/Users/Fabio/data/lab/eb3stats.pandas').reset_index()
         df_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
         # msd_lreg = pd.read_pickle('/Users/Fabio/eb3reg.pandas')
         logging.info('Loaded %d tracks after filters' % df_flt['trk'].unique().size)
 
+    # print m.get_trk_length(df_matlab.iloc[0:1000], group=['condition', 'tag', 'trk'])
     logging.info('making indiv plots')
-    df_flt['condition'] = df_flt['tag'].apply(lambda row: row[:-2])  # remove after fix
-    print df_flt['condition'].unique()
     for id, dff in df_flt.groupby('condition'):
+        dfavg = _df_avg[_df_avg['condition'] == id]
         logging.info('Plotting individuals for %s group.' % id)
-        indiv_plots(dff, pdf_fname='eb3_indv-%s.pdf' % id)
+        indiv_plots(dff, dfavg, pdf_fname='eb3_indv-%s.pdf' % id)
 
     logging.info('making stat plots')
-    stats_plots(df_matlab, df_stat, res, img_file=imgname)
+    res = 1
+    stats_plots(df_matlab, _df_avg, res, img_file=None)
 
     logging.info('making msd plots')
     msd_plots(df_flt)
