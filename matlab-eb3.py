@@ -1,7 +1,5 @@
 import logging
 import os
-import sys
-import time
 
 import cv2
 import matplotlib.gridspec
@@ -10,7 +8,9 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 import seaborn as sns
+import sys
 import tifffile as tf
+import time
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy import stats
 from sklearn import linear_model
@@ -24,48 +24,143 @@ pd.set_option('display.width', 320)
 indiv_idx = ['condition', 'tag', 'trk']
 
 
-def import_eb3_matlab(gen_filename, trk_filename, tag=None, limit=None):
-    g = sio.loadmat(gen_filename, squeeze_me=True)
-    x = sio.loadmat(trk_filename, squeeze_me=True)
-    time_interval = g['timeInterval']
-    tracks = x['tracksFinal']
-    tracked_particles = tracks['tracksCoordAmpCG']
-    trk_events = tracks['seqOfEvents']
-    num_tracks = tracked_particles.shape[0]
-    df_out = pd.DataFrame()
-    logging.info('tracked_particles.shape=%s  trk_events.shape=%s' % (tracked_particles.shape, trk_events.shape))
+def import_eb3_utrack_all(dir_base):
+    def import_eb3_matlab(gen_filename, trk_filename, tag=None, limit=None):
+        g = sio.loadmat(gen_filename, squeeze_me=True)
+        x = sio.loadmat(trk_filename, squeeze_me=True)
+        time_interval = g['timeInterval']
+        tracks = x['tracksFinal']
+        tracked_particles = tracks['tracksCoordAmpCG']
+        trk_events = tracks['seqOfEvents']
+        num_tracks = tracked_particles.shape[0]
+        df_out = pd.DataFrame()
+        logging.info('tracked_particles.shape=%s  trk_events.shape=%s' % (tracked_particles.shape, trk_events.shape))
 
-    for ti, (_trk, _ev) in enumerate(zip(tracked_particles, trk_events)):
-        if ti == limit:
-            logging.debug('breaking on limit')
-            break
-        if _ev.shape == (2, 4):
-            ini_frame = _ev[0, 0] if _ev[0, 1] == 1 else None
-            end_frame = _ev[1, 0] + 1 if _ev[1, 1] == 2 else None
-            if ini_frame is not None and end_frame is not None:
-                trk = np.reshape(_trk, [len(_trk) / 8, 8])
-                _df = pd.DataFrame(data=trk[:, 0:2], columns=['x', 'y'])
-                _df.loc[:, 'trk'] = ti
-                _df.loc[:, 'frame'] = np.arange(ini_frame, end_frame, 1, np.int16)
-                _df.loc[:, 'time'] = _df['frame'] * time_interval
+        for ti, (_trk, _ev) in enumerate(zip(tracked_particles, trk_events)):
+            if ti == limit:
+                logging.debug('breaking on limit')
+                break
+            if _ev.shape == (2, 4):
+                ini_frame = _ev[0, 0] if _ev[0, 1] == 1 else None
+                end_frame = _ev[1, 0] + 1 if _ev[1, 1] == 2 else None
+                if ini_frame is not None and end_frame is not None:
+                    trk = np.reshape(_trk, [len(_trk) / 8, 8])
+                    _df = pd.DataFrame(data=trk[:, 0:2], columns=['x', 'y'])
+                    _df.loc[:, 'trk'] = ti
+                    _df.loc[:, 'frame'] = np.arange(ini_frame, end_frame, 1, np.int16)
+                    _df.loc[:, 'time'] = _df['frame'] * time_interval
 
-                df_out = df_out.append(_df)
-            else:
-                raise Exception('Invalid event format.')
+                    df_out = df_out.append(_df)
+                else:
+                    raise Exception('Invalid event format.')
 
-    if tag is not None:
-        df_out['tag'] = tag
+        if tag is not None:
+            df_out['tag'] = tag
 
-    return df_out.reset_index().drop('index', axis=1)
+        return df_out.reset_index().drop('index', axis=1)
+
+    logging.info('importing data from %s' % dir_base)
+    df_matlab = pd.DataFrame()
+    # 1st level = conditions
+    citems = [d for d in os.listdir(dir_base) if d[0] != '.']
+    for cit in citems:
+        cpath = os.path.join(dir_base, cit)
+        run_i = 1
+        if os.path.isdir(cpath):
+            # 2nd level = dates
+            ditems = [d for d in os.listdir(cpath) if d[0] != '.']
+            for dit in ditems:
+                dpath = os.path.join(cpath, dit)
+                if os.path.isdir(dpath):
+                    # 3rd level = results
+                    ritems = [d for d in os.listdir(dpath) if d[0] != '.']
+                    for rit in ritems:
+                        rpath = os.path.join(dpath, rit)
+                        if os.path.isdir(rpath):
+                            # 4rd level = matlab result file
+                            mitems = [d for d in os.listdir(rpath) if d[0] != '.']
+                            for mit in mitems:
+                                mpath = os.path.join(rpath, mit)
+                                if os.path.isfile(mpath) and mit != 'time.mat':
+                                    logging.info('importing %s' % mpath)
+
+                                    # Import
+                                    try:
+                                        dir_data = rpath
+                                        genfname = os.path.join(dir_data, 'time.mat')
+                                        trkfname = dir_data + '/TrackingPackage/tracks/Channel_1_tracking_result.mat'
+                                        imgname = os.path.join(dpath, mit[:-4] + '.tif')
+                                        with tf.TiffFile(imgname, fastij=True) as tif:
+                                            if tif.is_imagej is not None:
+                                                res = 'n/a'
+                                                if tif.pages[0].resolution_unit == 'centimeter':
+                                                    # asuming square pixels
+                                                    xr = tif.pages[0].x_resolution
+                                                    res = float(xr[0]) / float(xr[1])  # pixels per cm
+                                                    res = res / 1e4  # pixels per um
+                                                elif tif.pages[0].imagej_tags.unit == 'micron':
+                                                    # asuming square pixels
+                                                    xr = tif.pages[0].x_resolution
+                                                    res = float(xr[0]) / float(xr[1])  # pixels per um
+                                        df_mtlb = import_eb3_matlab(genfname, trkfname, tag='%s-%d' % (cit, run_i))
+                                        df_mtlb.loc[:, 'condition'] = cit
+                                        run_i += 1
+                                        # Process
+                                        df_mtlb['x'] /= res
+                                        df_mtlb['y'] /= res
+                                        df_matlab = df_matlab.append(df_mtlb)
+                                    except IOError as ioe:
+                                        logging.warning('could not import due to IO error: %s' % ioe)
+    # compute speed and msd
+    df_matlab = m.get_speed_acc(df_matlab, group=indiv_idx)
+    df_matlab = m.get_msd(df_matlab, group=indiv_idx)
+    return df_matlab
 
 
-def df_filter(df, k=10, msd_thr=50.0):
+def import_eb3_icy_all(dir_base):
+    logging.info('importing data from %s' % dir_base)
+    df_matlab = pd.DataFrame()
+    # 1st level = excel result files
+    mitems = [d for d in os.listdir(dir_base) if d[0] != '.']
+    for mit in mitems:
+        mpath = os.path.join(dir_base, mit)
+        if os.path.isfile(mpath) and mit[-4:] == '.xls' and mit[:6] == 'Result':
+            logging.info('processing %s' % mpath)
+            try:  # Import
+                df_mtlb = pd.read_excel(mpath)
+                img, res = find_image(mit[:-14], os.path.join(dir_base, 'eb3'))
+                df_mtlb['x'] /= res
+                df_mtlb['y'] /= res
+                df_matlab = df_matlab.append(df_mtlb)
+            except IOError as ioe:
+                logging.warning('could not import due to IO error: %s' % ioe)
+
+    # compute speed and msd
+    logging.info('computing speed and msd')
+    df_matlab = df_matlab.dropna().rename(columns={'run': 'tag', 'track': 'trk', 'f': 'frame', 't': 'time'})
+    df_matlab['frame'] = df_matlab['frame'].astype('int32')
+    # df_matlab['tag'] = pd.factorize(df_matlab['tag'], sort=True)[0] + 1
+    # df_matlab['tag'] = df_matlab['tag'].astype('category')
+    df_matlab = m.get_speed_acc(df_matlab, group=indiv_idx)
+    df_matlab = m.get_msd(df_matlab, group=indiv_idx)
+    return df_matlab
+
+
+def df_filter(df, k=10, f=-1, msd_thr=50.0):
     logging.info('%d tracks before filter' % (df.set_index(indiv_idx).index.unique().size))
     # filter dataframe for tracks having more than K points
     filtered_ix = df.set_index('frame').sort_index().groupby(indiv_idx).apply(lambda t: len(t.index) > k)
     df = df.set_index(indiv_idx)[filtered_ix].reset_index()
     logging.info('filtered %d tracks after selecting tracks with more that k=%d points' % (
         df.set_index(indiv_idx).index.unique().size, k))
+
+    if f > 0:
+        logging.info('filtering tracks on starting time.')
+        # filter dataframe for tracks starting before frame f
+        filtered_ix = df.set_index('frame').sort_index().groupby(indiv_idx).apply(lambda t: t.index[0] < f)
+        df = df.set_index(indiv_idx)[filtered_ix].reset_index()
+        logging.info('filtered %d tracks after selecting tracks starting before frame %d' % (
+            df.set_index(indiv_idx).index.unique().size, f))
 
     # filter dataframe based on track's mobility
     filtered_ix = df.set_index('frame').sort_index().groupby(indiv_idx).apply(lambda t: t['msd'].iloc[-1] > msd_thr)
@@ -79,7 +174,7 @@ def df_filter(df, k=10, msd_thr=50.0):
 def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
     with PdfPages('/Users/Fabio/data/lab/%s' % pdf_fname) as pdf:
         _err_kws = {'alpha': 0.3, 'lw': 1}
-        flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+        flatui = ['#9b59b6', '#3498db', '#95a5a6', '#e74c3c', '#34495e', '#2ecc71']
         palette = sns.color_palette(flatui)
 
         # ---------------------------
@@ -136,14 +231,14 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         df = dff.reset_index()
         with sns.color_palette(flatui):
             sns.tsplot(data=df, time='time', value='speed', unit='trk', condition='tag',
-                       estimator=np.nanmean, err_style=['unit_traces'], err_kws=_err_kws, ax=ax1)
-            sns.tsplot(data=df, time='time', value='speed', unit='trk', condition='tag', estimator=np.nanmean,
-                       legend=False, ax=ax2)
+                       estimator=np.nanmean, legend=False, err_style=['unit_traces'], err_kws=_err_kws, ax=ax1)
+            sns.tsplot(data=df, time='time', value='speed', unit='trk', condition='tag',
+                       estimator=np.nanmean, legend=False, ax=ax2)
 
             sns.tsplot(data=df, time='time_i', value='speed', unit='trk', condition='tag',
-                       estimator=np.nanmean, err_style=['unit_traces'], err_kws=_err_kws, ax=ax3)
-            sns.tsplot(data=df, time='time_i', value='speed', unit='trk', condition='tag', estimator=np.nanmean,
-                       legend=False, ax=ax4)
+                       estimator=np.nanmean, legend=False, err_style=['unit_traces'], err_kws=_err_kws, ax=ax3)
+            sns.tsplot(data=df, time='time_i', value='speed', unit='trk', condition='tag',
+                       estimator=np.nanmean, legend=False, ax=ax4)
 
         for (id, adf), _color in zip(df_stat.groupby('tag'), palette):
             adf.plot.scatter(x='time', y='speed', color=_color, alpha=a, ax=ax5)
@@ -202,8 +297,8 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
             except:
                 pass
 
-        sns.distplot(df_stat['speed'], ax=ax5)
-        sns.distplot(df_stat['trk_len'], ax=ax6)
+        sns.distplot(df_stat['speed'].dropna(), ax=ax5)
+        sns.distplot(df_stat['trk_len'].dropna(), ax=ax6)
 
         ax1.set_title('Avg speed per track')
         ax2.set_title('Track length')
@@ -216,10 +311,10 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         plt.close()
 
 
-def stats_plots(df, df_stats, res, img_file=None):
+def stats_plots(df, df_stats):
     with PdfPages('/Users/Fabio/data/lab/boxplot_spd.pdf') as pdf:
         _err_kws = {'alpha': 0.3, 'lw': 1}
-        flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+        flatui = ['#9b59b6', '#3498db', '#95a5a6', '#e74c3c', '#34495e', '#2ecc71']
         palette = sns.color_palette(flatui)
 
         # ---------------------------
@@ -258,6 +353,9 @@ def stats_plots(df, df_stats, res, img_file=None):
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches((10, 10))
+        gs = matplotlib.gridspec.GridSpec(2, 2)
+        ax1 = plt.subplot(gs[0, 0])
+        ax2 = plt.subplot(gs[0, 1])
 
         dfi = df.set_index(['condition', 'tag', 'trk', 'frame']).sort_index()
         totals = dfi.groupby('condition')['speed'].count()
@@ -267,77 +365,65 @@ def stats_plots(df, df_stats, res, img_file=None):
         plt.bar(range(4), spd_gt, color='#b5ffb9', edgecolor='white', width=0.85)
         plt.xticks(range(4), ['chtog', 'control', 'mcak', 'noc'], rotation='vertical')
 
-        plt.xlabel('Condition')
-        plt.ylabel('Percentage of speeds higher than a thr (green)')
+        sns.distplot(df_stats['speed'].dropna(), ax=ax1)
+        sns.distplot(df_stats['length'].dropna(), ax=ax2)
+
+        ax1.set_title('Avg speed per track')
+        ax1.set_xlabel('Avg speed $[\mu m/s]$')
+        ax2.set_title('Track length')
+        ax2.set_xlabel('Avg length $[\mu m]$')
+        for ax in [ax1, ax2]:
+            ax.set_xlabel('N frames')
 
         pdf.savefig()
         plt.close()
 
-        with PdfPages('/Users/Fabio/data/lab/eb3_stats.pdf') as pdf:
-            fig = matplotlib.pyplot.gcf()
-            fig.clf()
-            fig.set_size_inches(_fig_size_A3)
-            gs = matplotlib.gridspec.GridSpec(3, 2)
-            ax1 = plt.subplot(gs[0:2, :])
-            ax3 = plt.subplot(gs[2, 0])
-            ax4 = plt.subplot(gs[2, 1])
-            max_frame = df['frame'].max()
-            cmap = sns.color_palette('cool', n_colors=max_frame)
+    with PdfPages('/Users/Fabio/data/lab/eb3_stats.pdf') as pdf:
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches(_fig_size_A3)
+        gs = matplotlib.gridspec.GridSpec(3, 2)
+        ax1 = plt.subplot(gs[0:2, :])
+        ax3 = plt.subplot(gs[2, 0])
+        ax4 = plt.subplot(gs[2, 1])
+        max_frame = df['frame'].max()
+        cmap = sns.color_palette('cool', n_colors=max_frame)
 
-            # plot of each eb3 track
-            _ax = ax1
-            if img_file is not None:
-                image = cv2.imread(img_file)
-                _ax.imshow(image, extent=[0, 512 / res, 512 / res, 0])
-            for _id, df in df.groupby('trk'):
-                df.plot.scatter(x='x', y='y', c=cmap, ax=_ax, s=5)
+        # plot MSD sum distribution on semilog space
+        msd_bins = np.logspace(-2, 4, 100)
+        last_pt = [dm.iloc[-1] for _id, dm in df.groupby('trk')]
+        msd_df = pd.DataFrame(last_pt)
+        msd_df['condition'] = 'dummy'
+        sns.stripplot(x=msd_df['msd'], jitter=True, ax=ax3)
+        ax3.set_title('Distribution of $MSD(t_n)$')
+        ax3.set_ylabel('Frequency')
+        ax3.set_xlabel('$\sum MSD$ $[\mu m]$')
 
-            _ax.spines['top'].set_visible(False)
-            _ax.spines['right'].set_visible(False)
-            _ax.spines['bottom'].set_visible(False)
-            _ax.spines['left'].set_visible(False)
-            _ax.set_xlabel('X $[\mu m]$')
-            _ax.set_ylabel('Y $[\mu m]$')
+        ax4.set_title('Distribution of track lengths')
+        ax4.set_ylabel('Frequency')
+        ax4.set_xlabel('Length $[\mu m]$')
 
-            # plot MSD sum distribution on semilog space
-            msd_bins = np.logspace(-2, 4, 100)
-            last_pt = [dm.iloc[-1] for _id, dm in df.groupby('trk')]
-            # sns.distplot(last_msd, rug=True, bins=msd_bins, ax=ax3)
-            msd_df = pd.DataFrame(last_pt)
-            msd_df['condition'] = 'dummy'
-            sns.stripplot(x=msd_df['msd'], jitter=True, ax=ax3)
-            ax3.set_title('Distribution of $MSD(t_n)$')
-            ax3.set_ylabel('Frequency')
-            ax3.set_xlabel('$\sum MSD$ $[\mu m]$')
-            # ax3.set_xticks(range(0,20,5).extend(range(40,100,20)))
-            # ax3.set_xscale('log')
+        pdf.savefig(transparent=True)
+        plt.close()
 
-            # sns.distplot(df_stats['d'], rug=True, ax= ax4)
-            ax4.set_title('Distribution of track lengths')
-            ax4.set_ylabel('Frequency')
-            ax4.set_xlabel('Length $[\mu m]$')
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches(_fig_size_A3)
+        gs = matplotlib.gridspec.GridSpec(3, 2)
+        ax1 = plt.subplot(gs[0, 0])
+        ax2 = plt.subplot(gs[0, 1])
+        ax3 = plt.subplot(gs[1, 0])
+        ax4 = plt.subplot(gs[1, 1])
 
-            pdf.savefig(transparent=True)
-            plt.close()
+        for _id, df in df.groupby('trk'):
+            df.plot(x='time', y='dist', c=cmap, ax=ax1, lw=1, alpha=0.3, color='#aaaaaa')
+            df.plot(x='time', y='speed', c=cmap, ax=ax2, lw=1, alpha=0.3, color='#aaaaaa')
 
-            # ---------------------------
-            #          NEXT PAGE
-            # ---------------------------
-            fig = matplotlib.pyplot.gcf()
-            fig.clf()
-            fig.set_size_inches(_fig_size_A3)
-            gs = matplotlib.gridspec.GridSpec(3, 2)
-            ax1 = plt.subplot(gs[0, 0])
-            ax2 = plt.subplot(gs[0, 1])
-            ax3 = plt.subplot(gs[1, 0])
-            ax4 = plt.subplot(gs[1, 1])
-
-            for _id, df in df.groupby('trk'):
-                df.plot(x='time', y='dist', c=cmap, ax=ax1, lw=1, alpha=0.3, color='gr')
-                df.plot(x='time', y='speed', c=cmap, ax=ax2, lw=1, alpha=0.3, color='gr')
-
-            pdf.savefig()
-            plt.close()
+        pdf.savefig()
+        plt.close()
 
 
 def msd_plots(df):
@@ -520,6 +606,54 @@ def est_plots(df_matlab, res):
         plt.close()
 
 
+def find_image(img_name, folder):
+    for root, directories, filenames in os.walk(folder):
+        for file in filenames:
+            joinf = os.path.abspath(os.path.join(root, file))
+            if os.path.isfile(joinf) and joinf[-4:] == '.tif' and file == img_name:
+                image = cv2.imread(joinf)
+                with tf.TiffFile(joinf, fastij=True) as tif:
+                    if tif.is_imagej is not None:
+                        res = 'n/a'
+                        if tif.pages[0].resolution_unit == 'centimeter':
+                            # asuming square pixels
+                            xr = tif.pages[0].x_resolution
+                            res = float(xr[0]) / float(xr[1])  # pixels per cm
+                            res = res / 1e4  # pixels per um
+                        elif tif.pages[0].imagej_tags.unit == 'micron':
+                            # asuming square pixels
+                            xr = tif.pages[0].x_resolution
+                            res = float(xr[0]) / float(xr[1])  # pixels per um
+                return (image, res)
+
+
+def render_image_tracks(df_total, folder='.', render='.'):
+    for id, dff in df_total.groupby('tag'):
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches((10, 10))
+        ax = fig.gca()
+
+        iname = id[10:]
+        img, res = find_image(iname, render)  # take "Result of" out of the filename
+        max_frame = dff['frame'].max()
+        cmap = sns.color_palette('cool', n_colors=max_frame)
+
+        height, width = img.shape[0:2]
+        ax.imshow(img, extent=[0, width / res, height / res, 0])
+        for _id, df in dff.groupby('trk'):
+            df.plot.scatter(x='x', y='y', c=cmap, ax=ax, s=5)
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.set_xlabel('X $[\mu m]$')
+        ax.set_ylabel('Y $[\mu m]$')
+
+        fig.savefig(os.path.abspath(os.path.join(folder, id + '-render.png')))
+
+
 if __name__ == '__main__':
     do_compute = do_filter_stats = True
     # do_compute = do_filter_stats = False
@@ -529,71 +663,15 @@ if __name__ == '__main__':
     _err_kws = {'alpha': 0.3, 'lw': 1}
 
     if do_compute:
-        dir_base = '/Users/Fabio/data/lab/eb3'
-        logging.info('importing data from %s' % dir_base)
-        df_matlab = pd.DataFrame()
-
         # gathering data from u-track plugin
-        # 1st level = conditions
-        citems = [d for d in os.listdir(dir_base) if d[0] != '.']
-        for cit in citems:
-            cpath = os.path.join(dir_base, cit)
-            run_i = 1
-            if os.path.isdir(cpath):
-                # 2nd level = dates
-                ditems = [d for d in os.listdir(cpath) if d[0] != '.']
-                for dit in ditems:
-                    dpath = os.path.join(cpath, dit)
-                    if os.path.isdir(dpath):
-                        # 3rd level = results
-                        ritems = [d for d in os.listdir(dpath) if d[0] != '.']
-                        for rit in ritems:
-                            rpath = os.path.join(dpath, rit)
-                            if os.path.isdir(rpath):
-                                # 4rd level = matlab result file
-                                mitems = [d for d in os.listdir(rpath) if d[0] != '.']
-                                for mit in mitems:
-                                    mpath = os.path.join(rpath, mit)
-                                    if os.path.isfile(mpath) and mit != 'time.mat':
-                                        logging.info('importing %s' % mpath)
-
-                                        # Import
-                                        try:
-                                            dir_data = rpath
-                                            genfname = os.path.join(dir_data, 'time.mat')
-                                            trkfname = dir_data + '/TrackingPackage/tracks/Channel_1_tracking_result.mat'
-                                            imgname = os.path.join(dpath, mit[:-4] + '.tif')
-                                            with tf.TiffFile(imgname, fastij=True) as tif:
-                                                if tif.is_imagej is not None:
-                                                    res = 'n/a'
-                                                    if tif.pages[0].resolution_unit == 'centimeter':
-                                                        # asuming square pixels
-                                                        xr = tif.pages[0].x_resolution
-                                                        res = float(xr[0]) / float(xr[1])  # pixels per cm
-                                                        res = res / 1e4  # pixels per um
-                                                    elif tif.pages[0].imagej_tags.unit == 'micron':
-                                                        # asuming square pixels
-                                                        xr = tif.pages[0].x_resolution
-                                                        res = float(xr[0]) / float(xr[1])  # pixels per um
-                                            df_mtlb = import_eb3_matlab(genfname, trkfname, tag='%s-%d' % (cit, run_i))
-                                            df_mtlb.loc[:, 'condition'] = cit
-                                            run_i += 1
-                                            # Process
-                                            df_mtlb['x'] /= res
-                                            df_mtlb['y'] /= res
-                                            df_matlab = df_matlab.append(df_mtlb)
-                                        except IOError as ioe:
-                                            logging.warning('could not import due to IO error: %s' % ioe)
-        # compute speed and msd
-        df_matlab = m.get_speed_acc(df_matlab, group=indiv_idx)
-        df_matlab = m.get_msd(df_matlab, group=indiv_idx)
-
+        # df_matlab = import_eb3_utrack_all('/Users/Fabio/data/lab/eb3')
+        df_matlab = import_eb3_icy_all('/Users/Fabio/data/lab')
         df_matlab.to_pickle('/Users/Fabio/data/lab/eb3.pandas')
     else:
         df_matlab = pd.read_pickle('/Users/Fabio/data/lab/eb3.pandas')
 
     if do_filter_stats:
-        df_flt = df_filter(df_matlab, k=1, msd_thr=3)
+        df_flt = df_filter(df_matlab, k=5, f=10, msd_thr=3)
         df_flt = m.get_center_df(df_flt, group=indiv_idx)
         df_flt = m.get_trk_length(df_flt, group=indiv_idx)
         df_flt.to_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
@@ -601,32 +679,27 @@ if __name__ == '__main__':
         # construct average track speed and track length
         dfi = df_flt.set_index('frame').sort_index()
         dfi['speed'] = dfi['speed'].abs()
-        _df_avg = dfi.groupby(indiv_idx)['time', 'speed'].mean()
-        _df_avg.loc[:, 'time'] = dfi.groupby(indiv_idx)['time'].first()
-        _df_avg.loc[:, 'trk_len'] = dfi.groupby(indiv_idx)['x'].count()
-        _df_avg.loc[:, 'length'] = df_matlab.groupby(indiv_idx).apply(m.agg_trk_length)
-        _df_avg = _df_avg.reset_index()
-        _df_avg.to_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
-
-        # write csv eb3 track data
-        filename = '/Users/Fabio/data/lab/eb3_tracks.csv'
-        with open(filename, 'w') as of:
-            of.write('condition,run,id,frame,xm,ym\n')
-
-        for _id, df in df_flt.reset_index().groupby('trk'):
-            with open(filename, 'a') as f:
-                df[['condition', 'tag', 'trk', 'frame', 'x', 'y']].to_csv(f, header=False, index=False)
-
+        df_avg = dfi.groupby(indiv_idx)['time', 'speed'].mean()
+        df_avg.loc[:, 'time'] = dfi.groupby(indiv_idx)['time'].first()
+        df_avg.loc[:, 'trk_len'] = dfi.groupby(indiv_idx)['x'].count()
+        df_avg.loc[:, 'length'] = df_matlab.groupby(indiv_idx).apply(m.agg_trk_length)
+        df_avg = df_avg.reset_index()
+        df_avg.to_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
     else:
-        _df_avg = pd.read_pickle('/Users/Fabio/data/lab/eb3stats.pandas').reset_index()
+        df_avg = pd.read_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
         df_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
-        # msd_lreg = pd.read_pickle('/Users/Fabio/eb3reg.pandas')
-        logging.info('Loaded %d tracks after filters' % df_flt['trk'].unique().size)
+        logging.info('Loaded %d tracks after filters' % df_flt.set_index(indiv_idx).index.unique().size)
 
-    # print m.get_trk_length(df_matlab.iloc[0:1000], group=['condition', 'tag', 'trk'])
+    logging.info('rendering images')
+    # print df_matlab[df_matlab['condition']=='eb3-control'].groupby(indiv_idx).agg({'frame':['count','min']})
+    render_image_tracks(df_matlab, folder='/Users/Fabio/data/lab/eb3',
+                        render='/Volumes/H.H. Lab (fab)/Fabio/data/lab/eb3-2')
+
     logging.info('making indiv plots')
+    df_flt['time'] = df_flt['time'].apply(np.round, decimals=3)
+    df_flt['time_i'] = df_flt['time_i'].apply(np.round, decimals=3)
     for id, dff in df_flt.groupby('condition'):
-        dfavg = _df_avg[_df_avg['condition'] == id]
+        dfavg = df_avg[df_avg['condition'] == id]
         logging.info('Plotting individuals for %s group.' % id)
         indiv_plots(dff, dfavg, pdf_fname='eb3_indv-%s.pdf' % id)
 
