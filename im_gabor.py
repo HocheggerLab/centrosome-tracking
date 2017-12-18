@@ -35,15 +35,13 @@ if __name__ == '__main__':
     img = tubulin + hoescht
 
     # set-up matplotlib axes
-    gs = matplotlib.gridspec.GridSpec(2, 4)
+    gs = matplotlib.gridspec.GridSpec(2, 3)
     ax1 = plt.subplot(gs[0, 0])
     ax2 = plt.subplot(gs[0, 1])
     ax3 = plt.subplot(gs[0, 2])
-    ax4 = plt.subplot(gs[0, 3])
-    ax5 = plt.subplot(gs[1, 0])
-    ax6 = plt.subplot(gs[1, 1])
-    ax7 = plt.subplot(gs[1, 2])
-    ax8 = plt.subplot(gs[1, 3])
+    ax4 = plt.subplot(gs[1, 0])
+    ax5 = plt.subplot(gs[1, 1])
+    ax6 = plt.subplot(gs[1, 2])
     plt.tight_layout()
 
     thr_ = 50
@@ -99,19 +97,21 @@ if __name__ == '__main__':
 
     # show the output image
     ax1.imshow(gabor)
-    ax2.imshow(blur)
-    ax3.imshow(bin2)
-    ax4.imshow(distance)
+    ax2.imshow(bin2)
+    ax3.imshow(distance)
 
-    ax5.imshow(bin_nuc)
-    ax6.imshow(markers)
-    ax7.imshow(labels)
-    ax8.imshow(color)
+    ax4.imshow(markers)
+    ax5.imshow(labels)
+    ax6.imshow(color)
 
-    ax7.set_title('cell boundary')
+    ax1.set_title('gabor filter')
+    ax2.set_title('threshold')
+    ax3.set_title('distance')
+    ax4.set_title('nuclei seeds')
+    ax5.set_title('cell boundary')
+    ax6.set_title('render')
 
-    # for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12]:
-    for ax in [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8]:
+    for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
