@@ -1,12 +1,11 @@
 import ConfigParser
 import os
 import re
-from threading import Lock
 
 import h5py
 import pandas as pd
 from PyQt4 import QtCore, QtGui, uic
-from PyQt4.QtCore import Qt, QTimer
+from PyQt4.QtCore import QTimer, Qt
 from PyQt4.QtGui import QAbstractItemView
 
 import hdf5_nexus as hdf
@@ -30,22 +29,24 @@ class ExperimentsList(QtGui.QWidget):
         self.populate_experiments()
 
         # Call a QTimer for animations
-        self.rendering_lock = Lock()
-        QTimer.singleShot(1000, self.anim)
+        # self.rendering_lock = Lock()
+        self.timer = QTimer()
+        self.timer.start(200)
 
         QtCore.QObject.connect(self.exportPandasButton, QtCore.SIGNAL('pressed()'), self.on_export_pandas_button)
         QtCore.QObject.connect(self.exportSelectionButton, QtCore.SIGNAL('pressed()'), self.on_export_sel_button)
         QtCore.QObject.connect(self.importSelectionButton, QtCore.SIGNAL('pressed()'), self.on_import_sel_button)
         QtCore.QObject.connect(self.clearRunButton, QtCore.SIGNAL('pressed()'), self.on_clear_run_button)
+        QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('valueChanged(int)'), self.on_frame_slider_change)
+        QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('sliderPressed()'), self.on_frame_slider_press)
+        QtCore.QObject.connect(self.timer, QtCore.SIGNAL('timeout()'), self.anim)
 
     def anim(self):
-        with self.rendering_lock:
-            if self.total_frames > 0:
-                self.frame = (self.frame + 1) % self.total_frames
-                self.movieImgLabel.render_frame(self.condition, self.run, self.frame,
-                                                nuclei_selected=self.nuclei_selected)
-            QTimer.singleShot(500, self.anim)
-
+        # with self.rendering_lock:
+        if self.total_frames > 0:
+            self.frame = (self.frame + 1) % self.total_frames
+            self.movieImgLabel.render_frame(self.condition, self.run, self.frame,
+                                            nuclei_selected=self.nuclei_selected)
 
     def populate_experiments(self):
         model = QtGui.QStandardItemModel()
@@ -90,17 +91,23 @@ class ExperimentsList(QtGui.QWidget):
         with h5py.File(self.hdf5file, 'r') as f:
             sel = f['%s/%s/raw' % (self.condition, self.run)]
             self.total_frames = len(sel)
-        self.anim()
+        self.timer.start(200)
 
     def populate_frames_list(self):
         with h5py.File(self.hdf5file, 'r') as f:
             sel = f['%s/%s/raw' % (self.condition, self.run)]
             self.total_frames = len(sel)
             self.frameHSlider.setMaximum(self.total_frames - 1)
-        QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('valueChanged(int)'), self.on_frame_slider_change)
+
+    @QtCore.pyqtSlot()
+    def on_frame_slider_press(self):
+        self.timer.stop()
+        self.frame = self.frameHSlider.value()
+        self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
 
     @QtCore.pyqtSlot('int')
     def on_frame_slider_change(self, value):
+        self.timer.stop()
         self.frame = value
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
 
@@ -157,7 +164,7 @@ class ExperimentsList(QtGui.QWidget):
             mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
             df = df[df['Nuclei'] == nuclei]
             mask = mask[mask['Nuclei'] == nuclei]
-            spc.plot_distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask, draw_interpolated=False)
+            spc.distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask)
             self.mplDistance.canvas.draw()
 
     def populate_centrosomes(self):
@@ -244,15 +251,22 @@ class ExperimentsList(QtGui.QWidget):
 
     @QtCore.pyqtSlot()
     def on_export_pandas_button(self):
-        fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save file',
+        fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save centrosome file',
                                                   directory='/Users/Fabio/centrosomes.pandas')
+        mname = QtGui.QFileDialog.getSaveFileName(self, caption='Save mask dataframe file',
+                                                  directory='/Users/Fabio/mask.pandas')
         fname = str(fname)
+        mname = str(mname)
 
-        print 'saving to %s' % fname
         self.reprocess_selections()
+        print 'saving masks to %s' % (mname)
         hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+        msk = hlab.mask
+        msk.to_pickle(mname)
+        print 'saving centrosomes to %s' % (fname)
         df = hlab.dataframe
         df.to_pickle(fname)
+        print 'export finished.'
 
     @QtCore.pyqtSlot()
     def on_export_sel_button(self):
