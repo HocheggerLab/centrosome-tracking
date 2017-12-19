@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import time
 
 import cv2
 import hdbscan
@@ -12,13 +13,12 @@ import pandas as pd
 import scipy.io as sio
 import seaborn as sns
 import tifffile as tf
-import time
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy import stats
 from sklearn import linear_model
 
 import mechanics as m
-import special_plots as sp
+import plot_special_tools as sp
 import stats as st
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)

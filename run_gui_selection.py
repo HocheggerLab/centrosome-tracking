@@ -9,13 +9,13 @@ from PyQt4.QtCore import QTimer, Qt
 from PyQt4.QtGui import QAbstractItemView
 
 import hdf5_nexus as hdf
-import special_plots as spc
+import plot_special_tools as spc
 
 
 class ExperimentsList(QtGui.QWidget):
     def __init__(self, path):
         QtGui.QWidget.__init__(self)
-        uic.loadUi('ExperimentsSelectionWidget.ui', self)
+        uic.loadUi('gui_exp_selection.ui', self)
 
         self.frame = 0
         self.total_frames = 0

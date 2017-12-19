@@ -11,7 +11,7 @@ from matplotlib.patches import Arc
 from pathlib import Path
 
 import elastica as e
-import label as l
+import plot_labelline as l
 
 logging.basicConfig(level=logging.INFO)
 
