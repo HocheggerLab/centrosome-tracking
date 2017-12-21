@@ -29,7 +29,6 @@ class ExperimentsList(QtGui.QWidget):
         self.populate_experiments()
 
         # Call a QTimer for animations
-        # self.rendering_lock = Lock()
         self.timer = QTimer()
         self.timer.start(200)
 
@@ -42,7 +41,6 @@ class ExperimentsList(QtGui.QWidget):
         QtCore.QObject.connect(self.timer, QtCore.SIGNAL('timeout()'), self.anim)
 
     def anim(self):
-        # with self.rendering_lock:
         if self.total_frames > 0:
             self.frame = (self.frame + 1) % self.total_frames
             self.movieImgLabel.render_frame(self.condition, self.run, self.frame,
@@ -53,7 +51,7 @@ class ExperimentsList(QtGui.QWidget):
         self.experimentsTreeView.setModel(model)
         self.experimentsTreeView.setUniformRowHeights(True)
         with h5py.File(self.hdf5file, 'r') as f:
-            for cond in f.iterkeys():
+            for cond in reversed(sorted(f.iterkeys())):
                 conditem = QtGui.QStandardItem(cond)
                 for run in f[cond].iterkeys():
                     runitem = QtGui.QStandardItem(run)

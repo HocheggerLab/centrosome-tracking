@@ -260,13 +260,13 @@
         <customwidget>
             <class>MplWidget</class>
             <extends>QWidget</extends>
-            <header>mplwidget</header>
+            <header>gui_mplwidget</header>
             <container>1</container>
         </customwidget>
         <customwidget>
             <class>CentrosomeImageQLabel</class>
             <extends>QLabel</extends>
-            <header>centrosome_image_qlabel</header>
+            <header>gui_centrosome_image_qlabel</header>
         </customwidget>
     </customwidgets>
     <resources/>

@@ -1,8 +1,11 @@
+import cv2
 import h5py
 import numpy as np
 import pandas as pd
 from PyQt4 import Qt, QtCore, QtGui
 from PyQt4.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
+
+import im_gabor
 
 
 class CentrosomeImageQLabel(QtGui.QLabel):
@@ -81,9 +84,49 @@ class CentrosomeImageQLabel(QtGui.QLabel):
             centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)]
             sel = f['%s/%s/selection' % (self.condition, self.run)]
 
+            hoechst = f['%s/%s/raw/%03d/channel-1' % (self.condition, self.run, self.frame)][:]
+            tubulin = f['%s/%s/raw/%03d/channel-2' % (self.condition, self.run, self.frame)][:]
+            # boundary_list = im_gabor.cell_boundary(tubulin, hoechst, fig=plt.figure(10))
+
+            marker = np.zeros(hoechst.shape, dtype=np.uint8)
+            for nucID in nuclei_list:
+                nuc = nuclei_list[nucID]
+                nid = int(nucID[1:])
+                if nid == 0: continue
+                nfxy = nuc['pos'].value
+                nuc_frames = nfxy.T[0]
+                if self.frame in nuc_frames:
+                    fidx = nuc_frames.searchsorted(self.frame)
+                    nx = int(nfxy[fidx][1] * self.resolution)
+                    ny = int(nfxy[fidx][2] * self.resolution)
+                    cv2.circle(marker, (nx, ny), 5, nid, thickness=-1)
+
+            boundary_list, gabor = im_gabor.cell_boundary(tubulin, hoechst, markers=marker, threshold=110)
+
+            img_8bit = ((gabor - gabor.min()) / (gabor.ptp() / 255.0)).astype(np.uint8)
+            qtimage = QtGui.QImage(img_8bit.repeat(4), self.dwidth, self.dheight, QtGui.QImage.Format_RGB32)
+            self.image_pixmap = QPixmap(qtimage)
+
             painter = QPainter()
             painter.begin(self.image_pixmap)
             painter.setRenderHint(QPainter.Antialiasing)
+
+            for bitem in boundary_list:
+                cell_id = bitem['id']
+                cell_boundary = bitem['boundary']
+                cell_centroid = bitem['centroid']
+                # nucb_qpoints = [Qt.QPoint(x, y) for x, y in (i[0] for i in cell_boundary)]
+                nucb_qpoints = [Qt.QPoint(x, y) for x, y in cell_boundary]
+                nucb_poly = Qt.QPolygon(nucb_qpoints)
+
+                painter.setBrush(QColor('transparent'))
+                painter.setPen(QPen(QBrush(QColor(0, 255, 0)), 2))
+                painter.drawPolygon(nucb_poly)
+
+                painter.drawText(cell_centroid[0] + 5, cell_centroid[1], 'C%02d' % (cell_id))
+
+                painter.setBrush(QColor(0, 255, 0))
+                painter.drawEllipse(cell_centroid[0] - 5, cell_centroid[1] - 5, 10, 10)
 
             for nucID in nuclei_list:
                 nuc = nuclei_list[nucID]
@@ -113,9 +156,9 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                     # get nuclei boundary as a polygon
                     df_nucfr = df[(df['Nuclei'] == nid) & (df['Frame'] == self.frame)]
                     if len(df_nucfr['NuclBound'].values) > 0:
-                        nuc_boundary_str = df_nucfr['NuclBound'].values[0]
-                        if nuc_boundary_str[1:-1] != '':
-                            nucb_points = eval(nuc_boundary_str[1:-1])
+                        cell_boundary = df_nucfr['NuclBound'].values[0]
+                        if cell_boundary[1:-1] != '':
+                            nucb_points = eval(cell_boundary[1:-1])
                             nucb_qpoints = [Qt.QPoint(x * self.resolution, y * self.resolution) for x, y in nucb_points]
                             nucb_poly = Qt.QPolygon(nucb_qpoints)
 
