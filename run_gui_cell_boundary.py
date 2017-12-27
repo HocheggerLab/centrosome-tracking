@@ -2,20 +2,27 @@ import ConfigParser
 import os
 import re
 
+import cv2
 import h5py
+import numpy as np
 import pandas as pd
+import seaborn as sns
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import QTimer, Qt
-from PyQt4.QtGui import QAbstractItemView
 
 import hdf5_nexus as hdf
+import im_gabor
+import mechanics as m
 import plot_special_tools as spc
+from imagej_pandas import ImagejPandas as dfij
+
+pd.options.display.max_colwidth = 10
 
 
 class ExperimentsList(QtGui.QWidget):
     def __init__(self, path):
         QtGui.QWidget.__init__(self)
-        uic.loadUi('gui_exp_selection.ui', self)
+        uic.loadUi('gui_cell_boundary.ui', self)
 
         self.frame = 0
         self.total_frames = 0
@@ -35,9 +42,6 @@ class ExperimentsList(QtGui.QWidget):
         QtCore.QObject.connect(self.exportPandasButton, QtCore.SIGNAL('pressed()'), self.on_export_pandas_button)
         QtCore.QObject.connect(self.exportSelectionButton, QtCore.SIGNAL('pressed()'), self.on_export_sel_button)
         QtCore.QObject.connect(self.importSelectionButton, QtCore.SIGNAL('pressed()'), self.on_import_sel_button)
-        QtCore.QObject.connect(self.clearRunButton, QtCore.SIGNAL('pressed()'), self.on_clear_run_button)
-        QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('valueChanged(int)'), self.on_frame_slider_change)
-        QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('sliderPressed()'), self.on_frame_slider_press)
         QtCore.QObject.connect(self.timer, QtCore.SIGNAL('timeout()'), self.anim)
 
     def anim(self):
@@ -77,13 +81,9 @@ class ExperimentsList(QtGui.QWidget):
             self.populate_frames_list()
             self.movieImgLabel.render_frame(self.condition, self.run, self.frame)
             self.populate_nuclei()
-            self.populate_centrosomes()
             self.mplDistance.clear()
         else:
             self.nucleiListView.model().clear()
-            self.centrosomeListView.model().clear()
-            self.centrosomeListView_A.model().clear()
-            self.centrosomeListView_B.model().clear()
             self.movieImgLabel.clear()
 
         with h5py.File(self.hdf5file, 'r') as f:
@@ -95,19 +95,6 @@ class ExperimentsList(QtGui.QWidget):
         with h5py.File(self.hdf5file, 'r') as f:
             sel = f['%s/%s/raw' % (self.condition, self.run)]
             self.total_frames = len(sel)
-            self.frameHSlider.setMaximum(self.total_frames - 1)
-
-    @QtCore.pyqtSlot()
-    def on_frame_slider_press(self):
-        self.timer.stop()
-        self.frame = self.frameHSlider.value()
-        self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
-
-    @QtCore.pyqtSlot('int')
-    def on_frame_slider_change(self, value):
-        self.timer.stop()
-        self.frame = value
-        self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
 
     def populate_nuclei(self):
         model = QtGui.QStandardItemModel()
@@ -117,7 +104,6 @@ class ExperimentsList(QtGui.QWidget):
             sel = f['%s/%s/selection' % (self.condition, self.run)]
             for nucID in nuc:
                 conditem = QtGui.QStandardItem(nucID)
-                # conditem.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
                 if nucID in sel:
                     conditem.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
                 else:
@@ -131,7 +117,6 @@ class ExperimentsList(QtGui.QWidget):
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
     def on_nuclei_change(self, current, previous):
         self.nuclei_selected = int(current.data().toString()[1:])
-        self.populate_centrosomes()
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
         self.plot_tracks_of_nuclei(self.nuclei_selected)
 
@@ -147,112 +132,75 @@ class ExperimentsList(QtGui.QWidget):
             self.mplDistance.clear()
 
         self.populate_nuclei()
-        self.populate_centrosomes()
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
 
     def plot_tracks_of_nuclei(self, nuclei):
         self.mplDistance.clear()
         with h5py.File(self.hdf5file, 'r') as f:
             if 'pandas_dataframe' in f['%s/%s/processed' % (self.condition, self.run)]:
-                read_ok = True
-            else:
-                read_ok = False
-        if read_ok:
-            df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_dataframe' % (self.condition, self.run))
-            mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
-            df = df[df['Nuclei'] == nuclei]
-            mask = mask[mask['Nuclei'] == nuclei]
-            spc.distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask)
-            self.mplDistance.canvas.draw()
+                # df = f['%s/%s/processed/pandas_dataframe' % (self.condition, self.run)]
+                # mask = f['%s/%s/processed/pandas_masks' % (self.condition, self.run)]
+                df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_dataframe' % (self.condition, self.run))
+                mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
+                df = df[df['Nuclei'] == nuclei]
+                mask = mask[mask['Nuclei'] == nuclei]
+                time, frame, dist = dfij.get_contact_time(df, 10)
+                print time
+                spc.distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask, time_contact=time)
 
-    def populate_centrosomes(self):
-        model = QtGui.QStandardItemModel()
-        modelA = QtGui.QStandardItemModel()
-        modelB = QtGui.QStandardItemModel()
+                for frame in f['%s/%s/raw' % (self.condition, self.run)]:
+                    ch1 = f['%s/%s/raw/%s/channel-1' % (self.condition, self.run, frame)]
+                    ch2 = f['%s/%s/raw/%s/channel-2' % (self.condition, self.run, frame)]
+                    hoechst = ch1[:]
+                    tubulin = ch2[:]
+                    resolution = ch2.parent.attrs['resolution']
 
-        self.centrosomeListView.setModel(model)
-        self.centrosomeListView.setDragEnabled(True)
-        self.centrosomeListView.setDragDropMode(QAbstractItemView.InternalMove)
+                    marker = np.zeros(hoechst.shape, dtype=np.uint8)
+                    nuclei_list = f['%s/%s/measurements/nuclei' % (self.condition, self.run)]
+                    for nucID in nuclei_list:
+                        nuc = nuclei_list[nucID]
+                        nid = int(nucID[1:])
+                        if nid == 0: continue
+                        nfxy = nuc['pos'].value
+                        nuc_frames = nfxy.T[0]
+                        frame = int(frame)
+                        if frame in nuc_frames:
+                            fidx = nuc_frames.searchsorted(frame)
+                            nx = int(nfxy[fidx][1] * resolution)
+                            ny = int(nfxy[fidx][2] * resolution)
+                            cv2.circle(marker, (nx, ny), 5, nid, thickness=-1)
 
-        self.centrosomeListView_A.setModel(modelA)
-        self.centrosomeListView_A.setAcceptDrops(True)
-        self.centrosomeListView_B.setModel(modelB)
-        self.centrosomeListView_B.setAcceptDrops(True)
-        with h5py.File(self.hdf5file, 'r') as f:
-            centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)].keys()
-            sel = f['%s/%s/selection' % (self.condition, self.run)]
-            if self.nuclei_selected is not None and 'N%02d' % self.nuclei_selected in sel:
-                sel = sel['N%02d' % self.nuclei_selected]
-                for cntrID in centrosome_list:
-                    centr_in_a = cntrID in sel['A']
-                    centr_in_b = cntrID in sel['B']
+                    boundary_list, gabor = im_gabor.cell_boundary(tubulin, hoechst, markers=marker, threshold=70)
+                    for b in boundary_list:
+                        nuc = b['id']
+                        boundcell = np.array2string(b['boundary'] / resolution, separator=',', precision=10)
+                        cx, cy = b['centroid'] / resolution
+                        ix = (df['Frame'] == int(frame)) & (df['Nuclei'] == nuc)
+                        if not ix.empty:
+                            df.loc[ix, 'CellBound'] = boundcell
+                            df.loc[ix, 'CellX'] = cx
+                            df.loc[ix, 'CellY'] = cy
 
-                    item = QtGui.QStandardItem(cntrID)
-                    if centr_in_a:
-                        item.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
-                        item.setCheckable(True)
-                        modelA.appendRow(item)
-                    elif centr_in_b:
-                        item.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
-                        item.setCheckable(True)
-                        modelB.appendRow(item)
+                df = m.get_speed_acc_rel_to(df, x='CentX', y='CentY', rx='CellX', ry='CellY',
+                                            time='Time', frame='Frame', group='Centrosome')
+                df = df.rename(columns={'dist': 'DistCell', 'speed': 'SpdCell', 'acc': 'AccCell'}) \
+                    .set_index('Time').sort_index()
 
-        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-        for cntrID in centrosome_list:
-            if not hlab.is_centrosome_associated(cntrID, self.condition, self.run):
-                item = QtGui.QStandardItem(cntrID)
-                model.appendRow(item)
+                # plot distance with respect to cell centroid
+                pal = sns.color_palette()
+                for k, [(centr_lbl), _df] in enumerate(df.groupby(['Centrosome'])):
+                    color = pal[k % len(pal)]
+                    dlbl = 'N%d-C%d' % (nuclei, centr_lbl)
+                    _df['DistCell'].plot(ax=self.mplDistance.canvas.ax, label=dlbl, marker='<', sharex=True, c=color)
 
-        QtCore.QObject.connect(modelA, QtCore.SIGNAL('itemChanged(QStandardItem)'), self.on_centrosometick_change)
-        modelA.itemChanged.connect(self.on_centrosometick_change)
-        modelB.itemChanged.connect(self.on_centrosometick_change)
-
-        QtCore.QObject.connect(modelA, QtCore.SIGNAL('rowsInserted(QModelIndex,int,int)'), self.on_centrosome_a_drop)
-        QtCore.QObject.connect(modelB, QtCore.SIGNAL('rowsInserted(QModelIndex,int,int)'), self.on_centrosome_b_drop)
-
-    @QtCore.pyqtSlot('QStandardItem')
-    def on_centrosometick_change(self, item):
-        self.centrosome_selected = str(item.text())
-        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-        c = int(self.centrosome_selected[1:])
-        if self.centrosome_dropped:
-            self.centrosome_dropped = False
-            hlab.associate_centrosome_with_nuclei(c, self.nuclei_selected, self.condition, self.run,
-                                                  self.centrosome_group)
-            hlab.process_selection_for_run(self.condition, self.run)
-        elif item.checkState() == QtCore.Qt.Unchecked:
-            hlab.delete_association(c, self.nuclei_selected, self.condition, self.run)
-
-        self.populate_nuclei()
-        self.populate_centrosomes()
-        self.movieImgLabel.render_frame(self.condition, self.run, self.frame)
-        self.plot_tracks_of_nuclei(self.nuclei_selected)
-
-    @QtCore.pyqtSlot('QModelIndex,int,int')
-    def on_centrosome_a_drop(self, item, start, end):
-        self.centrosome_dropped = True
-        self.centrosome_group = 0
-
-    @QtCore.pyqtSlot('QModelIndex,int,int')
-    def on_centrosome_b_drop(self, item, start, end):
-        self.centrosome_dropped = True
-        self.centrosome_group = 1
-
-    @QtCore.pyqtSlot()
-    def on_clear_run_button(self):
-        if self.condition is not None and self.run is not None:
-            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-            hlab.clear_associations(self.condition, self.run)
-            hlab.process_selection_for_run(self.condition, self.run)
-            self.populate_nuclei()
-            self.populate_centrosomes()
+        self.mplDistance.canvas.draw()
 
     @QtCore.pyqtSlot()
     def on_export_pandas_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save centrosome file',
-                                                  directory='/Users/Fabio/centrosomes.pandas')
+                                                  directory='/Users/Fabio/boundary.pandas')
         mname = QtGui.QFileDialog.getSaveFileName(self, caption='Save mask dataframe file',
-                                                  directory='/Users/Fabio/mask.pandas')
+                                                  directory='/Users/Fabio/boundary-mask.pandas')
         fname = str(fname)
         mname = str(mname)
 
@@ -269,7 +217,7 @@ class ExperimentsList(QtGui.QWidget):
     @QtCore.pyqtSlot()
     def on_export_sel_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selection file',
-                                                  directory='/Users/Fabio/centrosomes_selection.txt')
+                                                  directory='/Users/Fabio/boundary_selection.txt')
         fname = str(fname)
         print 'saving to %s' % fname
 
@@ -293,7 +241,7 @@ class ExperimentsList(QtGui.QWidget):
 
     def on_import_sel_button(self):
         fname = QtGui.QFileDialog.getOpenFileName(self, caption='Load selection file', filter='Text (*.txt)',
-                                                  directory='/Users/Fabio/centrosomes_selection.txt')
+                                                  directory='/Users/Fabio/boundary_selection.txt')
         if not fname: return
         fname = str(fname)
 

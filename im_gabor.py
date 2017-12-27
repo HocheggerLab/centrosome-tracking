@@ -4,20 +4,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 import skimage.morphology
 import skimage.segmentation
+import tifffile as tf
 from scipy import ndimage as ndi
 from skimage import exposure
 from skimage.filters import gaussian
-# from skimage.draw import polygon
-from skimage.morphology import square
+from skimage.morphology import erosion, square
 from skimage.segmentation import active_contour
+
 
 
 def cell_boundary(tubulin, hoechst, fig=None, threshold=80, markers=None):
     def build_gabor_filters():
         filters = []
-        ksize = 7
+        ksize = 9
         for theta in np.arange(0, np.pi, np.pi / 8):
-            kern = cv2.getGaborKernel((ksize, ksize), 3.0, theta, 4.0, 0.5, 0, ktype=cv2.CV_32F)
+            kern = cv2.getGaborKernel((ksize, ksize), 4.0, theta, 6.0, 0.5, 0, ktype=cv2.CV_32F)
             kern /= kern.sum()
             filters.append(kern)
         return filters
@@ -29,11 +30,6 @@ def cell_boundary(tubulin, hoechst, fig=None, threshold=80, markers=None):
             np.maximum(accum, fimg, accum)
         return accum
 
-    # tubulin = cv2.convertScaleAbs(tubulin, alpha=(255.0 / 65535.0))
-    # hoechst = cv2.convertScaleAbs(hoechst, alpha=(255.0 / 65535.0))
-    # tubulin = ((tubulin - tubulin.min()) / (tubulin.ptp() / 65535.0)).astype(np.uint16)
-    # hoechst = ((hoechst - hoechst.min()) / (hoechst.ptp() / 65535.0)).astype(np.uint16)
-
     p2 = np.percentile(tubulin, 2)
     p98 = np.percentile(tubulin, 98)
     tubulin = exposure.rescale_intensity(tubulin, in_range=(p2, p98))
@@ -41,23 +37,20 @@ def cell_boundary(tubulin, hoechst, fig=None, threshold=80, markers=None):
     p98 = np.percentile(hoechst, 98)
     hoechst = exposure.rescale_intensity(hoechst, in_range=(p2, p98))
 
-    # from skimage import exposure
-    # tubulin = exposure.equalize_adapthist(tubulin, clip_limit=0.03)
-    # hoechst = exposure.equalize_adapthist(hoechst, clip_limit=0.03)
-    # hoechst[hoechst < 5000] = 0
-    img = np.maximum(tubulin, hoechst)
+    img = np.maximum(tubulin, 0.8 * hoechst)
 
-    img = skimage.morphology.erosion(img, square(3))
+    img = erosion(img, square(3))
     filters = build_gabor_filters()
     gabor = process_gabor(img, filters)
+
     gabor = cv2.convertScaleAbs(gabor, alpha=(255.0 / 65535.0))
     ret, bin1 = cv2.threshold(gabor, threshold, 255, cv2.THRESH_BINARY)
-    # bin11=skimage.morphology.dilation(bin1, square(3))
 
     # gaussian blur on gabor filter result
     ksize = 31
     blur = cv2.GaussianBlur(bin1, (ksize, ksize), 0)
     ret, bin2 = cv2.threshold(blur, threshold, 255, cv2.THRESH_OTSU)
+    # ret, bin2 = cv2.threshold(blur, 70, 255, cv2.THRESH_BINARY)
 
     if markers is None:
         # get markers for watershed from hoescht channel
@@ -67,9 +60,17 @@ def cell_boundary(tubulin, hoechst, fig=None, threshold=80, markers=None):
         markers = ndi.label(bin_nuc)[0]
 
     # label cell boundaries starting from each nucleus, using the watershed algorithm
-    labels = skimage.morphology.watershed(-gabor, markers, mask=bin2)
-    # labels = skimage.morphology.watershed(-gabor, markers)
-    # labels = skimage.segmentation.random_walker(-gabor, markers)
+    # distance = ndi.distance_transform_edt(bin2)
+    # distance = distance / np.linalg.norm(distance)
+    # distance = distance / np.max(distance)
+    # distance = np.logical_and(distance, distance > 0.09)
+    # distance = ndi.distance_transform_edt(distance)
+    # gabor_proc = distance * gabor
+    # gabor_proc = cv2.GaussianBlur(gabor, (ksize, ksize), 0)
+    # gabor_proc = process_gabor(gabor_proc, filters)
+    gabor_proc = gabor
+
+    labels = skimage.morphology.watershed(-gabor_proc, markers, mask=bin2)
 
     image = cv2.convertScaleAbs(img, alpha=(255.0 / 65535.0))
     color = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
@@ -85,7 +86,7 @@ def cell_boundary(tubulin, hoechst, fig=None, threshold=80, markers=None):
         do_snake = False
         if do_snake:
             snake = np.array([[x, y] for x, y in [i[0] for i in contour]], dtype=np.float32)
-            contour = active_contour(gaussian(gabor, 3), snake, alpha=0.015, beta=0.1, gamma=0.01, w_line=-1.0)
+            contour = active_contour(gaussian(gabor, 3), snake, alpha=0.015, beta=0.1, gamma=0.1, w_line=-1.0)
 
             cx, cy = 0, 0
             boundaries_list.append({'id': l, 'boundary': contour, 'centroid': (cx, cy)})
@@ -135,21 +136,38 @@ def cell_boundary(tubulin, hoechst, fig=None, threshold=80, markers=None):
             ax.get_xaxis().set_visible(False)
             ax.get_yaxis().set_visible(False)
 
-        f2 = plt.figure(21)
-        ax = f2.gca()
-        ax.imshow(gabor)
+        plt.pause(0.5)
 
-        plt.show()
-
-    return boundaries_list, img
+    return boundaries_list, gabor_proc
 
 
 if __name__ == '__main__':
-    file = '/Users/Fabio/data/lab/test-gabor.tif'
-    file2 = '/Users/Fabio/data/lab/test-gabor-2.tif'
-    tubulin = cv2.imread(file, cv2.IMREAD_UNCHANGED)
-    hoescht = cv2.imread(file2, cv2.IMREAD_UNCHANGED)
-    if tubulin is None or hoescht is None:
-        print 'Failed to load image file:', file
+    with tf.TiffFile('/Users/Fabio/data/lab/pc-100.tif', fastij=True) as tif:
+        if tif.is_imagej is not None:
+            sizeT, channels = tif.pages[0].imagej_tags.frames, tif.pages[0].imagej_tags.channels
+            sizeZ, sizeX, sizeY = 1, tif.pages[0].image_width, tif.pages[0].image_length
+            print 'N of frames=%d channels=%d, sizeZ=%d, sizeX=%d, sizeY=%d' % \
+                  (sizeT, channels, sizeZ, sizeX, sizeY)
 
-    cell_boundary(tubulin, hoescht, fig=plt.gcf())
+            res = 'n/a'
+            if tif.pages[0].resolution_unit == 'centimeter':
+                # asuming square pixels
+                xr = tif.pages[0].x_resolution
+                res = float(xr[0]) / float(xr[1])  # pixels per cm
+                res = res / 1e4  # pixels per um
+            elif tif.pages[0].imagej_tags.unit == 'micron':
+                # asuming square pixels
+                xr = tif.pages[0].x_resolution
+                res = float(xr[0]) / float(xr[1])  # pixels per um
+
+            sequence = tif.pages[0].asarray().reshape([sizeT, channels, sizeX, sizeY])
+            for img in sequence:
+                ch1 = img[0]
+                ch2 = img[1]
+                ch3 = img[2]
+                tubulin = ch2
+                hoescht = ch1
+                try:
+                    cell_boundary(tubulin, hoescht, fig=plt.gcf())
+                except:
+                    pass
