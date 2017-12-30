@@ -1,11 +1,10 @@
-import cv2
+import logging
+
 import h5py
 import numpy as np
 import pandas as pd
 from PyQt4 import Qt, QtCore, QtGui
 from PyQt4.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
-
-import im_gabor
 
 
 class CentrosomeImageQLabel(QtGui.QLabel):
@@ -78,55 +77,14 @@ class CentrosomeImageQLabel(QtGui.QLabel):
             if 'pandas_dataframe' not in f['%s/%s/measurements' % (self.condition, self.run)]:
                 raise KeyError('No data for selected condition-run.')
 
-            df = pd.read_hdf(self.hdf5file, key='%s/%s/measurements/pandas_dataframe' % (self.condition, self.run),
-                             mode='r')
+            df = pd.read_hdf(self.hdf5file, key='%s/%s/measurements/pandas_dataframe' % (self.condition, self.run))
             nuclei_list = f['%s/%s/measurements/nuclei' % (self.condition, self.run)]
             centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)]
             sel = f['%s/%s/selection' % (self.condition, self.run)]
 
-            hoechst = f['%s/%s/raw/%03d/channel-1' % (self.condition, self.run, self.frame)][:]
-            tubulin = f['%s/%s/raw/%03d/channel-2' % (self.condition, self.run, self.frame)][:]
-            # boundary_list = im_gabor.cell_boundary(tubulin, hoechst, fig=plt.figure(10))
-
-            marker = np.zeros(hoechst.shape, dtype=np.uint8)
-            for nucID in nuclei_list:
-                nuc = nuclei_list[nucID]
-                nid = int(nucID[1:])
-                if nid == 0: continue
-                nfxy = nuc['pos'].value
-                nuc_frames = nfxy.T[0]
-                if self.frame in nuc_frames:
-                    fidx = nuc_frames.searchsorted(self.frame)
-                    nx = int(nfxy[fidx][1] * self.resolution)
-                    ny = int(nfxy[fidx][2] * self.resolution)
-                    cv2.circle(marker, (nx, ny), 5, nid, thickness=-1)
-
-            boundary_list, gabor = im_gabor.cell_boundary(tubulin, hoechst, markers=marker, threshold=110)
-
-            img_8bit = ((gabor - gabor.min()) / (gabor.ptp() / 255.0)).astype(np.uint8)
-            qtimage = QtGui.QImage(img_8bit.repeat(4), self.dwidth, self.dheight, QtGui.QImage.Format_RGB32)
-            self.image_pixmap = QPixmap(qtimage)
-
             painter = QPainter()
             painter.begin(self.image_pixmap)
             painter.setRenderHint(QPainter.Antialiasing)
-
-            for bitem in boundary_list:
-                cell_id = bitem['id']
-                cell_boundary = bitem['boundary']
-                cell_centroid = bitem['centroid']
-                # nucb_qpoints = [Qt.QPoint(x, y) for x, y in (i[0] for i in cell_boundary)]
-                nucb_qpoints = [Qt.QPoint(x, y) for x, y in cell_boundary]
-                nucb_poly = Qt.QPolygon(nucb_qpoints)
-
-                painter.setBrush(QColor('transparent'))
-                painter.setPen(QPen(QBrush(QColor(0, 255, 0)), 2))
-                painter.drawPolygon(nucb_poly)
-
-                painter.drawText(cell_centroid[0] + 5, cell_centroid[1], 'C%02d' % (cell_id))
-
-                painter.setBrush(QColor(0, 255, 0))
-                painter.drawEllipse(cell_centroid[0] - 5, cell_centroid[1] - 5, 10, 10)
 
             for nucID in nuclei_list:
                 nuc = nuclei_list[nucID]
@@ -168,6 +126,31 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                                 painter.setPen(QPen(QBrush(QColor('red')), 1))
                             painter.setBrush(QColor('transparent'))
                             painter.drawPolygon(nucb_poly)
+
+                    if 'boundary' in f['%s/%s/processed' % (self.condition, self.run)]:
+                        try:
+                            k = '%s/%s/processed/boundary' % (self.condition, self.run)
+                            dfbound = pd.read_hdf(self.hdf5file, key=k)
+                            dfbound = dfbound[(dfbound['Nuclei'] == nid) & (dfbound['Frame'] == self.frame)]
+                            if not dfbound.empty:
+                                cell_bnd_str = dfbound.iloc[0]['CellBound']
+                                cell_boundary = np.array(eval(cell_bnd_str)) * self.resolution
+                                cell_centroid = dfbound.iloc[0][['CellX', 'CellY']].values * self.resolution
+                                nucb_qpoints = [Qt.QPoint(x, y) for x, y in cell_boundary]
+                                nucb_poly = Qt.QPolygon(nucb_qpoints)
+
+                                painter.setBrush(QColor('transparent'))
+                                painter.setPen(QPen(QBrush(QColor(0, 255, 0)), 2))
+                                painter.drawPolygon(nucb_poly)
+
+                                painter.drawText(cell_centroid[0] + 5, cell_centroid[1], 'C%02d' % (nid))
+
+                                painter.setBrush(QColor(0, 255, 0))
+                                painter.drawEllipse(cell_centroid[0] - 5, cell_centroid[1] - 5, 10, 10)
+                        except Exception as e:
+                            # pass
+                            logging.error('Found a problem rendering cell boundary' + str(e))
+                            # del f['%s/%s/processed/boundary' % (self.condition, self.run)]
 
             for cntrID in centrosome_list:
                 cntr = centrosome_list[cntrID]

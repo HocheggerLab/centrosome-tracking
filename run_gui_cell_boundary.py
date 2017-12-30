@@ -1,4 +1,5 @@
 import ConfigParser
+import logging
 import os
 import re
 
@@ -17,6 +18,7 @@ import plot_special_tools as spc
 from imagej_pandas import ImagejPandas as dfij
 
 pd.options.display.max_colwidth = 10
+logging.basicConfig(level=logging.DEBUG)
 
 
 class ExperimentsList(QtGui.QWidget):
@@ -26,6 +28,8 @@ class ExperimentsList(QtGui.QWidget):
 
         self.frame = 0
         self.total_frames = 0
+        self.condition = None
+        self.run = None
         self.nuclei_selected = None
         self.hdf5file = path
         self.centrosome_dropped = False
@@ -43,6 +47,7 @@ class ExperimentsList(QtGui.QWidget):
         QtCore.QObject.connect(self.exportSelectionButton, QtCore.SIGNAL('pressed()'), self.on_export_sel_button)
         QtCore.QObject.connect(self.importSelectionButton, QtCore.SIGNAL('pressed()'), self.on_import_sel_button)
         QtCore.QObject.connect(self.timer, QtCore.SIGNAL('timeout()'), self.anim)
+        QtCore.QObject.connect(self.gaborLineEdit, QtCore.SIGNAL('editingFinished()'), self.on_gabor_change)
 
     def anim(self):
         if self.total_frames > 0:
@@ -117,6 +122,21 @@ class ExperimentsList(QtGui.QWidget):
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
     def on_nuclei_change(self, current, previous):
         self.nuclei_selected = int(current.data().toString()[1:])
+
+        with h5py.File(self.hdf5file, 'r+') as f:
+            nuc_sel = f['%s/%s/selection/N%02d' % (self.condition, self.run, self.nuclei_selected)]
+            gabor_thr = nuc_sel.attrs['gabor_threshold'] if 'gabor_threshold' in nuc_sel.attrs else None
+
+        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+        hlab.process_selection_for_run(self.condition, self.run)
+        if gabor_thr is not None:
+            self.gaborLineEdit.setText(str(gabor_thr))
+            with h5py.File(self.hdf5file, 'r+') as f:
+                nuc_sel = f['%s/%s/selection/N%02d' % (self.condition, self.run, self.nuclei_selected)]
+                nuc_sel.attrs['gabor_threshold'] = gabor_thr
+        else:
+            self.gaborLineEdit.setText('70')
+
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
         self.plot_tracks_of_nuclei(self.nuclei_selected)
 
@@ -134,64 +154,107 @@ class ExperimentsList(QtGui.QWidget):
         self.populate_nuclei()
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
 
+    @QtCore.pyqtSlot('QStandardItem')
+    def on_gabor_change(self):
+        if self.condition is None or self.run is None or self.nuclei_selected is None:
+            return
+        logging.info('on gabor: condition %s, run %s, nuclei %s' % (self.condition, self.run, self.nuclei_selected))
+
+        self.timer.stop()
+        df = pd.DataFrame()
+        with h5py.File(self.hdf5file, 'r+') as f:
+            if not 'pandas_dataframe' in f['%s/%s/processed' % (self.condition, self.run)] or \
+                    not 'N%02d' % self.nuclei_selected in f['%s/%s/selection' % (self.condition, self.run)]:
+                return
+
+            df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_dataframe' % (self.condition, self.run))
+            nuc_sel = f['%s/%s/selection/N%02d' % (self.condition, self.run, self.nuclei_selected)]
+            new_gabor_thr = int(self.gaborLineEdit.text())
+            old_gabor_thr = nuc_sel.attrs['gabor_threshold'] if 'gabor_threshold' in nuc_sel.attrs else None
+            print('old gabor thr: %s, new thr: %s new==old %s' %
+                  (old_gabor_thr, new_gabor_thr, old_gabor_thr == new_gabor_thr))
+
+            if old_gabor_thr == new_gabor_thr:
+                return
+
+            logging.info('computing cell boundary... will freeze everything.')
+            for frame in f['%s/%s/raw' % (self.condition, self.run)]:
+                ch1 = f['%s/%s/raw/%s/channel-1' % (self.condition, self.run, frame)]
+                ch2 = f['%s/%s/raw/%s/channel-2' % (self.condition, self.run, frame)]
+                hoechst = ch1[:]
+                tubulin = ch2[:]
+                resolution = ch2.parent.attrs['resolution']
+
+                frame = int(frame)
+                marker = np.zeros(hoechst.shape, dtype=np.uint8)
+                nuclei_list = f['%s/%s/measurements/nuclei' % (self.condition, self.run)]
+                for nucID in nuclei_list:
+                    nuc = nuclei_list[nucID]
+                    nid = int(nucID[1:])
+                    if nid == 0: continue
+                    nfxy = nuc['pos'].value
+                    nuc_frames = nfxy.T[0]
+                    if frame in nuc_frames:
+                        fidx = nuc_frames.searchsorted(frame)
+                        nx = int(nfxy[fidx][1] * resolution)
+                        ny = int(nfxy[fidx][2] * resolution)
+                        cv2.circle(marker, (nx, ny), 5, nid, thickness=-1)
+
+                boundary_list, gabor = im_gabor.cell_boundary(tubulin, hoechst, markers=marker,
+                                                              threshold=new_gabor_thr)
+                for b in boundary_list:
+                    nuc = b['id']
+                    np.set_printoptions(threshold=int(np.prod(b['boundary'].shape)))
+                    boundcell = np.array2string(b['boundary'] / resolution, separator=',')
+                    cx, cy = b['centroid'] / resolution
+                    ix = (df['Frame'] == frame) & (df['Nuclei'] == nuc)
+                    if np.any(ix):
+                        df.loc[ix, 'CellBound'] = boundcell
+                        df.loc[ix, 'CellX'] = cx
+                        df.loc[ix, 'CellY'] = cy
+
+            df = m.get_speed_acc_rel_to(df, x='CentX', y='CentY', rx='CellX', ry='CellY',
+                                            time='Time', frame='Frame', group='Centrosome')
+            df = df.rename(columns={'dist': 'DistCell', 'speed': 'SpdCell', 'acc': 'AccCell'})
+
+            nuc_sel = f['%s/%s/selection/N%02d' % (self.condition, self.run, self.nuclei_selected)]
+            nuc_sel.attrs['gabor_threshold'] = new_gabor_thr
+            if 'boundary' in f['%s/%s/processed' % (self.condition, self.run)]:
+                del f['%s/%s/processed/boundary' % (self.condition, self.run)]
+            df = df.drop(['CentX', 'CentY', 'CNx', 'CNy', 'NuclX', 'NuclY',
+                          'Dist', 'Speed', 'Acc', 'NuclBound'], axis=1)
+
+        print(df.columns)
+        df.to_hdf(self.hdf5file, key='%s/%s/processed/boundary' % (self.condition, self.run), mode='r+')
+        self.plot_tracks_of_nuclei(self.nuclei_selected)
+        logging.info('animating again.')
+        self.timer.start(200)
+
     def plot_tracks_of_nuclei(self, nuclei):
         self.mplDistance.clear()
         with h5py.File(self.hdf5file, 'r') as f:
             if 'pandas_dataframe' in f['%s/%s/processed' % (self.condition, self.run)]:
-                # df = f['%s/%s/processed/pandas_dataframe' % (self.condition, self.run)]
-                # mask = f['%s/%s/processed/pandas_masks' % (self.condition, self.run)]
                 df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_dataframe' % (self.condition, self.run))
                 mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
-                df = df[df['Nuclei'] == nuclei]
-                mask = mask[mask['Nuclei'] == nuclei]
-                time, frame, dist = dfij.get_contact_time(df, 10)
-                print time
-                spc.distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask, time_contact=time)
-
-                for frame in f['%s/%s/raw' % (self.condition, self.run)]:
-                    ch1 = f['%s/%s/raw/%s/channel-1' % (self.condition, self.run, frame)]
-                    ch2 = f['%s/%s/raw/%s/channel-2' % (self.condition, self.run, frame)]
-                    hoechst = ch1[:]
-                    tubulin = ch2[:]
-                    resolution = ch2.parent.attrs['resolution']
-
-                    marker = np.zeros(hoechst.shape, dtype=np.uint8)
-                    nuclei_list = f['%s/%s/measurements/nuclei' % (self.condition, self.run)]
-                    for nucID in nuclei_list:
-                        nuc = nuclei_list[nucID]
-                        nid = int(nucID[1:])
-                        if nid == 0: continue
-                        nfxy = nuc['pos'].value
-                        nuc_frames = nfxy.T[0]
-                        frame = int(frame)
-                        if frame in nuc_frames:
-                            fidx = nuc_frames.searchsorted(frame)
-                            nx = int(nfxy[fidx][1] * resolution)
-                            ny = int(nfxy[fidx][2] * resolution)
-                            cv2.circle(marker, (nx, ny), 5, nid, thickness=-1)
-
-                    boundary_list, gabor = im_gabor.cell_boundary(tubulin, hoechst, markers=marker, threshold=70)
-                    for b in boundary_list:
-                        nuc = b['id']
-                        boundcell = np.array2string(b['boundary'] / resolution, separator=',', precision=10)
-                        cx, cy = b['centroid'] / resolution
-                        ix = (df['Frame'] == int(frame)) & (df['Nuclei'] == nuc)
-                        if not ix.empty:
-                            df.loc[ix, 'CellBound'] = boundcell
-                            df.loc[ix, 'CellX'] = cx
-                            df.loc[ix, 'CellY'] = cy
-
-                df = m.get_speed_acc_rel_to(df, x='CentX', y='CentY', rx='CellX', ry='CellY',
-                                            time='Time', frame='Frame', group='Centrosome')
-                df = df.rename(columns={'dist': 'DistCell', 'speed': 'SpdCell', 'acc': 'AccCell'}) \
-                    .set_index('Time').sort_index()
+                ixdf = df['Nuclei'] == nuclei
+                ixmsk = mask['Nuclei'] == nuclei
+                time, frame, dist = dfij.get_contact_time(df[ixdf], 10)
+                print(time)
+                spc.distance_to_nucleus(df[ixdf], self.mplDistance.canvas.ax, mask=mask[ixmsk], time_contact=time)
 
                 # plot distance with respect to cell centroid
-                pal = sns.color_palette()
-                for k, [(centr_lbl), _df] in enumerate(df.groupby(['Centrosome'])):
-                    color = pal[k % len(pal)]
-                    dlbl = 'N%d-C%d' % (nuclei, centr_lbl)
-                    _df['DistCell'].plot(ax=self.mplDistance.canvas.ax, label=dlbl, marker='<', sharex=True, c=color)
+                if 'boundary' in f['%s/%s/processed' % (self.condition, self.run)]:
+                    df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/boundary' % (self.condition, self.run))
+                    df = df[df['Nuclei'] == nuclei]
+                    logging.info('columnas de boundary: ' + str(df.columns))
+                    if 'DistCell' in df:
+                        df = df.set_index('Time').sort_index()
+                        pal = sns.color_palette()
+                        for k, [(centr_lbl), _df] in enumerate(df.groupby(['Centrosome'])):
+                            color = pal[k % len(pal)]
+                            dlbl = 'N%d-C%d' % (nuclei, centr_lbl)
+                            _df['DistCell'].plot(ax=self.mplDistance.canvas.ax, label=dlbl, marker='<', sharex=True,
+                                                 c=color)
 
         self.mplDistance.canvas.draw()
 

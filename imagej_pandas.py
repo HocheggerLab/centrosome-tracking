@@ -88,9 +88,9 @@ class ImagejPandas(object):
         ddx = dc['CNx'][cent_list[0]] - dc['CNx'][cent_list[1]]
         ddy = dc['CNy'][cent_list[0]] - dc['CNy'][cent_list[1]]
         ds = pd.DataFrame()
-        ds.loc[:, 'DistCentr'] = np.sqrt(ddx ** 2 + ddy ** 2)
+        ds.loc[:, 'DistCentr'] = (ddx ** 2 + ddy ** 2).map(np.sqrt)
 
-        ds = ds.reset_index().set_index('Frame')
+        ds = ds.reset_index().set_index('Frame').sort_index()
         d = ds.diff()
         ds.loc[:, 'SpeedCentr'] = d.DistCentr / d.Time
         ds.loc[:, 'AccCentr'] = d.DistCentr.diff() / d.Time
