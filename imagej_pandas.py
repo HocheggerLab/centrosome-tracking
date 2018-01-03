@@ -62,10 +62,10 @@ class ImagejPandas(object):
         df.loc[:, 'CNx'] = df['NuclX'] - df['CentX']
         df.loc[:, 'CNy'] = df['NuclY'] - df['CentY']
         for c_i, dc in df.groupby('Centrosome'):
-            dc.loc[:, 'Dist'] = np.sqrt(dc.CNx ** 2 + dc.CNy ** 2)  # relative to nuclei centroid
+            dc.loc[:, 'Dist'] = (dc.CNx ** 2 + dc.CNy ** 2).map(np.sqrt)  # relative to nuclei centroid
             d = dc.loc[:, ['CNx', 'CNy', 'Dist', 'Time']].diff()
 
-            df.loc[df['Centrosome'] == c_i, 'Dist'] = np.sqrt(dc.CNx ** 2 + dc.CNy ** 2)  # relative to nuclei centroid
+            df.loc[df['Centrosome'] == c_i, 'Dist'] = (dc.CNx ** 2 + dc.CNy ** 2).map(np.sqrt)
             df.loc[df['Centrosome'] == c_i, 'Speed'] = d.Dist / d.Time
             df.loc[df['Centrosome'] == c_i, 'Acc'] = d.Dist.diff() / d.Time
 

@@ -134,19 +134,20 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                             dfbound = dfbound[(dfbound['Nuclei'] == nid) & (dfbound['Frame'] == self.frame)]
                             if not dfbound.empty:
                                 cell_bnd_str = dfbound.iloc[0]['CellBound']
-                                cell_boundary = np.array(eval(cell_bnd_str)) * self.resolution
-                                cell_centroid = dfbound.iloc[0][['CellX', 'CellY']].values * self.resolution
-                                nucb_qpoints = [Qt.QPoint(x, y) for x, y in cell_boundary]
-                                nucb_poly = Qt.QPolygon(nucb_qpoints)
+                                if type(cell_bnd_str) == str:
+                                    cell_boundary = np.array(eval(cell_bnd_str)) * self.resolution
+                                    cell_centroid = dfbound.iloc[0][['CellX', 'CellY']].values * self.resolution
+                                    nucb_qpoints = [Qt.QPoint(x, y) for x, y in cell_boundary]
+                                    nucb_poly = Qt.QPolygon(nucb_qpoints)
 
-                                painter.setBrush(QColor('transparent'))
-                                painter.setPen(QPen(QBrush(QColor(0, 255, 0)), 2))
-                                painter.drawPolygon(nucb_poly)
+                                    painter.setBrush(QColor('transparent'))
+                                    painter.setPen(QPen(QBrush(QColor(0, 255, 0)), 2))
+                                    painter.drawPolygon(nucb_poly)
 
-                                painter.drawText(cell_centroid[0] + 5, cell_centroid[1], 'C%02d' % (nid))
+                                    painter.drawText(cell_centroid[0] + 5, cell_centroid[1], 'C%02d' % (nid))
 
-                                painter.setBrush(QColor(0, 255, 0))
-                                painter.drawEllipse(cell_centroid[0] - 5, cell_centroid[1] - 5, 10, 10)
+                                    painter.setBrush(QColor(0, 255, 0))
+                                    painter.drawEllipse(cell_centroid[0] - 5, cell_centroid[1] - 5, 10, 10)
                         except Exception as e:
                             # pass
                             logging.error('Found a problem rendering cell boundary' + str(e))

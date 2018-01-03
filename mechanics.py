@@ -16,7 +16,7 @@ from sklearn import linear_model
 
 def speed_acc(df):
     df = df.set_index('frame').sort_index()
-    df.loc[:, 'dist'] = np.sqrt(df['_x'] ** 2 + df['_y'] ** 2)
+    df.loc[:, 'dist'] = (df['_x'] ** 2 + df['_y'] ** 2).map(np.sqrt)
     d = df.loc[:, ['_x', '_y', 'dist', 'time']].diff().rename(
         columns={'_x': 'dx', '_y': 'dy', 'dist': 'dD', 'time': 'dt'})
     df.loc[:, 'speed'] = d.dD / d.dt

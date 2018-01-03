@@ -152,7 +152,7 @@
     <string>Gabor Filter threshold</string>
    </property>
   </widget>
-  <widget class="QPushButton" name="renderButton">
+     <widget class="QPushButton" name="renderBoxplotButton">
    <property name="geometry">
     <rect>
      <x>320</x>
