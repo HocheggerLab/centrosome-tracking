@@ -28,7 +28,8 @@ def get_speed_acc(df, x='x', y='y', time='time', frame='frame', group=None):
     if df.empty:
         raise Exception('df is empty')
     df = df.rename(columns={frame: 'frame', time: 'time'})
-    df.loc[:, ['_x', '_y']] = df.loc[:, [x, y]]
+    df.loc[:, '_x'] = df.loc[:, x]
+    df.loc[:, '_y'] = df.loc[:, y]
     dout = df.groupby(group).apply(speed_acc)
     dout = dout.rename(columns={'frame': frame, 'time': time})
     return dout.drop(['_x', '_y'], axis=1).reset_index(drop=True)

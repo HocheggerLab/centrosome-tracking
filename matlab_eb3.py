@@ -4,9 +4,7 @@ import sys
 import time
 
 import cv2
-import hdbscan
 import matplotlib.gridspec
-import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -21,7 +19,7 @@ import mechanics as m
 import plot_special_tools as sp
 import stats as st
 
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 pd.set_option('display.width', 320)
 indiv_idx = ['condition', 'tag', 'trk']
 
@@ -572,7 +570,7 @@ def find_image(img_name, folder):
 
 
 def render_image_tracks(df_total, folder='.', render='.'):
-    df_inter = pd.DataFrame()
+    # df_inter = pd.DataFrame()
     for tag, dff in df_total.groupby('tag'):
         try:
             fig = matplotlib.pyplot.gcf()
@@ -583,47 +581,48 @@ def render_image_tracks(df_total, folder='.', render='.'):
             iname = tag + '.tif'
             logging.debug('reading %s' % iname)
             img, res, dt = find_image(iname, render)
+            img = ((img - img.min()) / (img.ptp() / 255.0)).astype(np.uint8)
             max_frame = dff['frame'].max()
 
             height, width = img.shape[0:2]
-            ax.imshow(img, extent=[0, width / res, height / res, 0])
-
-            trk_lr, xi = est_lines(dff, 4, width, height, res)
-            np.savetxt('/Users/Fabio/data/lab/%s-intersect.csv' % tag, xi, delimiter=',')
-
-            kde = stats.gaussian_kde(xi[:, 0:2].T)
-            xmin, xmax = xi[:, 0].min(), xi[:, 0].max()
-            ymin, ymax = xi[:, 1].min(), xi[:, 1].max()
-            X, Y = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
-            positions = np.vstack([X.ravel(), Y.ravel()])
-            Z = np.reshape(kde(positions).T, X.shape)
-            norm1 = Z / np.linalg.norm(Z)
-            CS = plt.contour(X, Y, norm1, 6, colors='w')  # negative contours will be dashed by default
-            ax.clabel(CS, fontsize=9, inline=1)
-
-            clusterer = hdbscan.HDBSCAN(min_cluster_size=15)
-            labels = clusterer.fit_predict(xi)
-            df = pd.DataFrame({'x': xi.T[0], 'y': xi.T[1], 'label': labels})
-            palette = sns.color_palette('deep', df['label'].max() + 1)
-            ids = list()
-            for lbl, c in df[df['label'] > 0].groupby('label'):
-                ax.scatter(c['x'], c['y'], c=palette[lbl], s=20)
-                xmi, xma = c['x'].min(), c['x'].max()
-                ymi, yma = c['y'].min(), c['y'].max()
-                trks = dff[(xmi < dff['x']) & (dff['x'] < xma) & (ymi < dff['y']) & (dff['y'] < yma)]['trk'].unique()
-                ax.add_patch(
-                    patches.Rectangle(
-                        (xmi, yma),  # (x,y)
-                        xma - xmi,  # width
-                        ymi - yma,  # height
-                        fill=False,  # remove background
-                        edgecolor=palette[lbl]
-                    ))
-                # print 'label %d\t %03.1f<x<%03.1f and %03.1f<y<%03.1f, %d ids' % (lbl, xmi, xma, ymi, yma, len(trks))
-                ids.extend(trks)
-            df_roi = dff[dff['trk'].isin(np.unique(ids))]
-            logging.info('df_roi has %d tracks in tag %s' % (len(df_roi['trk'].unique()), tag))
-            df_inter = df_inter.append(df_roi)
+            # ax.imshow(img, extent=[0, width / res, height / res, 0])
+            #
+            # trk_lr, xi = est_lines(dff, 4, width, height, res)
+            # np.savetxt('/Users/Fabio/data/lab/%s-intersect.csv' % tag, xi, delimiter=',')
+            #
+            # kde = stats.gaussian_kde(xi[:, 0:2].T)
+            # xmin, xmax = xi[:, 0].min(), xi[:, 0].max()
+            # ymin, ymax = xi[:, 1].min(), xi[:, 1].max()
+            # X, Y = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
+            # positions = np.vstack([X.ravel(), Y.ravel()])
+            # Z = np.reshape(kde(positions).T, X.shape)
+            # norm1 = Z / np.linalg.norm(Z)
+            # CS = plt.contour(X, Y, norm1, 6, colors='w')  # negative contours will be dashed by default
+            # ax.clabel(CS, fontsize=9, inline=1)
+            #
+            # clusterer = hdbscan.HDBSCAN(min_cluster_size=15)
+            # labels = clusterer.fit_predict(xi)
+            # df = pd.DataFrame({'x': xi.T[0], 'y': xi.T[1], 'label': labels})
+            # palette = sns.color_palette('deep', df['label'].max() + 1)
+            # ids = list()
+            # for lbl, c in df[df['label'] > 0].groupby('label'):
+            #     ax.scatter(c['x'], c['y'], c=palette[lbl], s=20)
+            #     xmi, xma = c['x'].min(), c['x'].max()
+            #     ymi, yma = c['y'].min(), c['y'].max()
+            #     trks = dff[(xmi < dff['x']) & (dff['x'] < xma) & (ymi < dff['y']) & (dff['y'] < yma)]['trk'].unique()
+            #     ax.add_patch(
+            #         patches.Rectangle(
+            #             (xmi, yma),  # (x,y)
+            #             xma - xmi,  # width
+            #             ymi - yma,  # height
+            #             fill=False,  # remove background
+            #             edgecolor=palette[lbl]
+            #         ))
+            #     # print 'label %d\t %03.1f<x<%03.1f and %03.1f<y<%03.1f, %d ids' % (lbl, xmi, xma, ymi, yma, len(trks))
+            #     ids.extend(trks)
+            # df_roi = dff[dff['trk'].isin(np.unique(ids))]
+            # logging.info('df_roi has %d tracks in tag %s' % (len(df_roi['trk'].unique()), tag))
+            # df_inter = df_inter.append(df_roi)
 
             ax.set_aspect('equal', 'datalim')
             ax.spines['top'].set_visible(False)
@@ -633,26 +632,28 @@ def render_image_tracks(df_total, folder='.', render='.'):
             ax.set_xlabel('X $[\mu m]$')
             ax.set_ylabel('Y $[\mu m]$')
 
-            fig.savefig(os.path.abspath(os.path.join(folder, tag + '-roi.png')))
+            # fig.savefig(os.path.abspath(os.path.join(folder, tag + '-roi.png')))
 
             ax.cla()
             cmap = sns.color_palette('cool', n_colors=max_frame)
             ax.imshow(img, extent=[0, width / res, height / res, 0])
-            for _id, df in df_roi.groupby('trk'):
+            for _id, df in dff.groupby('trk'):
                 df.plot.scatter(x='x', y='y', c=cmap, ax=ax, s=5)
+                # df.plot('x', 'y', alpha=0.5, lw=1, ax=ax)
+                df.plot('x', 'y', legend=False, c='y', lw=1, ax=ax)
 
             ax.set_xlabel('X $[\mu m]$')
             ax.set_ylabel('Y $[\mu m]$')
             fig.savefig(os.path.abspath(os.path.join(folder, tag + '-render.png')))
-        except:
-            logging.warning('couldn\'t plot everything for tag %s' % tag)
+        except Exception as e:
+            logging.warning('couldn\'t plot everything for tag %s \n%s' % (tag, e))
 
-    return df_inter
+    return df_total
 
 
 if __name__ == '__main__':
-    do_import = do_filter_stats = True
-    # do_import = do_filter_stats = False
+    # do_import = do_filter_stats = True
+    do_import = do_filter_stats = False
     # do_import, do_filter_stats = False, True
 
     _fig_size_A3 = (11.7, 16.5)
@@ -665,20 +666,16 @@ if __name__ == '__main__':
         df_matlab = pd.read_pickle('/Users/Fabio/data/lab/eb3.pandas')
 
     if do_filter_stats:
-        df_flt = df_filter(df_matlab, k=5, f=10)
+        df_flt = df_filter(df_matlab, k=5, f=60)
         df_flt = m.get_msd(df_flt, group=indiv_idx)
 
         # filter dataframe based on track's displacement
-        msd_thr = 5
+        msd_thr = 10
         filtered_ix = df_flt.set_index('frame').sort_index().groupby(indiv_idx).apply(
             lambda t: t['msd'].iloc[-1] > msd_thr)
         df_flt = df_flt.set_index(indiv_idx)[filtered_ix].reset_index()
         logging.info('filtered %d tracks after MSD filter with msd_thr=%0.1f' % (
             df_flt.set_index(indiv_idx).index.unique().size, msd_thr))
-
-        logging.info('rendering images and filtering tracks near centrosomes')
-        df_flt = render_image_tracks(df_flt, folder='/Users/Fabio/data/lab/eb3',
-                                     render='/Volumes/H.H. Lab (fab)/Fabio/data/lab/eb3')
 
         logging.info('computing speed, acceleration, length')
         df_flt = m.get_speed_acc(df_flt, group=indiv_idx)
@@ -700,6 +697,10 @@ if __name__ == '__main__':
         df_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
         logging.info('Loaded %d tracks after filters' % df_flt.set_index(indiv_idx).index.unique().size)
 
+    logging.info('rendering images')
+    df_flt = render_image_tracks(df_flt, folder='/Users/Fabio/data/lab/eb3',
+                                 render='/Volumes/H.H. Lab (fab)/Fabio/data/lab/eb3')
+
     logging.info('making indiv plots')
     df_flt['time'] = df_flt['time'].apply(np.round, decimals=3)
     df_flt['time_i'] = df_flt['time_i'].apply(np.round, decimals=3)
@@ -714,5 +715,5 @@ if __name__ == '__main__':
     logging.info('making msd plots')
     msd_plots(df_flt)
 
-    logging.info('making estimation plots')
-    est_plots(df_flt)
+    # logging.info('making estimation plots')
+    # est_plots(df_flt)
