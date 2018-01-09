@@ -1,5 +1,6 @@
 import ConfigParser
 import json
+import logging
 import os
 
 import numpy as np
@@ -8,7 +9,7 @@ from PyQt4 import QtGui
 from PyQt4.QtCore import QPoint, QRect, QSize, Qt
 from PyQt4.QtGui import QBrush, QColor, QPainter, QPen, QRubberBand
 
-import matlab_eb3 as eb3
+import plot_special_tools as sp
 
 # profile decorator support when not profiling
 try:
@@ -28,9 +29,10 @@ class Eb3ImageQLabel(QtGui.QLabel):
         self.frame = None
         self.resolution = None
         self.image_pixmap = None
+        self.measurements_pixmap = None
         self.dwidth = 0
         self.dheight = 0
-        self._bkgimg = None
+        self.bkg_pixmap = None
         self._bkgres = None
         self._bkgdt = None
         self.df = None
@@ -87,16 +89,17 @@ class Eb3ImageQLabel(QtGui.QLabel):
                 ixx = (x <= df['x']) & (df['x'] <= x + w)
                 ixy = (y <= df['y']) & (df['y'] <= y + h)
                 if modifiers == Qt.ControlModifier:
-                    for i in df[ixx & ixy]['trk'].unique():
+                    for i in df[ixx & ixy]['particle'].unique():
                         if i in self.selected:
                             self.selected.remove(int(i))
                 else:
-                    for i in df[ixx & ixy]['trk'].unique():
+                    for i in df[ixx & ixy]['particle'].unique():
                         self.selected.add(int(i))
                 self.save_selection()
+                self.measurements_pixmap = QtGui.QPixmap(self.dwidth, self.dheight)
+                self.measurements_pixmap.fill(QColor(0, 0, 0, 0))
                 self.draw_measurements()
                 self.setPixmap(self.image_pixmap)
-        # self.emit(QtCore.SIGNAL('clicked()'))
 
     def save_selection(self):
         with open(self.fname, 'r') as configfile:
@@ -114,27 +117,36 @@ class Eb3ImageQLabel(QtGui.QLabel):
         if self.dataHasChanged:
             self.dataHasChanged = False
 
-            bkg = self._bkgimg
-            qtimage = QtGui.QImage(bkg.repeat(4), bkg.shape[1], bkg.shape[0], QtGui.QImage.Format_RGB32)
-            self.image_pixmap = QtGui.QPixmap(qtimage)
-            # self.image_pixmap = self.image_pixmap.transformed(QtGui.QTransform().rotate(180))
-            self.draw_measurements()
+            painter = QPainter()
+            painter.begin(self.image_pixmap)
+            painter.drawImage(0, 0, self.bkg_pixmap.toImage())
+            painter.drawImage(0, 0, self.measurements_pixmap.toImage())
+            painter.end()
+
             self.setPixmap(self.image_pixmap)
         return QtGui.QLabel.paintEvent(self, event)
 
     def render_frame(self, condition, run, frame):
-        if self.condition != condition or self.run != run:
-            self.condition, self.frame = condition, frame
-            self.run = run[0:-4] if run[-4:] == '.tif' else run
+        if self.frame != frame:
+            self.frame = frame
             self.dataHasChanged = True
-            img, res, dt = eb3.find_image(run, os.path.join(self.exp_folder, self.condition))
-            self.dwidth, self.dheight, _ = img.shape
-            # print img.shap8e
+
+            img, res, dt = sp.find_image(run, os.path.join(self.exp_folder, condition))
+            img = img[frame]
+            self.dwidth, self.dheight = img.shape
+
             # map the data range to 0 - 255
-            img_8bit = ((img - img.min()) / (img.ptp() / 255.0)).astype(np.uint8)
-            self._bkgimg = img_8bit[:, :, 0]
+            bkg = ((img - img.min()) / (img.ptp() / 255.0)).astype(np.uint8)
+            self.bkg_pixmap = QtGui.QImage(bkg.repeat(4), bkg.shape[1], bkg.shape[0], QtGui.QImage.Format_RGB32)
+            self.bkg_pixmap = QtGui.QPixmap(self.bkg_pixmap)
             self.resolution = res
             self._bkgdt = dt
+
+        run = run[0:-4] if run[-4:] == '.tif' else run
+        if self.condition != condition or self.run != run:
+            logging.debug('condition or run changed. condition=%s\r\nrun=%s' % (self.condition, self.run))
+            self.condition, self.run = condition, run
+            self.dataHasChanged = True
 
             self.df = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
             self.ix = (self.df['condition'] == self.condition) & (self.df['tag'] == self.run)
@@ -148,23 +160,29 @@ class Eb3ImageQLabel(QtGui.QLabel):
                 else:
                     self.selected = set()
 
-            self.repaint()
+            self.measurements_pixmap = QtGui.QPixmap(self.dwidth, self.dheight)
+            self.measurements_pixmap.fill(QColor(0, 0, 0, 0))
+            self.draw_measurements()
+
+        self.repaint()
 
     @profile
     def draw_measurements(self):
         df = self.df[self.ix]
 
         painter = QPainter()
-        painter.begin(self.image_pixmap)
+        painter.begin(self.measurements_pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        for id, dft in df.groupby('trk'):
+        painter.setPen(QPen(QBrush(QColor('white')), 2))
+        painter.drawText(10, 30, '%02d - (%03d,%03d)' % (self.frame, self.dwidth, self.dheight))
+
+        for id, dft in df.groupby('particle'):
+            logging.debug('rendering particle %s' % id)
             if id in self.selected:
                 painter.setPen(QPen(QBrush(QColor(0, 255, 0, 125)), 2))
-                painter.setBrush(QColor('green'))
             else:
-                painter.setPen(QPen(QBrush(QColor(255, 255, 0, 125)), 2))
-                painter.setBrush(QColor('yellow'))
+                painter.setPen(QPen(QBrush(QColor(255, 0, 0, 30)), 2))
 
             x = dft['x'].values * self.resolution
             y = dft['y'].values * self.resolution

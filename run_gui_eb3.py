@@ -36,7 +36,7 @@ class ExperimentsList(QtGui.QWidget):
 
         # Call a QTimer for animations
         self.timer = QTimer()
-        # self.timer.start(200)
+        self.timer.start(200)
 
         QtCore.QObject.connect(self.exportPandasButton, QtCore.SIGNAL('pressed()'), self.on_export_pandas_button)
         QtCore.QObject.connect(self.timer, QtCore.SIGNAL('timeout()'), self.anim)
@@ -44,8 +44,8 @@ class ExperimentsList(QtGui.QWidget):
     def anim(self):
         if self.total_frames > 0:
             self.frame = (self.frame + 1) % self.total_frames
-            self.movieImgLabel.render_frame(self.condition, self.run, self.frame,
-                                            nuclei_selected=self.nuclei_selected)
+            logging.debug('rendering frame %d' % self.frame)
+            self.movieImgLabel.render_frame(self.condition, self.run, self.frame)
 
     def populate_experiments(self):
         model = QtGui.QStandardItemModel()
@@ -81,10 +81,8 @@ class ExperimentsList(QtGui.QWidget):
         self.run = str(current.data().toString())
         self.frame = 0
         if len(self.condition) > 0:
-            # self.populate_frames_list()
+            self.populate_frames_list()
             self.movieImgLabel.render_frame(self.condition, self.run, self.frame)
-            # self.populate_nuclei()
-            # self.mplDistance.clear()
             self.currImageLabel.setText(self.run)
         else:
             self.nucleiListView.model().clear()
@@ -94,9 +92,9 @@ class ExperimentsList(QtGui.QWidget):
         # self.timer.start(200)
 
     def populate_frames_list(self):
-        with h5py.File(self.hdf5file, 'r') as f:
-            sel = f['%s/%s/raw' % (self.condition, self.run)]
-            self.total_frames = len(sel)
+        img, res, dt = sp.find_image(self.run, os.path.join(self.initial_dir, self.condition))
+        self.total_frames = img.shape[0]
+        logging.debug('image has %d frames' % self.total_frames)
 
     def populate_nuclei(self):
         model = QtGui.QStandardItemModel()

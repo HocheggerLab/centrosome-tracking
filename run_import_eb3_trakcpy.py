@@ -16,30 +16,34 @@ pd.set_option('display.width', 320)
 
 def do_trackpy(image_path):
     with tf.TiffFile(image_path, fastij=True) as tif:
-        if tif.is_imagej is not None:
-            dt = tif.pages[0].imagej_tags.finterval
-            res = 'n/a'
-            if tif.pages[0].resolution_unit == 'centimeter':
-                # asuming square pixels
-                xr = tif.pages[0].x_resolution
-                res = float(xr[0]) / float(xr[1])  # pixels per cm
-                res = res / 1e4  # pixels per um
-            elif tif.pages[0].imagej_tags.unit == 'micron':
-                # asuming square pixels
-                xr = tif.pages[0].x_resolution
-                res = float(xr[0]) / float(xr[1])  # pixels per um
+        res = 'n/a'
+        if tif.pages[0].resolution_unit == 'centimeter':
+            # asuming square pixels
+            xr = tif.pages[0].x_resolution
+            res = float(xr[0]) / float(xr[1])  # pixels per cm
+            res = res / 1e4  # pixels per um
+        elif tif.pages[0].imagej_tags.unit == 'micron':
+            # asuming square pixels
+            xr = tif.pages[0].x_resolution
+            res = float(xr[0]) / float(xr[1])  # pixels per um
 
-            # subtract first frame and deal with negative results after the operation
+        # construct frames array based on tif file structure:
+        if len(tif.pages) == 1:
             frames = np.int32(tif.pages[0].asarray())
-            frames -= frames[0]
-            frames = np.uint16(frames.clip(0))
-            diam = np.ceil(1 * res) // 2 * 2 + 1
+        elif len(tif.pages) > 1:
+            frames = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width), dtype=np.int32)
+            for i, page in enumerate(tif.pages):
+                frames[i] = np.int32(page.asarray())
+        # subtract first frame and deal with negative results after the operation
+        frames -= frames[0]
+        frames = np.uint16(frames.clip(0))
+        diam = np.ceil(1 * res) // 2 * 2 + 1
 
-            f = tp.batch(frames[1:], diam, invert=True, minmass=200)
-            pred = trackpy.predict.NearestVelocityPredict()
-            t = pred.link_df(f, 5)
+        f = tp.batch(frames[1:], diam, invert=True, minmass=200)
+        pred = trackpy.predict.NearestVelocityPredict()
+        t = pred.link_df(f, 5)
 
-            return t
+        return t
 
 
 def process_dir(dir_base):
@@ -51,11 +55,11 @@ def process_dir(dir_base):
         for f in files:
             mpath = os.path.join(root, f)
             if os.path.isfile(mpath) and f[-4:] == '.tif':
-                logging.info('processing tag %s in folder %s' % (f[10:-4], root))
+                logging.info('processing file %s in folder %s' % (f, root))
                 try:  # process
                     tdf = do_trackpy(mpath)
                     tdf['condition'] = os.path.basename(os.path.dirname(root))
-                    tdf['tag'] = f[10:-4]  # take "Result of" and extension out of the filename
+                    tdf['tag'] = f[:-4]
                     tdf.drop(['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep'], axis=1, inplace=True)
 
                     calp = cal[cal['filename'] == f].iloc[0]
