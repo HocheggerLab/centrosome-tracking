@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import sys
 
 import numpy as np
@@ -9,10 +10,11 @@ import trackpy as tp
 import trackpy.predict
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+trackpy.quiet()
 pd.set_option('display.width', 320)
 
 
-def get_dataframe(image_path):
+def do_trackpy(image_path):
     with tf.TiffFile(image_path, fastij=True) as tif:
         if tif.is_imagej is not None:
             dt = tif.pages[0].imagej_tags.finterval
@@ -27,35 +29,48 @@ def get_dataframe(image_path):
                 xr = tif.pages[0].x_resolution
                 res = float(xr[0]) / float(xr[1])  # pixels per um
 
-            frames = tif.pages[0].asarray()
+            # subtract first frame and deal with negative results after the operation
+            frames = np.int32(tif.pages[0].asarray())
+            frames -= frames[0]
+            frames = np.uint16(frames.clip(0))
             diam = np.ceil(1 * res) // 2 * 2 + 1
 
-            f = tp.batch(frames[2:], diam, invert=True, minmass=200)
+            f = tp.batch(frames[1:], diam, invert=True, minmass=200)
             pred = trackpy.predict.NearestVelocityPredict()
             t = pred.link_df(f, 5)
 
-            t.drop(['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep'], axis=1, inplace=True)
-            t['time'] = t['frame'] * dt
-            t['x'] /= res
-            t['y'] /= res
-            t['frame'] = t['frame'].astype('int32')
-            t[['x', 'y', 'time']] = t[['x', 'y', 'time']].astype('float64')
             return t
 
 
 def process_dir(dir_base):
     logging.info('processing data from folder %s' % dir_base)
     df = pd.DataFrame()
+    cal = pd.read_excel('/Users/Fabio/data/lab/eb3/eb3_calibration.xls')
     # Traverse through all subdirs looking for iimage files. When a file is found, assume folder structure of (cond/date)
     for root, directories, files in os.walk(dir_base):
         for f in files:
             mpath = os.path.join(root, f)
-            if os.path.isfile(mpath) and f[-4:] == '.tif' and f[:6] == 'Result':
+            if os.path.isfile(mpath) and f[-4:] == '.tif':
                 logging.info('processing tag %s in folder %s' % (f[10:-4], root))
                 try:  # process
-                    tdf = get_dataframe(mpath)
+                    tdf = do_trackpy(mpath)
                     tdf['condition'] = os.path.basename(os.path.dirname(root))
                     tdf['tag'] = f[10:-4]  # take "Result of" and extension out of the filename
+                    tdf.drop(['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep'], axis=1, inplace=True)
+
+                    calp = cal[cal['filename'] == f].iloc[0]
+                    tdf['time'] = tdf['frame'] * calp['dt']
+                    tdf['x'] /= calp['resolution']
+                    tdf['y'] /= calp['resolution']
+
+                    tdf['frame'] = tdf['frame'].astype('int32')
+                    tdf[['x', 'y', 'time']] = tdf[['x', 'y', 'time']].astype('float64')
+
+                    # consider 1.6X magification of optivar system
+                    if calp['optivar'] == 'yes':
+                        tdf['x'] /= 1.6
+                        tdf['y'] /= 1.6
+
                     df = df.append(tdf)
                 except IOError as ioe:
                     logging.warning('could not import due to IO error: %s' % ioe)
@@ -65,9 +80,74 @@ def process_dir(dir_base):
     return df
 
 
+def optivar_resolution_to_excel(dir_base):
+    logging.info('constructing optivar reference from folder %s' % dir_base)
+    df = pd.DataFrame()
+    # Traverse through all subdirs looking for image files. When a file is found, assume folder structure of (cond/date)
+    for root, directories, files in os.walk(dir_base):
+        for f in files:
+            mpath = os.path.join(root, f)
+            if os.path.isfile(mpath) and f[-4:] == '.tif':
+                logging.info('file %s in folder %s' % (f, root))
+                # i['tag'] = f[10:-4]  # take "Result of" and extension out of the filename
+                condition = os.path.basename(os.path.dirname(root))
+
+                with tf.TiffFile(mpath, fastij=True) as tif:
+                    has_image_meta = tif.is_imagej is not None
+                    has_meta_in_log = np.any([i[-4:] == '.log' for i in os.listdir(root) if f[:-14] in i])
+                    if has_image_meta or has_meta_in_log:
+                        res = 'n/a'
+                        if tif.pages[0].resolution_unit == 'centimeter':
+                            # asuming square pixels
+                            xr = tif.pages[0].x_resolution
+                            res = float(xr[0]) / float(xr[1])  # pixels per cm
+                            res = res / 1e4  # pixels per um
+                        elif tif.pages[0].imagej_tags.unit == 'micron':
+                            # asuming square pixels
+                            xr = tif.pages[0].x_resolution
+                            res = float(xr[0]) / float(xr[1])  # pixels per um
+
+                        dt = 'n/a'
+                        if has_image_meta:
+                            dt = tif.pages[0].imagej_tags.finterval
+                        elif has_meta_in_log:
+                            file_log = [i for i in os.listdir(root) if f[:-14] in i and i[-4:] == '.log'][0]
+                            with open(os.path.join(root, file_log), 'r') as log:
+                                for line in log:
+                                    search = re.search('^Average Timelapse Interval: ([0-9.]+) ms', line)
+                                    if search is not None:
+                                        dt = eval(search.group(1)) / 1000.0
+                        date = os.path.basename(root)
+                        i = pd.DataFrame(data=[[condition, date, f, dt, res, 'no']],
+                                         columns=['condition', 'date', 'filename', 'dt', 'resolution', 'optivar'])
+
+                        df = df.append(i)
+
+    excel_file = os.path.join(dir_base, 'eb3_calibration.xls')
+    writer = pd.ExcelWriter(excel_file, engine='xlsxwriter')
+    df.to_excel(writer, 'calibration', index=False)
+    # Get the xlsxwriter workbook and worksheet objects.
+    workbook = writer.book
+    worksheet = writer.sheets['calibration']
+    float_format = workbook.add_format({'num_format': '#,##0.00', 'align': 'center'})
+    center_format = workbook.add_format({'align': 'center'})
+
+    # Set the column width and format.
+    worksheet.set_column('A:A', 13)
+    worksheet.set_column('B:B', 8)
+    worksheet.set_column('C:C', 75)
+    worksheet.set_column('D:D', 10, float_format)
+    worksheet.set_column('E:E', 10, float_format)
+    worksheet.set_column('F:F', 10, center_format)
+    writer.save()
+
+    return df
+
+
 if __name__ == '__main__':
     _fig_size_A3 = (11.7, 16.5)
     _err_kws = {'alpha': 0.3, 'lw': 1}
 
+    # df = optivar_resolution_to_excel('/Users/Fabio/data/lab/eb3')
     df = process_dir('/Users/Fabio/data/lab/eb3')
     df.to_pickle('/Users/Fabio/data/lab/eb3.pandas')
