@@ -76,24 +76,23 @@ class Eb3ImageQLabel(QtGui.QLabel):
             self.rubberBand.hide()
             if self.df is not None:
                 rect = QRect(self.origin, event.pos()).normalized()
-                x = rect.x() / self.resolution
-                y = rect.y() / self.resolution
-                w = rect.width() / self.resolution
-                h = rect.height() / self.resolution
+                x = rect.x()
+                y = rect.y()
+                w = rect.width()
+                h = rect.height()
 
                 # To establish whether a given point(Xtest, Ytest) overlaps
                 # with a rectangle (XBL, YBL, XTR, YTR) by testing both:
                 # Xtest >= XBL & & Xtest <= XTR
                 # Ytest >= YBL & & Ytest <= YTR
-                df = self.df[self.ix]
-                ixx = (x <= df['x']) & (df['x'] <= x + w)
-                ixy = (y <= df['y']) & (df['y'] <= y + h)
+                ixx = (x <= self.df['x']) & (self.df['x'] <= x + w)
+                ixy = (y <= self.df['y']) & (self.df['y'] <= y + h)
                 if modifiers == Qt.ControlModifier:
-                    for i in df[ixx & ixy]['particle'].unique():
+                    for i in self.df[ixx & ixy]['particle'].unique():
                         if i in self.selected:
                             self.selected.remove(int(i))
                 else:
-                    for i in df[ixx & ixy]['particle'].unique():
+                    for i in self.df[ixx & ixy]['particle'].unique():
                         self.selected.add(int(i))
                 self.save_selection()
                 self.measurements_pixmap = QtGui.QPixmap(self.dwidth, self.dheight)
@@ -149,7 +148,11 @@ class Eb3ImageQLabel(QtGui.QLabel):
             self.dataHasChanged = True
 
             self.df = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
-            self.ix = (self.df['condition'] == self.condition) & (self.df['tag'] == self.run)
+            ix = (self.df['condition'] == self.condition) & (self.df['tag'] == self.run)
+            self.df = self.df[ix]
+            self.df['x'] *= self.resolution
+            self.df['y'] *= self.resolution
+            self.dfg = self.df.groupby('particle')
 
             # get selection from disk
             with open(self.fname, 'r') as configfile:
@@ -168,7 +171,6 @@ class Eb3ImageQLabel(QtGui.QLabel):
 
     @profile
     def draw_measurements(self):
-        df = self.df[self.ix]
 
         painter = QPainter()
         painter.begin(self.measurements_pixmap)
@@ -177,16 +179,15 @@ class Eb3ImageQLabel(QtGui.QLabel):
         painter.setPen(QPen(QBrush(QColor('white')), 2))
         painter.drawText(10, 30, '%02d - (%03d,%03d)' % (self.frame, self.dwidth, self.dheight))
 
-        for id, dft in df.groupby('particle'):
-            logging.debug('rendering particle %s' % id)
+        for id, g in self.dfg:
             if id in self.selected:
                 painter.setPen(QPen(QBrush(QColor(0, 255, 0, 125)), 2))
             else:
                 painter.setPen(QPen(QBrush(QColor(255, 0, 0, 30)), 2))
 
-            x = dft['x'].values * self.resolution
-            y = dft['y'].values * self.resolution
-            for i in range(len(dft) - 1):
+            x = g['x'].values
+            y = g['y'].values
+            for i in range(len(g) - 1):
                 x0, y0, x1, y1 = x[i], y[i], x[i + 1], y[i + 1]
                 painter.drawLine(x0, y0, x1, y1)
 
