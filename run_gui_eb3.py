@@ -1,20 +1,20 @@
+import ConfigParser
+import json
 import logging
 import os
 
-print(os.__file__)
-
-import h5py
+import coloredlogs
+import numpy as np
 import pandas as pd
-import seaborn as sns
 from PyQt4 import QtCore, QtGui, uic
-from PyQt4.QtCore import QTimer, Qt
+from PyQt4.QtCore import QTimer
 
-import hdf5_nexus as hdf
+import mechanics as m
 import plot_special_tools as sp
-from imagej_pandas import ImagejPandas
 
 pd.options.display.max_colwidth = 10
 logging.basicConfig(level=logging.DEBUG)
+coloredlogs.install()
 
 
 class ExperimentsList(QtGui.QWidget):
@@ -96,82 +96,42 @@ class ExperimentsList(QtGui.QWidget):
         self.total_frames = img.shape[0]
         logging.debug('image has %d frames' % self.total_frames)
 
-    def populate_nuclei(self):
-        model = QtGui.QStandardItemModel()
-        self.nucleiListView.setModel(model)
-        with h5py.File(self.hdf5file, 'r') as f:
-            nuc = f['%s/%s/measurements/nuclei' % (self.condition, self.run)]
-            sel = f['%s/%s/selection' % (self.condition, self.run)]
-            for nucID in nuc:
-                conditem = QtGui.QStandardItem(nucID)
-                if nucID in sel:
-                    conditem.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
-                else:
-                    conditem.setData(QtCore.QVariant(Qt.Unchecked), Qt.CheckStateRole)
-                conditem.setCheckable(True)
-                model.appendRow(conditem)
-        QtCore.QObject.connect(self.nucleiListView.selectionModel(),
-                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.on_nuclei_change)
-        model.itemChanged.connect(self.on_nucleitick_change)
-
-    def plot_tracks_of_nuclei(self, nuclei):
-        self.mplDistance.clear()
-        with h5py.File(self.hdf5file, 'r') as f:
-            if 'pandas_dataframe' in f['%s/%s/processed' % (self.condition, self.run)]:
-                df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_dataframe' % (self.condition, self.run))
-                mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
-                ixdf = df['Nuclei'] == nuclei
-                ixmsk = mask['Nuclei'] == nuclei
-                time, frame, dist = ImagejPandas.get_contact_time(df[ixdf], 10)
-                sp.distance_to_nucleus(df[ixdf], self.mplDistance.canvas.ax, mask=mask[ixmsk], time_contact=time)
-
-                # plot distance with respect to cell centroid
-                if 'boundary' in f['%s/%s/processed' % (self.condition, self.run)]:
-                    df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/boundary' % (self.condition, self.run))
-                    df = df[df['Nuclei'] == nuclei]
-                    # logging.info('columnas de boundary: ' + str(df.columns))
-                    if 'DistCell' in df:
-                        df = df.set_index('Time').sort_index()
-                        pal = sns.color_palette()
-                        for k, [(centr_lbl), _df] in enumerate(df.groupby(['Centrosome'])):
-                            color = pal[k % len(pal)]
-                            dlbl = 'N%d-C%d' % (nuclei, centr_lbl)
-                            _df['DistCell'].plot(ax=self.mplDistance.canvas.ax, label=dlbl, marker='<', sharex=True,
-                                                 c=color)
-
-        self.mplDistance.canvas.draw()
-
     @QtCore.pyqtSlot()
     def on_export_pandas_button(self):
-        fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save centrosome file',
-                                                  directory='/Users/Fabio/boundary.pandas')
-        mname = QtGui.QFileDialog.getSaveFileName(self, caption='Save mask dataframe file',
-                                                  directory='/Users/Fabio/boundary-mask.pandas')
-        fname = str(fname)
-        mname = str(mname)
+        logging.info('exporting selected dataset...')
+        # fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selected Eb3 file',
+        #                                           directory='/Users/Fabio/data/lab/eb3_selected.pandas')
+        # fname = str(fname)
 
-        self.reprocess_selections()
-        print 'saving masks to %s' % (mname)
-        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-        msk = hlab.mask
-        msk.to_pickle(mname)
-        print 'saving centrosomes to %s' % (fname)
-        df = hlab.dataframe
-        df.to_pickle(fname)
+        df = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+        # get selection from disk
+        with open('/Users/Fabio/data/lab/eb3trk.selec.txt', 'r') as configfile:
+            config = ConfigParser.ConfigParser()
+            config.readfp(configfile)
+
+            selected = pd.DataFrame()
+            for tag, t in df.groupby('tag'):
+                if config.has_section(tag):
+                    selection = set(json.loads(config.get(tag, 'selected')))
+                    ix_sel = (df['tag'] == tag) & (df['particle'].isin(selection))
+                    sel = df[ix_sel]
+                    selected = selected.append(sel)
+            selected.to_pickle('/Users/Fabio/data/lab/eb3_selected.pandas')
+            df = selected
+
+        indiv_idx = ['condition', 'tag', 'particle']
+        df = m.get_speed_acc(df, group=indiv_idx)
+        df = m.get_center_df(df, group=indiv_idx)
+        dfi = df.set_index('frame').sort_index()
+        dfi['speed'] = dfi['speed'].abs()
+        df_avg = dfi.groupby(indiv_idx)['time', 'speed'].mean()
+        df_avg.loc[:, 'time'] = dfi.groupby(indiv_idx)['time'].first()
+        df_avg.loc[:, 'trk_len'] = dfi.groupby(indiv_idx)['x'].count()
+        df_avg.loc[:, 'length'] = dfi.groupby(indiv_idx)['s'].agg(np.sum)
+        df_avg = df_avg.reset_index()
+        df_avg.to_pickle('/Users/Fabio/data/lab/eb3stats_sel.pandas')
+
         print 'export finished.'
-
-    def reprocess_selections(self):
-        with h5py.File(self.hdf5file, 'r') as f:
-            conditions = f.keys()
-        for cond in conditions:
-            with h5py.File(self.hdf5file, 'a') as f:
-                runs = f[cond].keys()
-            for run in runs:
-                try:
-                    hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-                    hlab.process_selection_for_run(cond, run)
-                except KeyError:
-                    print 'skipping %s due to lack of data.'
 
 
 if __name__ == '__main__':

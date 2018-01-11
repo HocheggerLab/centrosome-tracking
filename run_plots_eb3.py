@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 
+import coloredlogs
 import matplotlib.gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,10 +12,11 @@ from matplotlib.backends.backend_pdf import PdfPages
 from scipy import stats
 
 import mechanics as m
-import special_plots as sp
+import plot_special_tools as sp
 import stats as st
 
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+coloredlogs.install()
 pd.set_option('display.width', 320)
 indiv_idx = ['condition', 'tag', 'particle']
 
@@ -188,6 +190,23 @@ def stats_plots(df, df_stats):
         # ---------------------------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
+        fig.set_size_inches((10, 6.18))
+        ax1 = plt.gca()
+
+        df_stats = df_stats[df_stats['speed'] > 1e-2]
+        with sns.color_palette(['grey', 'grey', 'grey', 'grey']):
+            sp.anotated_boxplot(df_stats, 'speed', swarm=False, point_size=1.5, ax=ax1)
+            ax1.set_xlabel('Condition')
+            ax1.set_ylabel('Average Eb1 speed per particle $[\mu m \cdot s^{-1}]$')
+
+        pdf.savefig()
+        plt.close()
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
         fig.set_size_inches((10, 10))
         gs = matplotlib.gridspec.GridSpec(2, 2)
         ax1 = plt.subplot(gs[0, 0])
@@ -196,24 +215,25 @@ def stats_plots(df, df_stats):
         ax4 = plt.subplot(gs[1, 1])
 
         ptsize = 0.5
-        with sns.color_palette(['grey', 'grey', 'grey', 'grey']):
+        with sns.color_palette(['grey', 'grey', 'grey', 'grey', 'grey', 'grey']):
             sp.anotated_boxplot(df_stats, 'speed', swarm=False, point_size=ptsize, ax=ax1)
             ax1.set_xlabel('Condition')
-            ax1.set_ylabel('Average Eb1 speed $[\mu m \cdot s^{-1}]$')
+            ax1.set_ylabel('Average Eb1 speed per particle track $[\mu m \cdot s^{-1}]$')
 
             sp.anotated_boxplot(df_stats, 'length', swarm=False, point_size=ptsize, ax=ax2)
             ax2.set_xlabel('Condition')
             ax2.set_ylabel('Average Eb1 length $[\mu m]$')
 
-            sp.anotated_boxplot(df_stats, 'trk_len', swarm=False, point_size=ptsize, ax=ax3)
-            ax3.set_xlabel('Condition')
-            ax3.set_ylabel('Eb1 track length $[a.u.]$')
-
         with palette:
             for i, d in df_stats.groupby('condition'):
-                sns.distplot(d['speed'].dropna(), label=i, ax=ax4)
+                sns.distplot(d['speed'].dropna(), label=i, ax=ax3)
+                sns.distplot(d['length'].dropna(), label=i, ax=ax4)
 
         ax4.legend()
+        for ax in [ax1, ax2]:
+            for tick in ax.get_xticklabels():
+                tick.set_label(tick.get_label()[4:])
+                tick.set_rotation('vertical')
 
         pmat = st.p_values(df_stats, 'speed', 'condition', filename='/Users/Fabio/data/lab/pvalues_spd.xls')
         pmat = st.p_values(df_stats, 'length', 'condition', filename='/Users/Fabio/data/lab/pvalues_len.xls')
@@ -237,9 +257,9 @@ def stats_plots(df, df_stats):
         totals = dfi.groupby('condition')['speed'].count()
         spd_gt = dfi[dfi['speed'] > 0.1].groupby('condition').count()['speed'] / totals * 100
 
-        plt.bar(range(4), [100] * 4, color='r', edgecolor='white', width=0.85)
-        plt.bar(range(4), spd_gt, color='#b5ffb9', edgecolor='white', width=0.85)
-        plt.xticks(range(4), ['chtog', 'control', 'mcak', 'noc'], rotation='vertical')
+        # plt.bar(range(4), [100] * 4, color='r', edgecolor='white', width=0.85)
+        # plt.bar(range(4), spd_gt, color='#b5ffb9', edgecolor='white', width=0.85)
+        # plt.xticks(range(4), ['chtog', 'control', 'mcak', 'noc'], rotation='vertical')
 
         sns.distplot(df_stats['speed'].dropna(), ax=ax3)
         sns.distplot(df_stats['length'].dropna(), ax=ax4)
@@ -251,13 +271,17 @@ def stats_plots(df, df_stats):
         for ax in [ax1, ax2]:
             ax.set_xlabel('N frames')
 
+        # bugfix: rotate xticks for last subplot
+        for tick in ax4.get_xticklabels():
+            tick.set_rotation('horizontal')
+
         pdf.savefig()
         plt.close()
 
 
 def msd_plots(df):
-    _df = df.reset_index()
-    with PdfPages('/Users/Fabio/eb3_msd.pdf') as pdf:
+    dfn = df.reset_index()
+    with PdfPages('/Users/Fabio/data/lab/eb3_msd.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches(_fig_size_A3)
@@ -267,32 +291,35 @@ def msd_plots(df):
         ax4 = plt.subplot(gs[2, 1])
 
         # plot of each eb3 track
-        max_frame = _df['frame'].max()
+        max_frame = dfn['frame'].max()
         cmap = sns.color_palette('copper_r', n_colors=max_frame)
         for _id, _df in _df.groupby('particle'):
-            _df.plot.scatter(x='x', y='y', c=cmap, ax=ax1)
+            # _df.plot.scatter(x='x', y='y', c=cmap, ax=ax1)
             dfi = _df.set_index('frame').sort_index()
             ax1.text(dfi['x'].iloc[0], dfi['y'].iloc[0], '%d - %0.1f' % (_id, _df['msd'].iloc[-1]), fontsize=5)
 
         last_pt = [dm.iloc[-1] for _id, dm in df.groupby('particle')]
         msd_df = pd.DataFrame(last_pt)
-        msd_df['condition'] = 'dummy'
+        # msd_df['condition'] = 'dummy'
         sns.stripplot(x=msd_df['msd'], jitter=True, ax=ax3)
         ax3.set_title('Distribution of %d individuals of $MSD(t_n)$' % len(msd_df.index))
         ax3.set_ylabel('Population')
         ax3.set_xlabel('Last MSD value $[\mu m]$')
 
         # plot of MSD for each track
-        _ax = ax4
-        sns.tsplot(data=_df, lw=3,
-                   err_style=['unit_traces'], err_kws=_err_kws,
-                   time='frame', value='msd', unit='particle', estimator=np.nanmean, ax=_ax)
-        _ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
-        _ax.set_xticks(np.arange(0, _df['frame'].max(), 5))
-        _ax.legend(title=None, loc='upper left')
-        _ax.set_xlabel('Time delay $[frames]$')
-        _ax.set_xticks(range(0, _df['frame'].max(), 5))
-        _ax.set_xlim([0, _df['frame'].max()])
+        ax = ax4
+        dfn.loc[:, 'indv'] = dfn['condition'] + '-' + dfn['tag'] + '-' + dfn['particle'].map(int).map(str)
+        sns.tsplot(time='frame', value='msd',
+                   err_style='unit_traces', err_kws=_err_kws,
+                   unit='indv', condition='condition',
+                   lw=3, ax=ax, estimator=np.nanmean,
+                   data=dfn)
+        ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
+        ax.legend(title=None, loc='upper left')
+        ax.set_xticks(np.arange(0, dfn['frame'].max(), 5))
+        ax.set_xlabel('Time delay $[frames]$')
+        ax.set_xticks(range(0, dfn['frame'].max(), 5))
+        ax.set_xlim([0, dfn['frame'].max()])
 
         pdf.savefig()
         plt.close()
@@ -325,8 +352,7 @@ def est_plots(df_matlab):
         plt.close()
 
 
-def render_image_tracks(df_total, folder='.', render='.'):
-    # df_inter = pd.DataFrame()
+def render_image_tracks(df_total, folder='.'):
     for tag, dff in df_total.groupby('tag'):
         logging.info('rendering %s' % tag)
         try:
@@ -337,26 +363,67 @@ def render_image_tracks(df_total, folder='.', render='.'):
 
             iname = tag + '.tif'
             logging.debug('reading %s' % iname)
-            img, res, dt = sp.find_image(iname, render)
+            img, res, dt = sp.find_image(iname, folder)
             max_frame = dff['frame'].max()
-
-            height, width = img.shape[0:2]
-            ax.imshow(img, extent=[0, width / res, height / res, 0])
+            _, height, width = img.shape
 
             ax.cla()
+            cal = pd.read_excel('/Users/Fabio/data/lab/eb3/eb3_calibration.xls')
+            calp = cal[cal['filename'] == iname].iloc[0]
+            if calp['optivar'] == 'yes':
+                logging.info('file with optivar configuration selected!')
+                res *= 1.6
+
+            ax.imshow(img[1], extent=[0, width / res, height / res, 0])
             cmap = sns.color_palette('cool', n_colors=max_frame)
-            ax.imshow(img, extent=[0, width / res, height / res, 0])
             for _id, df in dff.groupby('particle'):
                 df.plot.scatter(x='x', y='y', c=cmap, ax=ax, s=5)
                 df.plot(x='x', y='y', c='y', legend=False, ax=ax, lw=1)
 
             ax.set_xlabel('X $[\mu m]$')
             ax.set_ylabel('Y $[\mu m]$')
-            fig.savefig(os.path.abspath(os.path.join(folder, tag + '-render.png')))
+            fig.savefig(os.path.abspath(os.path.join(folder, 'py-renders', tag + '-render.png')))
         except Exception as e:
-            logging.warning('couldn\'t do the plot. %s' % (e))
+            logging.critical('couldn\'t do the plot. %s' % (e))
 
-    return df_total
+
+def batch_filter(df):
+    logging.info('%d tracks prior to apply filters' % df.set_index(indiv_idx).index.unique().size)
+    # df_flt = df
+    df_flt = df_filter(df, k=5, f=10)
+    df_flt = m.get_msd(df_flt, group=indiv_idx)
+
+    # filter dataframe based on track's displacement
+    msd_thr = 3
+    filtered_ix = df_flt.set_index('frame').sort_index().groupby(indiv_idx).apply(
+        lambda t: t['msd'].iloc[-1] > msd_thr)
+    df_flt = df_flt.set_index(indiv_idx)[filtered_ix].reset_index()
+    logging.info('filtered %d tracks after MSD filter with msd_thr=%0.1f' % (
+        df_flt.set_index(indiv_idx).index.unique().size, msd_thr))
+
+    logging.info('computing speed, acceleration, length')
+    df_flt = m.get_speed_acc(df_flt, group=indiv_idx)
+    df_flt = m.get_center_df(df_flt, group=indiv_idx)
+    df_flt = m.get_trk_length(df_flt, group=indiv_idx)
+
+    # construct average track speed and track length
+    dfi = df_flt.set_index('frame').sort_index()
+    dfi['speed'] = dfi['speed'].abs()
+    df_avg = dfi.groupby(indiv_idx)['time', 'speed'].mean()
+    df_avg.loc[:, 'time'] = dfi.groupby(indiv_idx)['time'].first()
+    df_avg.loc[:, 'trk_len'] = dfi.groupby(indiv_idx)['x'].count()
+    df_avg.loc[:, 'length'] = dfi.groupby(indiv_idx)['s'].agg(np.sum)
+    df_avg = df_avg.reset_index()
+
+    # # speed filter
+    # print (dfi['speed'].describe())
+    # speed_ix = dfi.groupby(indiv_idx).apply(lambda t: t['speed'].max() < 0.4)
+    # df_flt = df_flt.set_index(indiv_idx)[speed_ix].reset_index()
+
+    df_flt.to_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+    df_avg.to_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
+
+    return df_flt, df_avg
 
 
 if __name__ == '__main__':
@@ -366,42 +433,22 @@ if __name__ == '__main__':
     _fig_size_A3 = (11.7, 16.5)
     _err_kws = {'alpha': 0.3, 'lw': 1}
 
-    df = pd.read_pickle('/Users/Fabio/data/lab/eb3.pandas')
     if do_filter_stats:
-        df_flt = df_filter(df, k=5, f=40)
-        df_flt = m.get_msd(df_flt, group=indiv_idx)
-
-        # filter dataframe based on track's displacement
-        msd_thr = 5
-        filtered_ix = df_flt.set_index('frame').sort_index().groupby(indiv_idx).apply(
-            lambda t: t['msd'].iloc[-1] > msd_thr)
-        df_flt = df_flt.set_index(indiv_idx)[filtered_ix].reset_index()
-        logging.info('filtered %d tracks after MSD filter with msd_thr=%0.1f' % (
-            df_flt.set_index(indiv_idx).index.unique().size, msd_thr))
-
-        logging.info('computing speed, acceleration, length')
-        df_flt = m.get_speed_acc(df_flt, group=indiv_idx)
-        df_flt = m.get_center_df(df_flt, group=indiv_idx)
-        df_flt = m.get_trk_length(df_flt, group=indiv_idx)
-        df_flt.to_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
-
-        # construct average track speed and track length
-        dfi = df_flt.set_index('frame').sort_index()
-        dfi['speed'] = dfi['speed'].abs()
-        df_avg = dfi.groupby(indiv_idx)['time', 'speed'].mean()
-        df_avg.loc[:, 'time'] = dfi.groupby(indiv_idx)['time'].first()
-        df_avg.loc[:, 'trk_len'] = dfi.groupby(indiv_idx)['x'].count()
-        df_avg.loc[:, 'length'] = dfi.groupby(indiv_idx)['s'].agg(np.sum)
-        df_avg = df_avg.reset_index()
-        df_avg.to_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
+        df = pd.read_pickle('/Users/Fabio/data/lab/eb3.pandas')
+        # df=df[df['particle'].isin(df['particle'].unique()[0:10])]
+        df_flt, df_avg = batch_filter(df)
     else:
-        df_avg = pd.read_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
-        df_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+        if os.path.exists('/Users/Fabio/data/lab/eb3_selected.pandas'):
+            logging.info('Loading GUI selected features instead of filtered particles!')
+            df_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3_selected.pandas')
+            df_avg = pd.read_pickle('/Users/Fabio/data/lab/eb3stats_sel.pandas')
+        else:
+            df_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+            df_avg = pd.read_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
         logging.info('Loaded %d tracks after filters' % df_flt.set_index(indiv_idx).index.unique().size)
 
     logging.info('rendering images.')
-    df_flt = render_image_tracks(df_flt, folder='/Users/Fabio/data/lab/eb3',
-                                 render='/Volumes/H.H. Lab (fab)/Fabio/data/lab/eb3')
+    render_image_tracks(df_flt, folder='/Users/Fabio/data/lab/eb3')
 
     logging.info('making indiv plots')
     df_flt['time'] = df_flt['time'].apply(np.round, decimals=3)

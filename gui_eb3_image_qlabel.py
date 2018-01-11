@@ -39,6 +39,7 @@ class Eb3ImageQLabel(QtGui.QLabel):
         self.ix = None
         self.selected = set()
         self.fname = '/Users/Fabio/data/lab/eb3trk.selec.txt'
+        self.cal = pd.read_excel('/Users/Fabio/data/lab/eb3/eb3_calibration.xls')
 
         if not os.path.isfile(self.fname):
             with open(self.fname, 'w') as configfile:
@@ -58,7 +59,12 @@ class Eb3ImageQLabel(QtGui.QLabel):
         qtimage = QtGui.QImage(imgarr.data, imgarr.shape[1], imgarr.shape[0], imgarr.strides[0],
                                QtGui.QImage.Format_RGB32)
         self.image_pixmap = QtGui.QPixmap(qtimage)
+        self.image_pixmap.fill(QColor(0, 0, 255, 0))
+        if self.measurements_pixmap is not None:
+            self.measurements_pixmap.fill(QColor(0, 0, 0, 0))
+            self.bkg_pixmap.fill(QColor(0, 0, 255, 0))
         self.setPixmap(self.image_pixmap)
+
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -141,6 +147,7 @@ class Eb3ImageQLabel(QtGui.QLabel):
             self.resolution = res
             self._bkgdt = dt
 
+        calp = self.cal[self.cal['filename'] == run].iloc[0]
         run = run[0:-4] if run[-4:] == '.tif' else run
         if self.condition != condition or self.run != run:
             logging.debug('condition or run changed. condition=%s\r\nrun=%s' % (self.condition, self.run))
@@ -150,8 +157,14 @@ class Eb3ImageQLabel(QtGui.QLabel):
             self.df = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
             ix = (self.df['condition'] == self.condition) & (self.df['tag'] == self.run)
             self.df = self.df[ix]
+            # consider 1.6X magification of optivar system
+            if calp['optivar'] == 'yes':
+                logging.info('file with optivar configuration selected!')
+                self.df['x'] *= 1.6
+                self.df['y'] *= 1.6
             self.df['x'] *= self.resolution
             self.df['y'] *= self.resolution
+
             self.dfg = self.df.groupby('particle')
 
             # get selection from disk

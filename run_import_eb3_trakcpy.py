@@ -1,15 +1,21 @@
-import logging
 import os
 import re
 import sys
 
+import coloredlogs
+import logging
 import numpy as np
 import pandas as pd
+import scipy
+import scipy.stats
 import tifffile as tf
 import trackpy as tp
+import trackpy.diag
 import trackpy.predict
 
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+tp.diag.performance_report()
+logging.basicConfig(stream=sys.stderr, format='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
+coloredlogs.install()
 trackpy.quiet()
 pd.set_option('display.width', 320)
 
@@ -28,20 +34,31 @@ def do_trackpy(image_path):
             res = float(xr[0]) / float(xr[1])  # pixels per um
 
         # construct frames array based on tif file structure:
+        frames = None
         if len(tif.pages) == 1:
             frames = np.int32(tif.pages[0].asarray())
         elif len(tif.pages) > 1:
             frames = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width), dtype=np.int32)
             for i, page in enumerate(tif.pages):
-                frames[i] = np.int32(page.asarray())
+                frames[i] = page.asarray()
+
         # subtract first frame and deal with negative results after the operation
-        frames -= frames[0]
-        frames = np.uint16(frames.clip(0))
+        # frames = np.int32(frames)
+        # frames -= frames[0]
+        # frames = frames[1:, :, :]
+        # frames = np.uint16(frames.clip(0))
         diam = np.ceil(1 * res) // 2 * 2 + 1
 
-        f = tp.batch(frames[1:], diam, invert=True, minmass=200)
-        pred = trackpy.predict.NearestVelocityPredict()
-        t = pred.link_df(f, 5)
+        logging.info(scipy.stats.describe(frames, axis=None))
+        f = tp.batch(frames, diam, separation=diam, characterize=True)
+        stat = f[['mass', 'size']].describe()
+        f1 = f[((f['mass'] > stat['mass']['25%']) & (f['size'] < 1.5))]
+        logging.info(stat)
+
+        pred = trackpy.predict.DriftPredict()
+        search_rng_px = 4
+        # search_rng_px=np.ceil(1 * res)
+        t = pred.link_df(f1, search_rng_px)
 
         return t
 
@@ -50,7 +67,7 @@ def process_dir(dir_base):
     logging.info('processing data from folder %s' % dir_base)
     df = pd.DataFrame()
     cal = pd.read_excel('/Users/Fabio/data/lab/eb3/eb3_calibration.xls')
-    # Traverse through all subdirs looking for iimage files. When a file is found, assume folder structure of (cond/date)
+    # Traverse through all subdirs looking for image files. When a file is found, assume folder structure of (cond/date)
     for root, directories, files in os.walk(dir_base):
         for f in files:
             mpath = os.path.join(root, f)
@@ -60,13 +77,14 @@ def process_dir(dir_base):
                     tdf = do_trackpy(mpath)
                     tdf['condition'] = os.path.basename(os.path.dirname(root))
                     tdf['tag'] = f[:-4]
-                    tdf.drop(['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep'], axis=1, inplace=True)
+                    # tdf.drop(['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep'], axis=1, inplace=True)
 
                     calp = cal[cal['filename'] == f].iloc[0]
                     tdf['time'] = tdf['frame'] * calp['dt']
                     tdf['x'] /= calp['resolution']
                     tdf['y'] /= calp['resolution']
 
+                    tdf['particle'] = tdf['particle'].astype('int32')
                     tdf['frame'] = tdf['frame'].astype('int32')
                     tdf[['x', 'y', 'time']] = tdf[['x', 'y', 'time']].astype('float64')
 
@@ -155,3 +173,11 @@ if __name__ == '__main__':
     # df = optivar_resolution_to_excel('/Users/Fabio/data/lab/eb3')
     df = process_dir('/Users/Fabio/data/lab/eb3')
     df.to_pickle('/Users/Fabio/data/lab/eb3.pandas')
+
+    # process dataframe and render images
+    import run_plots_eb3
+
+    logging.info('filtering using run_plots_eb3.')
+    df, df_avg = run_plots_eb3.batch_filter(df)
+    logging.info('rendering images.')
+    run_plots_eb3.render_image_tracks(df, folder='/Users/Fabio/data/lab/eb3')
