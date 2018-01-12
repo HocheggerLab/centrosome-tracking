@@ -16,8 +16,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.mplot3d import Axes3D
 
 import elastica as e
-import report as r
-import special_plots as sp
+import plot_special_tools as sp
+import run_plot_report as r
 from imagej_pandas import ImagejPandas
 
 print font_manager.OSXInstalledFonts()

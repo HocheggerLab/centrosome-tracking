@@ -16,17 +16,34 @@ from sklearn import linear_model
 
 def speed_acc(df):
     df = df.set_index('frame').sort_index()
-    df.loc[:, 'dist'] = np.sqrt(df['x'] ** 2 + df['y'] ** 2)  # relative to nuclei centroid
-    d = df.loc[:, ['x', 'y', 'dist', 'time']].diff().rename(columns={'x': 'dx', 'y': 'dy', 'dist': 'dD', 'time': 'dt'})
+    df.loc[:, 'dist'] = (df['_x'] ** 2 + df['_y'] ** 2).map(np.sqrt)
+    d = df.loc[:, ['_x', '_y', 'dist', 'time']].diff().rename(
+        columns={'_x': 'dx', '_y': 'dy', 'dist': 'dD', 'time': 'dt'})
     df.loc[:, 'speed'] = d.dD / d.dt
     df.loc[:, 'acc'] = d.dD.diff() / d.dt
     return df.reset_index()
 
 
 def get_speed_acc(df, x='x', y='y', time='time', frame='frame', group=None):
-    df = df.rename(columns={x: 'x', y: 'y', frame: 'frame', time: 'time'})
+    if df.empty:
+        raise Exception('df is empty')
+    df = df.rename(columns={frame: 'frame', time: 'time'})
+    df.loc[:, '_x'] = df.loc[:, x]
+    df.loc[:, '_y'] = df.loc[:, y]
     dout = df.groupby(group).apply(speed_acc)
-    return dout.reset_index(drop=True)
+    dout = dout.rename(columns={'frame': frame, 'time': time})
+    return dout.drop(['_x', '_y'], axis=1).reset_index(drop=True)
+
+
+def get_speed_acc_rel_to(df, x='x', y='y', rx='rx', ry='ry', time='time', frame='frame', group=None):
+    if df.empty:
+        raise Exception('df is empty')
+    df = df.rename(columns={frame: 'frame', time: 'time'})
+    df.loc[:, '_x'] = df[rx] - df[x]
+    df.loc[:, '_y'] = df[ry] - df[y]
+    dout = df.groupby(group).apply(speed_acc)
+    dout = dout.rename(columns={'frame': frame, 'time': time})
+    return dout.drop(['_x', '_y'], axis=1).reset_index(drop=True)
 
 
 def center_df(df):

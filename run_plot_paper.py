@@ -13,7 +13,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 
-import special_plots as sp
+import plot_special_tools as sp
 import stats as st
 
 print font_manager.OSXInstalledFonts()

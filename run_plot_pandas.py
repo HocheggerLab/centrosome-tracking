@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-import special_plots as sp
+import plot_special_tools as sp
 import stats as st
 
 plt.style.use('ggplot')

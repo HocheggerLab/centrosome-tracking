@@ -1,5 +1,6 @@
 import itertools
 import math
+import os
 
 import matplotlib.axes
 import matplotlib.colors
@@ -8,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import tifffile as tf
 from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
@@ -42,7 +44,6 @@ SUSSEX_DEEP_AQUAMARINE = '#487A7B'
 # SUSSEX_NEON_YELLOW=''
 # SUSSEX_NEON_SALMON=''
 # SUSSEX_NEON_PINK=''
-
 
 
 class MyAxes3D(axes3d.Axes3D):
@@ -493,6 +494,39 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
         ax.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
 
     ax.set_ylabel('Acceleration between\ncentrosomes $\\left[\\frac{\mu m}{min^2} \\right]$')
+
+
+def find_image(img_name, folder):
+    for root, directories, filenames in os.walk(folder):
+        for file in filenames:
+            joinf = os.path.abspath(os.path.join(root, file))
+            if os.path.isfile(joinf) and joinf[-4:] == '.tif' and file == img_name:
+                with tf.TiffFile(joinf, fastij=True) as tif:
+                    dt = None
+                    if tif.is_imagej is not None:
+                        dt = tif.pages[0].imagej_tags.finterval
+                    res = 'n/a'
+                    if tif.pages[0].resolution_unit == 'centimeter':
+                        # asuming square pixels
+                        xr = tif.pages[0].x_resolution
+                        res = float(xr[0]) / float(xr[1])  # pixels per cm
+                        res = res / 1e4  # pixels per um
+                    elif tif.pages[0].imagej_tags.unit == 'micron':
+                        # asuming square pixels
+                        xr = tif.pages[0].x_resolution
+                        res = float(xr[0]) / float(xr[1])  # pixels per um
+
+                    images = None
+                    # construct images array based on tif file structure:
+                    if len(tif.pages) == 1:
+                        images = np.int32(tif.pages[0].asarray())
+                    elif len(tif.pages) > 1:
+                        images = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width),
+                                            dtype=np.int32)
+                        for i, page in enumerate(tif.pages):
+                            images[i] = np.int32(page.asarray())
+
+                    return (images, res, dt)
 
 
 # functions for plotting angle in matplotlib
