@@ -197,6 +197,16 @@ class LabHDF5NeXusFile():
                                 df_nuc.loc[idx2, 'SpeedCentr'] = dc[dc['Frame'] <= minframe2]['SpeedCentr'].values
                                 df_nuc.loc[idx2, 'AccCentr'] = dc[dc['Frame'] <= minframe2]['AccCentr'].values
                                 df_out = df_out.append(df_nuc)
+
+                    # if 'boundary' in f['%s/%s/processed' % (experiment_tag, run)]:
+                    #     df = pd.read_hdf(self.filename, key='%s/%s/processed/boundary' % (experiment_tag, run))
+                    #     for nuc_id, df_nuc in df.groupby('Nuclei'):
+                    #         ix = (df_out['condition'] == experiment_tag) & (df_out['run'] == run) & \
+                    #              (df_out['Nuclei'] == nuc_id)
+                    #         df_out.loc[ix, 'CellBound'] = df_nuc['CellBound']
+                    #         df_out.loc[ix, 'CellX'] = df_nuc['CellX']
+                    #         df_out.loc[ix, 'CellY'] = df_nuc['CellY']
+
         return df_out
 
     @property
