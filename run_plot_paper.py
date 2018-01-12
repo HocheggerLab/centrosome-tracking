@@ -1,5 +1,7 @@
+import os
 from collections import OrderedDict
 
+import PIL.Image
 import matplotlib
 import matplotlib.axes
 import matplotlib.gridspec
@@ -457,6 +459,13 @@ if __name__ == '__main__':
     new_distcntr_name = 'Distance between centrosomes $[\mu m]$'
     new_speedcntr_name = 'Speed between centrosomes $[\mu m/min]$'
 
+    sp.render_tracked_centrosomes('/Users/Fabio/centrosomes.nexus.hdf5', 'pc', 'run_114', 2)
+    img_fnames = [os.path.join('/Users/Fabio/data', 'run_114_N02_F%03d.png' % f) for f in range(20)]
+    images = [PIL.Image.open(path) for path in img_fnames]
+
+    pil_grid = sp.pil_grid(images, max_horiz=5)
+    pil_grid.save('/Users/Fabio/data/fig1_grid.png')
+
     df_m = pd.read_pickle('/Users/Fabio/merge.pandas')
     df_mc = pd.read_pickle('/Users/Fabio/merge_centered.pandas')
 
@@ -501,10 +510,3 @@ if __name__ == '__main__':
     # d = dfcentr
     # dfct = d[d['condition'] == names['hset']]
     #
-    # # plot of every speed between centrosome's, centered at time of contact
-    # plt.figure(111, figsize=(10, 10))
-    # g = sns.FacetGrid(dfct, col='condition', hue='indv', size=10)
-    # g.map(plt.plot, 'Time', 'DistCentr', linewidth=1, alpha=0.5)
-    # g.map(plt.scatter, 'Time', 'DistCentr', s=1)
-    # g.set_xticklabels(labels=sorted(dfct['Time'].unique()))
-    # plt.savefig('/Users/Fabio/1.pdf', format='pdf')

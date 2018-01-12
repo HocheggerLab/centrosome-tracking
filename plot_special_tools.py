@@ -2,6 +2,8 @@ import itertools
 import math
 import os
 
+import cv2
+import h5py
 import matplotlib.axes
 import matplotlib.colors
 import matplotlib.lines as mlines
@@ -10,6 +12,10 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import tifffile as tf
+from PIL import Image
+from PyQt4 import Qt, QtGui
+from PyQt4.QtCore import QRect
+from PyQt4.QtGui import QBrush, QColor, QPainter, QPen
 from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
@@ -527,6 +533,169 @@ def find_image(img_name, folder):
                             images[i] = np.int32(page.asarray())
 
                     return (images, res, dt)
+
+
+def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
+    import sys
+    app = QtGui.QApplication(sys.argv)
+    with h5py.File(hdf5_fname, 'r') as f:
+        if 'pandas_dataframe' not in f['%s/%s/measurements' % (condition, run)]:
+            raise KeyError('No data for selected condition-run.')
+
+        df = pd.read_hdf(hdf5_fname, key='%s/%s/measurements/pandas_dataframe' % (condition, run))
+        nuclei_list = f['%s/%s/measurements/nuclei' % (condition, run)]
+        centrosome_list = f['%s/%s/measurements/centrosomes' % (condition, run)]
+        frames = len(f['%s/%s/raw' % (condition, run)])
+        ch2 = f['%s/%s/raw/%03d/channel-2' % (condition, run, 0)]
+        data = ch2[:]
+        width, height = data.shape
+        resolution = ch2.parent.attrs['resolution']
+
+        if 'boundary' in f['%s/%s/processed' % (condition, run)]:
+            k = '%s/%s/processed/boundary' % (condition, run)
+            dfbound = pd.read_hdf(hdf5_fname, key=k)
+            # dfbound = dfbound[(dfbound['Nuclei'] == nuclei) & (dfbound['condition'] == condition) & (dfbound['run'] == run)]
+            dfbound = dfbound[dfbound['Nuclei'] == nuclei]
+            # FIXME: this is a hack to not take boundary data for width/height estimation from a particular frame for the paper
+            dfbest = dfbound[~ dfbound['Frame'].isin([8])]
+
+            minx = miny = width
+            maxx = maxy = 0
+            for fr, dframe in dfbest.groupby('Frame'):
+                bstr = dframe.iloc[0]['CellBound']
+                if type(bstr) == str:
+                    cell_boundary = np.array(eval(bstr)) * resolution
+                    minx = np.minimum(minx, np.min(cell_boundary[:, 0]))
+                    miny = np.minimum(miny, np.min(cell_boundary[:, 1]))
+                    maxx = np.maximum(maxx, np.max(cell_boundary[:, 0]))
+                    maxy = np.maximum(maxy, np.max(cell_boundary[:, 1]))
+            cwidth, cheight = (maxx - minx, maxy - miny)
+
+        # filter dataset for condition, run, and nuclei
+        # df = df[(df['Nuclei'] == nuclei) & (df['condition'] == condition) & (df['run'] == run)]
+        df = df[df['Nuclei'] == nuclei]
+
+        for frame in range(frames):
+            # get image frame
+            ch2 = f['%s/%s/raw/%03d/channel-2' % (condition, run, frame)]
+            data = ch2[:]
+            # map the data range to 0 - 255
+            data = ((data - data.min()) / (data.ptp() / 255.0)).astype(np.uint8)
+            data = cv2.subtract(cv2.equalizeHist(data), 110)
+            qtimage = QtGui.QImage(data.repeat(4), width, height, QtGui.QImage.Format_RGB32)
+            image_pixmap = QtGui.QPixmap(qtimage)
+
+            painter = QPainter()
+            painter.begin(image_pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+
+            nuc = nuclei_list['N%02d' % nuclei]
+            nfxy = nuc['pos'].value
+            nuc_frames = nfxy.T[0]
+            if frame in nuc_frames:
+                fidx = nuc_frames.searchsorted(frame)
+                nx = nfxy[fidx][1] * resolution
+                ny = nfxy[fidx][2] * resolution
+
+                # render nuclei centroid
+                painter.setPen(QPen(QBrush(QColor('transparent')), 2))
+                painter.setBrush(QColor('blue'))
+                painter.drawEllipse(nx - 5, ny - 5, 10, 10)
+
+                # painter.setPen(QPen(QBrush(QColor('white')), 2))
+                # painter.drawText(nx + 10, ny + 5, 'N%02d' % nuclei)
+
+                df_fr = df[df['Frame'] == frame]
+                sec = df_fr['Time'].iloc[0]
+                min = np.floor(sec / 60.0)
+                sec -= min * 60
+                # painter.drawText(10, 30, '%02d - (%03d,%03d)' % (frame, width, height))
+                painter.drawText(10, 30, '%02d:%02d' % (min, sec))
+
+                # render nuclei boundary
+                if len(df_fr['NuclBound'].values) > 0:
+                    cell_boundary = df_fr['NuclBound'].values[0]
+                    if cell_boundary[1:-1] != '':
+                        nucb_points = eval(cell_boundary[1:-1])
+                        nucb_qpoints = [Qt.QPoint(x * resolution, y * resolution) for x, y in nucb_points]
+                        nucb_poly = Qt.QPolygon(nucb_qpoints)
+
+                        painter.setPen(QPen(QBrush(QColor('yellow')), 2))
+                        painter.setBrush(QColor('transparent'))
+                        painter.drawPolygon(nucb_poly)
+
+                # render cell boundary
+                cellframe = dfbound.loc[dfbound['Frame'] == frame]
+                if not cellframe.empty:
+                    cell_bnd_str = cellframe.iloc[0]['CellBound']
+                    if type(cell_bnd_str) == str:
+                        cell_boundary = np.array(eval(cell_bnd_str)) * resolution
+                        cell_centroid = cellframe.iloc[0][['CellX', 'CellY']].values * resolution
+                        nucb_qpoints = [Qt.QPoint(x, y) for x, y in cell_boundary]
+                        nucb_poly = Qt.QPolygon(nucb_qpoints)
+
+                        painter.setBrush(QColor('transparent'))
+                        painter.setPen(QPen(QBrush(QColor(0, 255, 0)), 2))
+                        painter.drawPolygon(nucb_poly)
+
+                        # painter.drawText(cell_centroid[0] + 5, cell_centroid[1], 'C%02d' % (nuclei))
+
+                        painter.setBrush(QColor(0, 255, 0))
+                        painter.drawEllipse(cell_centroid[0] - 5, cell_centroid[1] - 5, 10, 10)
+
+                # draw centrosomes
+                painter.setBrush(QColor('transparent'))
+                centrosomes_of_nuclei_a = f['%s/%s/selection/%s/A' % (condition, run, 'N%02d' % nuclei)].keys()
+                centrosomes_of_nuclei_b = f['%s/%s/selection/%s/B' % (condition, run, 'N%02d' % nuclei)].keys()
+                painter.setPen(QPen(QBrush(QColor('orange')), 2))
+                for centr_str in centrosomes_of_nuclei_a:
+                    cntr = centrosome_list[centr_str]
+                    cfxy = cntr['pos'].value
+                    cnt_frames = cfxy.T[0]
+                    if frame in cnt_frames:
+                        fidx = cnt_frames.searchsorted(frame)
+                        cx = cfxy[fidx][1] * resolution
+                        cy = cfxy[fidx][2] * resolution
+                        painter.drawEllipse(cx - 5, cy - 5, 10, 10)
+
+                painter.setPen(QPen(QBrush(QColor('red')), 2))
+                for centr_str in centrosomes_of_nuclei_b:
+                    cntr = centrosome_list[centr_str]
+                    cfxy = cntr['pos'].value
+                    cnt_frames = cfxy.T[0]
+                    if frame in cnt_frames:
+                        fidx = cnt_frames.searchsorted(frame)
+                        cx = cfxy[fidx][1] * resolution
+                        cy = cfxy[fidx][2] * resolution
+                        painter.drawEllipse(cx - 5, cy - 5, 10, 10)
+
+                rect = QRect(cell_centroid[0] - cwidth / 2.0, cell_centroid[1] - cheight / 2.0, cwidth, cheight)
+                painter.setPen(QPen(QBrush(QColor('white')), 2))
+                painter.drawText(rect.x() + 10, rect.y() + 20, '%02d:%02d' % (min, sec))
+
+                xini, yini = rect.x() + cwidth - 70, rect.y() + cheight - 20
+                painter.drawText(xini + resolution * 10 / 8.0, yini - 5, '10um')
+                painter.setPen(QPen(QBrush(QColor('white')), 4))
+                painter.drawLine(xini, yini, xini + resolution * 10, yini)
+                painter.end()
+                cropped = image_pixmap.copy(rect)
+
+                cropped.save('/Users/Fabio/data/%s_N%02d_F%03d.png' % (run, nuclei, frame))
+
+
+def pil_grid(images, max_horiz=np.iinfo(int).max):
+    n_images = len(images)
+    n_horiz = min(n_images, max_horiz)
+    h_sizes, v_sizes = [0] * n_horiz, [0] * (n_images // n_horiz)
+    for i, im in enumerate(images):
+        h, v = i % n_horiz, i // n_horiz
+        h_sizes[h] = max(h_sizes[h], im.size[0])
+        v_sizes[v] = max(v_sizes[v], im.size[1])
+    h_sizes, v_sizes = np.cumsum([0] + h_sizes), np.cumsum([0] + v_sizes)
+    im_grid = Image.new('RGB', (h_sizes[-1], v_sizes[-1]), color='white')
+    for i, im in enumerate(images):
+        im_grid.paste(im, (h_sizes[i % n_horiz], v_sizes[i // n_horiz]))
+    return im_grid
 
 
 # functions for plotting angle in matplotlib
