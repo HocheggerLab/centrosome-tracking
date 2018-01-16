@@ -3,6 +3,7 @@ import logging
 import os
 import re
 
+import coloredlogs
 import cv2
 import h5py
 import matplotlib.pyplot as plt
@@ -20,7 +21,7 @@ import plot_special_tools as sp
 from imagej_pandas import ImagejPandas
 
 pd.options.display.max_colwidth = 10
-logging.basicConfig(level=logging.DEBUG)
+coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 
 
 class ExperimentsList(QtGui.QWidget):
@@ -186,8 +187,8 @@ class ExperimentsList(QtGui.QWidget):
             nuc_sel = f['%s/%s/selection/N%02d' % (self.condition, self.run, self.nuclei_selected)]
             new_gabor_thr = int(self.gaborLineEdit.text())
             old_gabor_thr = nuc_sel.attrs['gabor_threshold'] if 'gabor_threshold' in nuc_sel.attrs else None
-            print('old gabor thr: %s, new thr: %s new==old %s' %
-                  (old_gabor_thr, new_gabor_thr, old_gabor_thr == new_gabor_thr))
+            logging.debug('old gabor thr: %s, new thr: %s new==old %s' %
+                          (old_gabor_thr, new_gabor_thr, old_gabor_thr == new_gabor_thr))
 
             if old_gabor_thr == new_gabor_thr:
                 self.timer.start(200)
@@ -294,7 +295,7 @@ class ExperimentsList(QtGui.QWidget):
                         df['run'] = run
                         df_out = df_out.append(df)
         df_valid = df_out.loc[~df_out['CellBound'].isnull(), :]
-        print(df_valid[ImagejPandas.NUCLEI_INDIV_INDEX])
+        logging.debug(df_valid[ImagejPandas.NUCLEI_INDIV_INDEX])
 
         dt_before_contact = 30
         t_per_frame = 5
@@ -318,7 +319,7 @@ class ExperimentsList(QtGui.QWidget):
 
                 d_thr = ImagejPandas.DIST_THRESHOLD * 3
                 time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(idf, d_thr)
-                print i, id, time_of_c, frame_of_c, dist_of_c
+                logging.debug(i, id, time_of_c, frame_of_c, dist_of_c)
 
                 if time_of_c is not None:
                     frame_before = frame_of_c - dt_before_contact / t_per_frame
@@ -337,7 +338,7 @@ class ExperimentsList(QtGui.QWidget):
                 ini_time = idf[idf['Frame'] == ini_frame]['Time'].unique()[0]
                 ini_dist_min = min(idf[idf['Frame'] == ini_frame]['Dist'])
 
-                print idf.loc[idf['Frame'] == frame_of_c, 'DistCell'].min()
+                logging.debug(idf.loc[idf['Frame'] == frame_of_c, 'DistCell'].min())
                 df_rown = pd.DataFrame({'Tag': [id],
                                         'Nuclei': idf['Nuclei'].unique()[0],
                                         'Frame': [frame_of_c],
@@ -382,21 +383,21 @@ class ExperimentsList(QtGui.QWidget):
         mname = str(mname)
 
         self.reprocess_selections()
-        print 'saving masks to %s' % (mname)
+        logging.info('saving masks to %s' % (mname))
         hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
         msk = hlab.mask
         msk.to_pickle(mname)
-        print 'saving centrosomes to %s' % (fname)
+        logging.info('saving centrosomes to %s' % (fname))
         df = hlab.dataframe
         df.to_pickle(fname)
-        print 'export finished.'
+        logging.info('export finished.')
 
     @QtCore.pyqtSlot()
     def on_export_sel_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selection file',
                                                   directory='/Users/Fabio/boundary_selection.txt')
         fname = str(fname)
-        print 'saving to %s' % fname
+        logging.info('saving to %s' % fname)
 
         config = ConfigParser.RawConfigParser()
         with h5py.File(self.hdf5file, 'r') as f:
@@ -414,7 +415,7 @@ class ExperimentsList(QtGui.QWidget):
         # Write our configuration file
         with open(fname, 'w') as configfile:
             config.write(configfile)
-        print '\r\nexport done.'
+        logging.info('export done.')
 
     def on_import_sel_button(self):
         fname = QtGui.QFileDialog.getOpenFileName(self, caption='Load selection file', filter='Text (*.txt)',
@@ -422,18 +423,18 @@ class ExperimentsList(QtGui.QWidget):
         if not fname: return
         fname = str(fname)
 
-        print 'deleting old selection'
+        logging.info('deleting old selection')
         with h5py.File(self.hdf5file, 'a') as f:
             for cond in f:
                 for run in f[cond]:
                     for o in f['%s/%s/selection' % (cond, run)]:
                         del f['%s/%s/selection/%s' % (cond, run, o)]
 
-        print 'opening %s' % fname
+        logging.info('opening %s' % fname)
         selection = ConfigParser.ConfigParser()
         selection.read(fname)
         for sel in selection.sections():
-            print sel
+            logging.debug(sel)
             cond, run, nucl = re.search('^(.+)\.(.+)\.N(.+)$', sel).groups()
             hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
 
@@ -444,7 +445,7 @@ class ExperimentsList(QtGui.QWidget):
             for c in _B:
                 hlab.associate_centrosome_with_nuclei(int(c[1:]), int(nucl), cond, run, centrosome_group=1)
         self.reprocess_selections()
-        print '\r\ndone importing selection.'
+        logging.info('done importing selection.')
 
     def reprocess_selections(self):
         with h5py.File(self.hdf5file, 'r') as f:
@@ -457,7 +458,7 @@ class ExperimentsList(QtGui.QWidget):
                     hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
                     hlab.process_selection_for_run(cond, run)
                 except KeyError:
-                    print 'skipping %s due to lack of data.'
+                    logging.warning('skipping %s due to lack of data.')
 
 
 if __name__ == '__main__':
@@ -467,10 +468,10 @@ if __name__ == '__main__':
     from PyQt4.Qt import PYQT_VERSION_STR
 
     base_path = os.path.abspath('%s' % os.getcwd())
-    print('Qt version:', QT_VERSION_STR)
-    print('PyQt version:', PYQT_VERSION_STR)
-    print('Working dir:', os.getcwd())
-    print('Base dir:', base_path)
+    logging.info('Qt version:', QT_VERSION_STR)
+    logging.info('PyQt version:', PYQT_VERSION_STR)
+    logging.info('Working dir:', os.getcwd())
+    logging.info('Base dir:', base_path)
     os.chdir(base_path)
 
     app = QtGui.QApplication(sys.argv)

@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import logging
 import os
 import re
 from subprocess import call
@@ -9,7 +10,7 @@ import numpy as np
 import pandas as pd
 import tifffile as tf
 
-from imagej_pandas import ImagejPandas as dfij
+from imagej_pandas import ImagejPandas
 
 
 class LabHDF5NeXusFile():
@@ -77,14 +78,13 @@ class LabHDF5NeXusFile():
         nxdata.attrs['units'] = 'um'  # default units
 
         nframes = len(nxdata.items())
-        print nxdata
         if nframes == 0:
             with tf.TiffFile(tiffpath, fastij=True) as tif:
                 if tif.is_imagej is not None:
                     sizeT, channels = tif.pages[0].imagej_tags.frames, tif.pages[0].imagej_tags.channels
                     sizeZ, sizeX, sizeY = 1, tif.pages[0].image_width, tif.pages[0].image_length
-                    print 'N of frames=%d channels=%d, sizeZ=%d, sizeX=%d, sizeY=%d' % \
-                          (sizeT, channels, sizeZ, sizeX, sizeY)
+                    logging.info('N of frames=%d channels=%d, sizeZ=%d, sizeX=%d, sizeY=%d' % \
+                                 (sizeT, channels, sizeZ, sizeX, sizeY))
 
                     res = 'n/a'
                     if tif.pages[0].resolution_unit == 'centimeter':
@@ -123,7 +123,7 @@ class LabHDF5NeXusFile():
                 f[_grp] = h5py.ExternalLink(self.imagefile, _grp)
 
     def add_measurements(self, csvpath, experiment_tag, run):
-        dfc = dfij(csvpath)
+        dfc = ImagejPandas(csvpath)
         with h5py.File(self.filename, 'a') as f:
             nxmeas = f['%s/%s/measurements' % (experiment_tag, run)]
 
@@ -178,8 +178,8 @@ class LabHDF5NeXusFile():
                         df['condition'] = experiment_tag
                         df['run'] = run
                         for nuc_id, df_nuc in df.groupby('Nuclei'):
-                            print 'getting run %s nuclei N%02d' % (run, nuc_id)
-                            dc = dfij.dist_vel_acc_centrosomes(df_nuc)
+                            logging.debug('getting exp %s run %s nuclei N%02d' % (experiment_tag, run, nuc_id))
+                            dc = ImagejPandas.dist_vel_acc_centrosomes(df_nuc)
                             if len(dc) > 0:
                                 maxframe1 = df_nuc.loc[df_nuc['CentrLabel'] == 'A', 'Frame'].max()
                                 maxframe2 = df_nuc.loc[df_nuc['CentrLabel'] == 'B', 'Frame'].max()
@@ -279,8 +279,8 @@ class LabHDF5NeXusFile():
         pdhdf_measured.drop(['NuclX', 'NuclY', 'NuclBound'], axis=1, inplace=True)
         pdhdf_merge = pdhdf_measured.merge(pdhdf_nuclei)
 
-        proc_df, mask_df = dfij.process_dataframe(pdhdf_merge, nuclei_list=nuclei_list,
-                                                  centrosome_inclusion_dict=centrosome_inclusion_dict)
+        proc_df, mask_df = ImagejPandas.process_dataframe(pdhdf_merge, nuclei_list=nuclei_list,
+                                                          centrosome_inclusion_dict=centrosome_inclusion_dict)
 
         with h5py.File(self.filename, 'a') as f:
             fproc = f['%s/%s/processed' % (experiment_tag, run)]
@@ -288,27 +288,28 @@ class LabHDF5NeXusFile():
             if 'pandas_masks' in fproc: del fproc['pandas_masks']
 
         if proc_df.empty:
-            print 'dataframe is empty'
+            logging.warning('dataframe is empty')
         else:
             dfn_join = mskn_join = pd.DataFrame()
             for nuc_id, df_nuc in proc_df.groupby('Nuclei'):
-                print 'processing selection for condition %s run %s nuclei N%02d' % (experiment_tag, run, nuc_id)
+                logging.debug(
+                    'processing selection for condition %s run %s nuclei N%02d' % (experiment_tag, run, nuc_id))
                 msk_nuc = mask_df[mask_df['Nuclei'] == nuc_id]
                 # ----------------------------------------------------------
                 # join tracks based on distance of time of contact
                 # ----------------------------------------------------------
                 # get time of contact
-                dthrsh = dfij.DIST_THRESHOLD * 1.5
-                time_ofc, frame_ofc, dist_ofc = dfij.get_contact_time(df_nuc, dthrsh)
+                dthrsh = ImagejPandas.DIST_THRESHOLD * 1.5
+                time_ofc, frame_ofc, dist_ofc = ImagejPandas.get_contact_time(df_nuc, dthrsh)
                 if time_ofc is not None:
-                    print 'time of contact=%0.1f frame=%d dist=%0.1f' % (time_ofc, frame_ofc, dist_ofc)
+                    logging.debug('time of contact=%0.1f frame=%d dist=%0.1f' % (time_ofc, frame_ofc, dist_ofc))
                     centrosomes_ofc = df_nuc[df_nuc['Frame'] == frame_ofc]['Centrosome'].unique()
                     if len(centrosomes_ofc) == 2:
-                        print '--> joining centrosomes %d and %d' % (centrosomes_ofc[0], centrosomes_ofc[1])
-                        dfj, mskj = dfij.join_tracks(df_nuc, centrosomes_ofc[0], centrosomes_ofc[1])
+                        logging.debug('--> joining centrosomes %d and %d' % (centrosomes_ofc[0], centrosomes_ofc[1]))
+                        dfj, mskj = ImagejPandas.join_tracks(df_nuc, centrosomes_ofc[0], centrosomes_ofc[1])
                         dfn_join = dfn_join.append(dfj)
 
-                        msk_and = msk_nuc.set_index(dfij.MASK_INDEX) & mskj.set_index(dfij.MASK_INDEX)
+                        msk_and = msk_nuc.set_index(ImagejPandas.MASK_INDEX) & mskj.set_index(ImagejPandas.MASK_INDEX)
                         mskn_join = mskn_join.append(msk_and.reset_index())
                 else:
                     dfn_join = dfn_join.append(df_nuc)
@@ -413,9 +414,9 @@ def move_images(filefrom, fileto):
         for run in src[cond].iterkeys():
             _grp = '%s/%s/raw' % (cond, run)
             if isinstance(src[_grp], h5py.SoftLink):
-                print _grp, 'group already a soft link'
+                logging.debug(_grp, 'group already a soft link')
             if isinstance(src[_grp], h5py.HardLink):
-                print _grp, 'group already a hard link'
+                logging.debug(_grp, 'group already a hard link')
             if isinstance(src[_grp], h5py.Group):
                 # Get the name of the parent for the group we want to copy
                 group_path = src[_grp].parent.name
@@ -424,7 +425,7 @@ def move_images(filefrom, fileto):
                 group_id = dst.require_group(group_path)
                 # Copy src -> dst
                 if _grp not in dst:
-                    print _grp, 'copying raw images'
+                    logging.debug(_grp, 'copying raw images')
                     src.copy(_grp, group_id, name='raw')
                 del src[_grp]
                 src[_grp] = h5py.ExternalLink(fileto, _grp)
@@ -440,7 +441,7 @@ def process_dir(path, hdf5f):
             ext = filename.split('.')[-1]
             if ext == 'tif':
                 joinf = os.path.join(root, filename)
-                print '\r\n--------------------------------------------------------------'
+                logging.info('--------------------------------------------------------------')
                 groups = re.search('^(.+)-(.+).tif$', filename).groups()
                 run_id = groups[1]
                 run_str = 'run_%s' % run_id
@@ -448,11 +449,11 @@ def process_dir(path, hdf5f):
                 nucldata = os.path.join(path, 'data', 'run-%s-nuclei.csv' % run_id)
 
                 if os.path.isfile(centdata) and os.path.isfile(nucldata) and os.path.isfile(joinf):
-                    print 'adding raw file: %s' % joinf
+                    logging.info('adding raw file: %s' % joinf)
                     hdf5.add_experiment(condition, run_str)
-                    print 'adding tiff:', joinf
+                    logging.info('adding tiff:', joinf)
                     hdf5f.add_tiff_sequence(joinf, condition, run_str)
-                    print 'adding data file: %s' % centdata
+                    logging.info('adding data file: %s' % centdata)
                     hdf5f.add_measurements(centdata, condition, run_str)
 
 
@@ -470,8 +471,8 @@ if __name__ == '__main__':
         process_dir(args.input, hdf5)
         move_images('/Users/Fabio/centrosomes.nexus.hdf5', '/Users/Fabio/centrosomes-images.nexus.hdf5')
 
-        print '\r\n\r\n--------------------------------------------------------------'
-        print 'shrinking file size...'
+        logging.info('--------------------------------------------------------------')
+        logging.info('shrinking file size...')
         call('h5repack /Users/Fabio/centrosomes.nexus.hdf5 /Users/Fabio/repack.hdf5', shell=True)
         os.remove('/Users/Fabio/centrosomes.nexus.hdf5')
         os.rename('/Users/Fabio/repack.hdf5', '/Users/Fabio/centrosomes.nexus.hdf5')
@@ -479,4 +480,4 @@ if __name__ == '__main__':
         os.remove('/Users/Fabio/centrosomes-images.nexus.hdf5')
         os.rename('/Users/Fabio/repack.hdf5', '/Users/Fabio/centrosomes-images.nexus.hdf5')
     finally:
-        print '\r\nfinished.'
+        logging.info('finished.')

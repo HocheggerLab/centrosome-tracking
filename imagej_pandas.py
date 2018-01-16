@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 
@@ -196,6 +197,6 @@ class ImagejPandas(object):
                     df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
                     df_masks = df_masks.append(mask)
                 except LookupError as le:
-                    print('%s. Check raw input data for nuclei=N%d' % (le, nucleus_id))
+                    logging.warning('%s. Check raw input data for nuclei=N%d' % (le, nucleus_id))
 
         return df_filtered_nucs, df_masks

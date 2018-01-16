@@ -1,5 +1,7 @@
+import logging
 from collections import OrderedDict
 
+import coloredlogs
 import matplotlib
 import matplotlib.axes
 import matplotlib.gridspec
@@ -16,8 +18,8 @@ from mpl_toolkits.mplot3d import Axes3D
 import plot_special_tools as sp
 import stats as st
 
-print font_manager.OSXInstalledFonts()
-print font_manager.OSXFontDirectories
+logging.info(font_manager.OSXInstalledFonts())
+logging.info(font_manager.OSXFontDirectories)
 
 plt.style.use('bmh')
 # plt.style.use('ggplot')
@@ -26,6 +28,7 @@ matplotlib.rc('pdf', fonttype=42)
 matplotlib.rc('svg', fonttype='none')
 
 pd.set_option('display.width', 320)
+coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 
 names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_P.C.', '+STLC'),
@@ -443,7 +446,6 @@ def color_keys(dfc):
     fig = matplotlib.pyplot.gcf()
     fig.clf()
     coldf, conds, colors = sorted_conditions(dfc, names.keys())
-    # print names.keys(), conds
     with sns.color_palette(colors):
         mua = coldf.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
         sp.anotated_boxplot(mua, 'SpeedCentr', order=conds)
@@ -476,14 +478,13 @@ if __name__ == '__main__':
                    df_m['Centrosome'].map(int).map(str)
 
     for id, df in df_m.groupby(['condition']):
-        print 'condition %s: %d tracks' % (id, len(df['indv'].unique()) / 2.0)
+        logging.info('condition %s: %d tracks' % (id, len(df['indv'].unique()) / 2.0))
     df_m = rename_conditions(df_m)
     dfcentr = rename_conditions(dfcentr)
 
     # filter starting distances greater than a threshold
     indivs_filter = dfcentr.set_index(['Time', 'indv']).unstack('indv')['DistCentr'].fillna(method='bfill').iloc[0]
     indivs_filter = indivs_filter[indivs_filter > 5].index.values
-    # print indivs_filter
     dfcentr = dfcentr[dfcentr['indv'].isin(indivs_filter)]
 
     color_keys(dfcentr)

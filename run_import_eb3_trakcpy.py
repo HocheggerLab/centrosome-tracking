@@ -1,9 +1,8 @@
+import logging
 import os
 import re
-import sys
 
 import coloredlogs
-import logging
 import numpy as np
 import pandas as pd
 import scipy
@@ -13,9 +12,8 @@ import trackpy as tp
 import trackpy.diag
 import trackpy.predict
 
+coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
 tp.diag.performance_report()
-logging.basicConfig(stream=sys.stderr, format='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
-coloredlogs.install()
 trackpy.quiet()
 pd.set_option('display.width', 320)
 
