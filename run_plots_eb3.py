@@ -368,12 +368,6 @@ def render_image_tracks(df_total, folder='.'):
             _, height, width = img.shape
 
             ax.cla()
-            cal = pd.read_excel('/Users/Fabio/data/lab/eb3/eb3_calibration.xls')
-            calp = cal[cal['filename'] == iname].iloc[0]
-            if calp['optivar'] == 'yes':
-                logging.info('file with optivar configuration selected!')
-                res *= 1.6
-
             ax.imshow(img[1], extent=[0, width / res, height / res, 0])
             cmap = sns.color_palette('cool', n_colors=max_frame)
             for _id, df in dff.groupby('particle'):

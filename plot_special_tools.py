@@ -1,4 +1,5 @@
 import itertools
+import logging
 import math
 import os
 
@@ -521,6 +522,15 @@ def find_image(img_name, folder):
                         # asuming square pixels
                         xr = tif.pages[0].x_resolution
                         res = float(xr[0]) / float(xr[1])  # pixels per um
+
+                    if os.path.exists('/Users/Fabio/data/lab/eb3/eb3_calibration.xls'):
+                        cal = pd.read_excel('/Users/Fabio/data/lab/eb3/eb3_calibration.xls')
+                        calp = cal[cal['filename'] == img_name]
+                        if not calp.empty:
+                            calp = calp.iloc[0]
+                            if calp['optivar'] == 'yes':
+                                logging.info('file with optivar configuration selected!')
+                                res *= 1.6
 
                     images = None
                     # construct images array based on tif file structure:
