@@ -90,45 +90,6 @@
     <cursorShape>CrossCursor</cursorShape>
    </property>
   </widget>
-  <widget class="QPushButton" name="exportPandasButton">
-   <property name="geometry">
-    <rect>
-     <x>150</x>
-     <y>471</y>
-     <width>121</width>
-     <height>41</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Export Pandas</string>
-   </property>
-  </widget>
-  <widget class="QPushButton" name="exportSelectionButton">
-   <property name="geometry">
-    <rect>
-     <x>320</x>
-     <y>470</y>
-     <width>121</width>
-     <height>41</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Export Selection</string>
-   </property>
-  </widget>
-  <widget class="QPushButton" name="importSelectionButton">
-   <property name="geometry">
-    <rect>
-     <x>320</x>
-     <y>430</y>
-     <width>121</width>
-     <height>41</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Import Selection</string>
-   </property>
-  </widget>
   <widget class="QLineEdit" name="gaborLineEdit">
    <property name="geometry">
     <rect>
@@ -152,11 +113,11 @@
     <string>Gabor Filter threshold</string>
    </property>
   </widget>
-     <widget class="QPushButton" name="renderBoxplotButton">
+  <widget class="QPushButton" name="renderBoxplotButton">
    <property name="geometry">
     <rect>
-     <x>320</x>
-     <y>390</y>
+     <x>160</x>
+     <y>470</y>
      <width>121</width>
      <height>41</height>
     </rect>
