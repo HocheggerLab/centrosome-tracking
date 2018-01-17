@@ -293,7 +293,7 @@ def msd_plots(df):
         # plot of each eb3 track
         max_frame = dfn['frame'].max()
         cmap = sns.color_palette('copper_r', n_colors=max_frame)
-        for _id, _df in _df.groupby('particle'):
+        for _id, _df in df.groupby('particle'):
             # _df.plot.scatter(x='x', y='y', c=cmap, ax=ax1)
             dfi = _df.set_index('frame').sort_index()
             ax1.text(dfi['x'].iloc[0], dfi['y'].iloc[0], '%d - %0.1f' % (_id, _df['msd'].iloc[-1]), fontsize=5)

@@ -107,7 +107,7 @@ class MyAxes3D(axes3d.Axes3D):
 
 def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_rotation='horizontal', cat='condition',
                      swarm=True, order=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.2, fliersize=point_size, order=order, ax=ax,
+    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.2, fliersize=0, order=order, ax=ax,
                 zorder=100)
     if swarm:
         _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, ax=ax, zorder=10)
@@ -327,7 +327,7 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
         ax.set_ylim(ylim)
 
 
-def distance_to_nucleus(df, ax, mask=None, time_contact=None, plot_interp=False):
+def distance_to_nuclei_center(df, ax, mask=None, time_contact=None, plot_interp=False):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
@@ -361,7 +361,44 @@ def distance_to_nucleus(df, ax, mask=None, time_contact=None, plot_interp=False)
         ax.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
 
     ax.legend(dhandles, dlabels, loc='upper right')
-    ax.set_ylabel('Distance to\nnuclei $[\mu m]$')
+    ax.set_ylabel('Distance to\nnuclei center $[\mu m]$')
+
+
+def distance_to_cell_center(df, ax, mask=None, time_contact=None, plot_interp=False):
+    pal = sns.color_palette()
+    nucleus_id = df['Nuclei'].min()
+
+    dhandles, dlabels = list(), list()
+    for k, [(centr_lbl), _df] in enumerate(df.groupby(['Centrosome'])):
+        track = _df.set_index('Time').sort_index()
+        color = pal[k % len(pal)]
+        dlbl = 'N%d-C%d' % (nucleus_id, centr_lbl)
+        dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
+        dlabels.append(dlbl)
+
+        if mask is not None and not mask.empty:
+            tmask = mask[mask['Centrosome'] == centr_lbl].set_index('Time').sort_index()
+            orig = track['DistCell'][tmask['DistCell']]
+            interp = track['DistCell'][~tmask['DistCell']]
+            if len(orig) > 0:
+                orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
+            if plot_interp:
+                if len(interp) > 0:
+                    interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
+                track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+            else:
+                orig.plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+        else:
+            print('plotting distance to cell center with no mask.')
+            track['DistCell'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+
+    # plot time of contact
+    if time_contact is not None:
+        ax.axvline(x=time_contact, color='dimgray', linestyle='--')
+        ax.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
+
+    ax.legend(dhandles, dlabels, loc='upper right')
+    ax.set_ylabel('Distance to\ncell center $[\mu m]$')
 
 
 def distance_between_centrosomes(df, ax, mask=None, time_contact=None):

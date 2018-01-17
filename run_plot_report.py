@@ -49,7 +49,7 @@ def plots_for_individual(df, mask=None):
     mask_c = centr_masks(mask) if mask is not None else None
     time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
-    sp.distance_to_nucleus(df, ax1, mask=mask, time_contact=time_of_c)
+    sp.distance_to_nuclei_center(df, ax1, mask=mask, time_contact=time_of_c)
     sp.speed_to_nucleus(df, ax2, mask=mask, time_contact=time_of_c)
     sp.acceleration_to_nucleus(df, ax3, mask=mask, time_contact=time_of_c)
     sp.distance_between_centrosomes(between_df, ax4, mask=mask_c, time_contact=time_of_c)

@@ -43,7 +43,7 @@ def get_speed_acc_rel_to(df, x='x', y='y', rx='rx', ry='ry', time='time', frame=
     df.loc[:, '_y'] = df[ry] - df[y]
     dout = df.groupby(group).apply(speed_acc)
     dout = dout.rename(columns={'frame': frame, 'time': time})
-    return dout.drop(['_x', '_y'], axis=1).reset_index(drop=True)
+    return dout.reset_index(drop=True)
 
 
 def center_df(df):
