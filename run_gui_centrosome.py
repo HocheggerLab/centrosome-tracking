@@ -1,7 +1,9 @@
 import ConfigParser
+import logging
 import os
 import re
 
+import coloredlogs
 import h5py
 import pandas as pd
 from PyQt4 import QtCore, QtGui, uic
@@ -10,6 +12,8 @@ from PyQt4.QtGui import QAbstractItemView
 
 import hdf5_nexus as hdf
 import plot_special_tools as spc
+
+coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 
 
 class ExperimentsList(QtGui.QWidget):
@@ -257,21 +261,21 @@ class ExperimentsList(QtGui.QWidget):
         mname = str(mname)
 
         self.reprocess_selections()
-        print 'saving masks to %s' % (mname)
         hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
+        logging.info('saving masks to %s' % (mname))
         msk = hlab.mask
         msk.to_pickle(mname)
-        print 'saving centrosomes to %s' % (fname)
+        logging.info('saving centrosomes to %s' % (fname))
         df = hlab.dataframe
         df.to_pickle(fname)
-        print 'export finished.'
+        logging.info('export finished.')
 
     @QtCore.pyqtSlot()
     def on_export_sel_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selection file',
                                                   directory='/Users/Fabio/centrosomes_selection.txt')
         fname = str(fname)
-        print 'saving to %s' % fname
+        logging.info('saving to %s' % fname)
 
         config = ConfigParser.RawConfigParser()
         with h5py.File(self.hdf5file, 'r') as f:
@@ -289,26 +293,27 @@ class ExperimentsList(QtGui.QWidget):
         # Write our configuration file
         with open(fname, 'w') as configfile:
             config.write(configfile)
-        print '\r\nexport done.'
+            logging.info('export done.')
 
+    @QtCore.pyqtSlot()
     def on_import_sel_button(self):
         fname = QtGui.QFileDialog.getOpenFileName(self, caption='Load selection file', filter='Text (*.txt)',
                                                   directory='/Users/Fabio/centrosomes_selection.txt')
         if not fname: return
         fname = str(fname)
 
-        print 'deleting old selection'
+        logging.info('deleting old selection')
         with h5py.File(self.hdf5file, 'a') as f:
             for cond in f:
                 for run in f[cond]:
                     for o in f['%s/%s/selection' % (cond, run)]:
                         del f['%s/%s/selection/%s' % (cond, run, o)]
 
-        print 'opening %s' % fname
+        logging.info('opening %s' % fname)
         selection = ConfigParser.ConfigParser()
         selection.read(fname)
         for sel in selection.sections():
-            print sel
+            logging.info(sel)
             cond, run, nucl = re.search('^(.+)\.(.+)\.N(.+)$', sel).groups()
             hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
 
@@ -319,20 +324,20 @@ class ExperimentsList(QtGui.QWidget):
             for c in _B:
                 hlab.associate_centrosome_with_nuclei(int(c[1:]), int(nucl), cond, run, centrosome_group=1)
         self.reprocess_selections()
-        print '\r\ndone importing selection.'
+        logging.info('done importing selection.')
 
     def reprocess_selections(self):
         with h5py.File(self.hdf5file, 'r') as f:
             conditions = f.keys()
+        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
         for cond in conditions:
             with h5py.File(self.hdf5file, 'a') as f:
                 runs = f[cond].keys()
             for run in runs:
                 try:
-                    hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
                     hlab.process_selection_for_run(cond, run)
-                except KeyError:
-                    print 'skipping %s due to lack of data.'
+                except KeyError as e:
+                    logging.warning('skipping %s-%s due to lack of data. %s' % (cond, run, e))
 
 
 if __name__ == '__main__':
@@ -342,10 +347,10 @@ if __name__ == '__main__':
     from PyQt4.Qt import PYQT_VERSION_STR
 
     base_path = os.path.abspath('%s' % os.getcwd())
-    print('Qt version:', QT_VERSION_STR)
-    print('PyQt version:', PYQT_VERSION_STR)
-    print('Working dir:', os.getcwd())
-    print('Base dir:', base_path)
+    logging.info('Qt version:' + QT_VERSION_STR)
+    logging.info('PyQt version:' + PYQT_VERSION_STR)
+    logging.info('Working dir:' + os.getcwd())
+    logging.info('Base dir:' + base_path)
     os.chdir(base_path)
 
     app = QtGui.QApplication(sys.argv)
