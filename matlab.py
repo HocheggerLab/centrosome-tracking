@@ -64,21 +64,15 @@ print 'Computing speed and acceleration for the dataset'
 df_matlab = ImagejPandas.vel_acc_nuclei(df_matlab)
 df_out = pd.DataFrame()
 for _, _df in df_matlab.groupby(['condition', 'run', 'Nuclei']):
-    dc = ImagejPandas.dist_vel_acc_centrosomes(_df)
+    _df = ImagejPandas.dist_vel_acc_centrosomes(_df)
     maxframe1 = _df.loc[_df['CentrLabel'] == 'A', 'Frame'].max()
     maxframe2 = _df.loc[_df['CentrLabel'] == 'B', 'Frame'].max()
-    maxframedc = dc['Frame'].max()
+    maxframedc = _df['Frame'].max()
     minframe1 = min(maxframe1, maxframedc)
-    minframe2 = min(maxframe2, maxframedc)
 
     idx1 = (_df['CentrLabel'] == 'A') & (_df['Frame'] <= minframe1)
-    idx2 = (_df['CentrLabel'] == 'B') & (_df['Frame'] <= minframe2)
-    _df.loc[idx1, 'DistCentr'] = dc.loc[dc['Frame'] <= minframe1, 'DistCentr'].values
-    _df.loc[idx1, 'SpeedCentr'] = -dc.loc[dc['Frame'] <= minframe1, 'SpeedCentr'].values
-    _df.loc[idx1, 'AccCentr'] = -dc.loc[dc['Frame'] <= minframe1, 'AccCentr'].values
-    _df.loc[idx2, 'DistCentr'] = -dc.loc[dc['Frame'] <= minframe2, 'DistCentr'].values
-    _df.loc[idx2, 'SpeedCentr'] = dc.loc[dc['Frame'] <= minframe2, 'SpeedCentr'].values
-    _df.loc[idx2, 'AccCentr'] = dc.loc[dc['Frame'] <= minframe2, 'AccCentr'].values
+    _df.loc[idx1, 'SpeedCentr'] *= -1
+    _df.loc[idx1, 'AccCentr'] *= -1
     df_out = df_out.append(_df)
 
 ordered_columns = ['condition', 'run', 'Nuclei', 'Centrosome', 'CentrLabel',
@@ -90,10 +84,6 @@ df_out = df_out[ordered_columns]
 df_c = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
 df_c = df_c.append(df_out)
 df_c = df_c[ordered_columns]
-# df_c.loc[:, 'datetime'] = df_c['Time'].apply(
-#     lambda x: pd.to_datetime(datetime.datetime.fromtimestamp(time.mktime(time.gmtime(x * 60.0))))
-# )
-df_c = stats.reconstruct_time(df_c)
 df_c.to_pickle('/Users/Fabio/merge.pandas')
 
 print 'Re-centering timeseries around time of contact...'

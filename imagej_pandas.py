@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from sklearn import linear_model
 
+import mechanics as m
+
 
 class ImagejPandas(object):
     DIST_THRESHOLD = 0.5  # um before 1 frame of contact
@@ -36,9 +38,9 @@ class ImagejPandas(object):
     @staticmethod
     def get_contact_time(df, distance_threshold):
         # get all distances less than a threshold, order them by time and pick the earlier one
-        cent_list = df.groupby('Centrosome').size().index
+        cent_list = df['Centrosome'].unique()
         if len(cent_list) == 2:
-            dsf = ImagejPandas.dist_vel_acc_centrosomes(df)
+            dsf = ImagejPandas.dist_vel_acc_centrosomes(df) if 'DistCentr' not in df else df
             dsr = dsf[dsf['DistCentr'] <= distance_threshold]
 
             if dsr.size > 0:
@@ -46,57 +48,49 @@ class ImagejPandas(object):
                 if zeros_df.size > 0:
                     dsr = zeros_df.set_index('Frame').sort_index()
                     frame = dsr.index[0]
-                    time = list(dsr[dsr.index == frame]['Time'])[0]
-                    dist = list(dsr[dsr.index == frame]['DistCentr'])[0]
+                    time = dsr.loc[dsr.index == frame, 'Time'].iloc[0]
+                    dist = dsr.loc[dsr.index == frame, 'DistCentr'].iloc[0]
                 else:
-                    dsr = dsr.set_index('DistCentr').sort_index()
-                    frame = list(dsr['Frame'])[0]
-                    time = list(dsr['Time'])[0]
-                    dist = list(dsf[dsf['Frame'] == frame]['DistCentr'])[0]
+                    dsd = dsr.reset_index().set_index('DistCentr').sort_index()
+                    frame = dsd.iloc[0]['Frame']
+                    time = dsd.iloc[0]['Time']
+                    dist = dsd.index[0]
+                    # most of the times, when centrosomes come together we see that one track is lost
+                    if len(dsf.loc[dsf['Frame'] == frame + 1, 'Centrosome']) == 1:
+                        frame += 1
+                        time = dsf.loc[dsf['Frame'] == frame, 'Time'].iloc[0]
+                        dist = dsf.loc[dsf['Frame'] == frame, 'DistCentr'].iloc[0]
 
                 return time, frame, dist
         return None, None, None
 
     @staticmethod
     def vel_acc_nuclei(df):
-        df = df.set_index('Frame').sort_index()
-        df.loc[:, 'CNx'] = df['NuclX'] - df['CentX']
-        df.loc[:, 'CNy'] = df['NuclY'] - df['CentY']
-        for c_i, dc in df.groupby('Centrosome'):
-            dc.loc[:, 'Dist'] = (dc.CNx ** 2 + dc.CNy ** 2).map(np.sqrt)  # relative to nuclei centroid
-            d = dc.loc[:, ['CNx', 'CNy', 'Dist', 'Time']].diff()
-
-            df.loc[df['Centrosome'] == c_i, 'Dist'] = (dc.CNx ** 2 + dc.CNy ** 2).map(np.sqrt)
-            df.loc[df['Centrosome'] == c_i, 'Speed'] = d.Dist / d.Time
-            df.loc[df['Centrosome'] == c_i, 'Acc'] = d.Dist.diff() / d.Time
-
-        return df.reset_index()
+        df = df.rename(columns={'CNx': '_x', 'CNy': '_y', 'Dist': 'dist', 'Speed': 'speed', 'Acc': 'acc'})
+        df = m.get_speed_acc_rel_to(df, x='CentX', y='CentY', rx='NuclX', ry='NuclY', time='Time', frame='Frame',
+                                    group=ImagejPandas.CENTROSOME_INDIV_INDEX)
+        df = df.rename(columns={'_x': 'CNx', '_y': 'CNy', 'dist': 'Dist', 'speed': 'Speed', 'acc': 'Acc'})
+        return df
 
     @staticmethod
     def dist_vel_acc_centrosomes(df):
-        cent_list = df.groupby('Centrosome').size().index
-        if (len(cent_list) != 2) | (df.groupby(['Frame', 'Time', 'Centrosome']).size().max() > 1):
-            # we accept just 1 value per (frame,centrosome)
-            ds = pd.DataFrame()
-            ds['Frame'] = np.NaN
-            ds['Time'] = np.NaN
-            ds['DistCentr'] = np.NaN
-            ds['SpeedCentr'] = np.NaN
-            ds['AccCentr'] = np.NaN
-            return ds
+        def dist_between(df):
+            cent_list = df['Centrosome'].unique()
+            if len(cent_list) != 2: return
+            df = df.set_index(['Frame', 'Centrosome']).sort_index()
+            dfu = df.unstack('Centrosome')
+            ddx = dfu['CNx'][cent_list[0]] - dfu['CNx'][cent_list[1]]
+            ddy = dfu['CNy'][cent_list[0]] - dfu['CNy'][cent_list[1]]
+            df = df.reset_index().set_index(['Frame']).sort_index()
+            dist = (ddx ** 2 + ddy ** 2).map(np.sqrt)
+            df.loc[:, 'DistCentr'] = dist
+            d = df[['Time', 'DistCentr']].diff()
+            df.loc[:, 'SpeedCentr'] = d.DistCentr / d.Time
+            df.loc[:, 'AccCentr'] = d.DistCentr.diff() / d.Time
+            return df.reset_index()
 
-        dc = df.set_index(['Frame', 'Time', 'Centrosome']).unstack()
-        ddx = dc['CNx'][cent_list[0]] - dc['CNx'][cent_list[1]]
-        ddy = dc['CNy'][cent_list[0]] - dc['CNy'][cent_list[1]]
-        ds = pd.DataFrame()
-        ds.loc[:, 'DistCentr'] = (ddx ** 2 + ddy ** 2).map(np.sqrt)
-
-        ds = ds.reset_index().set_index('Frame').sort_index()
-        d = ds.diff()
-        ds.loc[:, 'SpeedCentr'] = d.DistCentr / d.Time
-        ds.loc[:, 'AccCentr'] = d.DistCentr.diff() / d.Time
-
-        return ds.reset_index()
+        df = df.groupby(ImagejPandas.NUCLEI_INDIV_INDEX).apply(dist_between)
+        return df.reset_index(drop=True)
 
     @staticmethod
     def msd_centrosomes(df):

@@ -261,7 +261,6 @@ class ExperimentsList(QtGui.QWidget):
         mname = str(mname)
 
         self.reprocess_selections()
-        print 'saving masks to %s' % (mname)
         hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
         logging.info('saving masks to %s' % (mname))
         msk = hlab.mask
@@ -296,6 +295,7 @@ class ExperimentsList(QtGui.QWidget):
             config.write(configfile)
             logging.info('export done.')
 
+    @QtCore.pyqtSlot()
     def on_import_sel_button(self):
         fname = QtGui.QFileDialog.getOpenFileName(self, caption='Load selection file', filter='Text (*.txt)',
                                                   directory='/Users/Fabio/centrosomes_selection.txt')
@@ -329,15 +329,15 @@ class ExperimentsList(QtGui.QWidget):
     def reprocess_selections(self):
         with h5py.File(self.hdf5file, 'r') as f:
             conditions = f.keys()
+        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
         for cond in conditions:
             with h5py.File(self.hdf5file, 'a') as f:
                 runs = f[cond].keys()
             for run in runs:
                 try:
-                    hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
                     hlab.process_selection_for_run(cond, run)
-                except KeyError:
-                    logging.warning('skipping %s due to lack of data.')
+                except KeyError as e:
+                    logging.warning('skipping %s-%s due to lack of data. %s' % (cond, run, e))
 
 
 if __name__ == '__main__':

@@ -1,7 +1,5 @@
-import ConfigParser
 import logging
 import os
-import re
 
 import coloredlogs
 import cv2
@@ -46,10 +44,7 @@ class ExperimentsList(QtGui.QWidget):
         self.timer = QTimer()
         self.timer.start(200)
 
-        QtCore.QObject.connect(self.exportPandasButton, QtCore.SIGNAL('pressed()'), self.on_export_pandas_button)
         QtCore.QObject.connect(self.renderBoxplotButton, QtCore.SIGNAL('pressed()'), self.on_render_boxplot_button)
-        QtCore.QObject.connect(self.exportSelectionButton, QtCore.SIGNAL('pressed()'), self.on_export_sel_button)
-        QtCore.QObject.connect(self.importSelectionButton, QtCore.SIGNAL('pressed()'), self.on_import_sel_button)
         QtCore.QObject.connect(self.timer, QtCore.SIGNAL('timeout()'), self.anim)
         QtCore.QObject.connect(self.gaborLineEdit, QtCore.SIGNAL('editingFinished()'), self.on_gabor_change)
 
@@ -117,17 +112,14 @@ class ExperimentsList(QtGui.QWidget):
                     conditem.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
                 else:
                     conditem.setData(QtCore.QVariant(Qt.Unchecked), Qt.CheckStateRole)
-                conditem.setCheckable(True)
+                conditem.setCheckable(False)
                 model.appendRow(conditem)
-        QtCore.QObject.connect(self.nucleiListView.selectionModel(),
-                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.on_nuclei_change)
-        model.itemChanged.connect(self.on_nucleitick_change)
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
     def on_nuclei_change(self, current, previous):
         self.nuclei_selected = int(current.data().toString()[1:])
 
-        with h5py.File(self.hdf5file, 'r+') as f:
+        with h5py.File(self.hdf5file, 'r') as f:
             nuc_sel = f['%s/%s/selection/N%02d' % (self.condition, self.run, self.nuclei_selected)]
             gabor_thr = nuc_sel.attrs['gabor_threshold'] if 'gabor_threshold' in nuc_sel.attrs else None
 
@@ -145,20 +137,6 @@ class ExperimentsList(QtGui.QWidget):
         self.plot_tracks_of_nuclei(self.nuclei_selected)
 
     @QtCore.pyqtSlot('QStandardItem')
-    def on_nucleitick_change(self, item):
-        self.nuclei_selected = int(item.text()[1:])
-        if item.checkState() == QtCore.Qt.Unchecked:
-            with h5py.File(self.hdf5file, 'a') as f:
-                sel = f['%s/%s/selection' % (self.condition, self.run)]
-                del sel['N%02d' % self.nuclei_selected]
-            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-            hlab.process_selection_for_run(self.condition, self.run)
-            self.mplDistance.clear()
-
-        self.populate_nuclei()
-        self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
-
-    @QtCore.pyqtSlot('QStandardItem')
     def on_gabor_change(self):
         if self.condition is None or self.run is None or self.nuclei_selected is None:
             self.timer.start(200)
@@ -168,7 +146,7 @@ class ExperimentsList(QtGui.QWidget):
         if self.timer.isActive():
             logging.info('freezing timer.')
             self.timer.stop()
-        df = pd.DataFrame()
+
         with h5py.File(self.hdf5file, 'r+') as f:
             if not 'N%02d' % self.nuclei_selected in f['%s/%s/selection' % (self.condition, self.run)]:
                 self.timer.start(200)
@@ -178,8 +156,6 @@ class ExperimentsList(QtGui.QWidget):
                 df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/boundary' % (self.condition, self.run))
             elif 'pandas_dataframe' in f['%s/%s/processed' % (self.condition, self.run)]:
                 df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_dataframe' % (self.condition, self.run))
-                # df = df.drop(['CentX', 'CentY', 'CNx', 'CNy', 'NuclX', 'NuclY',
-                #               'Dist', 'Speed', 'Acc', 'NuclBound'], axis=1)
             else:
                 self.timer.start(200)
                 return
@@ -197,7 +173,7 @@ class ExperimentsList(QtGui.QWidget):
             nuc_sel.attrs['gabor_threshold'] = new_gabor_thr
 
             if new_gabor_thr == 0:
-                logging.info('deleting data for nuclei N%02d' % self.nuclei_selected)
+                logging.info('deleting boundary data for nuclei N%02d' % self.nuclei_selected)
                 ix = df['Nuclei'] == self.nuclei_selected
                 df.loc[ix, 'CellBound'] = np.NaN
                 df.loc[ix, 'CellX'] = np.NaN
@@ -244,7 +220,8 @@ class ExperimentsList(QtGui.QWidget):
             df = df.rename(columns={'DistCell': 'dist', 'SpdCell': 'speed', 'AccCell': 'acc'})
             df = m.get_speed_acc_rel_to(df, x='CentX', y='CentY', rx='CellX', ry='CellY',
                                         time='Time', frame='Frame', group='Centrosome')
-            df = df.rename(columns={'dist': 'DistCell', 'speed': 'SpdCell', 'acc': 'AccCell'})
+            df = df.drop(['_x', '_y'], axis=1).rename(
+                columns={'dist': 'DistCell', 'speed': 'SpdCell', 'acc': 'AccCell'})
 
             if 'boundary' in f['%s/%s/processed' % (self.condition, self.run)]:
                 del f['%s/%s/processed/boundary' % (self.condition, self.run)]
@@ -264,7 +241,7 @@ class ExperimentsList(QtGui.QWidget):
                 ixdf = df['Nuclei'] == nuclei
                 ixmsk = mask['Nuclei'] == nuclei
                 time, frame, dist = ImagejPandas.get_contact_time(df[ixdf], 10)
-                sp.distance_to_nucleus(df[ixdf], self.mplDistance.canvas.ax, mask=mask[ixmsk], time_contact=time)
+                sp.distance_to_nuclei_center(df[ixdf], self.mplDistance.canvas.ax, mask=mask[ixmsk], time_contact=time)
 
                 # plot distance with respect to cell centroid
                 if 'boundary' in f['%s/%s/processed' % (self.condition, self.run)]:
@@ -295,10 +272,9 @@ class ExperimentsList(QtGui.QWidget):
                         df['run'] = run
                         df_out = df_out.append(df)
         df_valid = df_out.loc[~df_out['CellBound'].isnull(), :]
-        logging.debug(df_valid[ImagejPandas.NUCLEI_INDIV_INDEX])
+        logging.debug(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique())
+        logging.debug(len(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique()))
 
-        dt_before_contact = 30
-        t_per_frame = 5
         with PdfPages('/Users/Fabio/dist_nucleus_cell.pdf') as pdf:
             fig = plt.gcf()
             fig.clf()
@@ -307,38 +283,11 @@ class ExperimentsList(QtGui.QWidget):
             plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.2, hspace=0.2)
 
             stats = pd.DataFrame()
-            idx = ImagejPandas.MASK_INDEX
-            idx.append('run')
             for i, (id, idf) in enumerate(df_valid.groupby(ImagejPandas.NUCLEI_INDIV_INDEX)):
-                if 'CentrLabel' in idf:
-                    idf = idf.drop('CentrLabel', axis=1)
-                s = idf.set_index(idx).sort_index()
-                u = s.unstack('Centrosome')
-                u = u.interpolate().stack().reset_index()
-                idf = ImagejPandas.vel_acc_nuclei(u)
-
                 d_thr = ImagejPandas.DIST_THRESHOLD * 3
                 time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(idf, d_thr)
                 logging.debug(i, id, time_of_c, frame_of_c, dist_of_c)
 
-                if time_of_c is not None:
-                    frame_before = frame_of_c - dt_before_contact / t_per_frame
-                    if frame_before < 0:
-                        frame_before = 0
-                    dists_before_contact = list(idf[idf['Frame'] == frame_before]['Dist'])
-                    min_dist = max_dist = time_before = np.NaN
-                    if len(dists_before_contact) > 0:
-                        max_dist = max(dists_before_contact)
-                        min_dist = min(dists_before_contact)
-                        time_before = idf[idf['Frame'] == frame_before]['Time'].unique()[0]
-                else:
-                    frame_before = time_before = min_dist = max_dist = np.NaN
-
-                ini_frame = idf.set_index('Frame').sort_index().index[0]
-                ini_time = idf[idf['Frame'] == ini_frame]['Time'].unique()[0]
-                ini_dist_min = min(idf[idf['Frame'] == ini_frame]['Dist'])
-
-                logging.debug(idf.loc[idf['Frame'] == frame_of_c, 'DistCell'].min())
                 df_rown = pd.DataFrame({'Tag': [id],
                                         'Nuclei': idf['Nuclei'].unique()[0],
                                         'Frame': [frame_of_c],
@@ -356,7 +305,7 @@ class ExperimentsList(QtGui.QWidget):
                 stats = stats.append(df_rown, ignore_index=True)
                 stats = stats.append(df_rowc, ignore_index=True)
 
-            sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
+            sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())]
             sdata['Dist'] = sdata.Dist.astype(np.float64)  # fixes a bug of seaborn
             sns.boxplot(data=sdata, y='Dist', x='Type', whis=np.inf, width=0.3)
             for i, artist in enumerate(ax.artists):
@@ -372,93 +321,6 @@ class ExperimentsList(QtGui.QWidget):
             ax.set_ylabel('D(time of contact) $[\mu m]$')
 
             pdf.savefig(transparent=True)
-
-    @QtCore.pyqtSlot()
-    def on_export_pandas_button(self):
-        fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save centrosome file',
-                                                  directory='/Users/Fabio/boundary.pandas')
-        mname = QtGui.QFileDialog.getSaveFileName(self, caption='Save mask dataframe file',
-                                                  directory='/Users/Fabio/boundary-mask.pandas')
-        fname = str(fname)
-        mname = str(mname)
-
-        self.reprocess_selections()
-        logging.info('saving masks to %s' % (mname))
-        hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-        msk = hlab.mask
-        msk.to_pickle(mname)
-        logging.info('saving centrosomes to %s' % (fname))
-        df = hlab.dataframe
-        df.to_pickle(fname)
-        logging.info('export finished.')
-
-    @QtCore.pyqtSlot()
-    def on_export_sel_button(self):
-        fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selection file',
-                                                  directory='/Users/Fabio/boundary_selection.txt')
-        fname = str(fname)
-        logging.info('saving to %s' % fname)
-
-        config = ConfigParser.RawConfigParser()
-        with h5py.File(self.hdf5file, 'r') as f:
-            for cond in f:
-                for run in f[cond]:
-                    for nuclei_str in f['%s/%s/selection' % (cond, run)]:
-                        if nuclei_str == 'pandas_dataframe' or nuclei_str == 'pandas_masks': continue
-                        section = '%s.%s.%s' % (cond, run, nuclei_str)
-                        config.add_section(section)
-                        centrosomes_of_nuclei_a = f['%s/%s/selection/%s/A' % (cond, run, nuclei_str)].keys()
-                        centrosomes_of_nuclei_b = f['%s/%s/selection/%s/B' % (cond, run, nuclei_str)].keys()
-                        config.set(section, 'A', [c.encode('ascii', 'ignore') for c in centrosomes_of_nuclei_a])
-                        config.set(section, 'B', [c.encode('ascii', 'ignore') for c in centrosomes_of_nuclei_b])
-
-        # Write our configuration file
-        with open(fname, 'w') as configfile:
-            config.write(configfile)
-        logging.info('export done.')
-
-    def on_import_sel_button(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self, caption='Load selection file', filter='Text (*.txt)',
-                                                  directory='/Users/Fabio/boundary_selection.txt')
-        if not fname: return
-        fname = str(fname)
-
-        logging.info('deleting old selection')
-        with h5py.File(self.hdf5file, 'a') as f:
-            for cond in f:
-                for run in f[cond]:
-                    for o in f['%s/%s/selection' % (cond, run)]:
-                        del f['%s/%s/selection/%s' % (cond, run, o)]
-
-        logging.info('opening %s' % fname)
-        selection = ConfigParser.ConfigParser()
-        selection.read(fname)
-        for sel in selection.sections():
-            logging.debug(sel)
-            cond, run, nucl = re.search('^(.+)\.(.+)\.N(.+)$', sel).groups()
-            hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-
-            _A = eval(selection.get(sel, 'a'))
-            _B = eval(selection.get(sel, 'b'))
-            for c in _A:
-                hlab.associate_centrosome_with_nuclei(int(c[1:]), int(nucl), cond, run, centrosome_group=0)
-            for c in _B:
-                hlab.associate_centrosome_with_nuclei(int(c[1:]), int(nucl), cond, run, centrosome_group=1)
-        self.reprocess_selections()
-        logging.info('done importing selection.')
-
-    def reprocess_selections(self):
-        with h5py.File(self.hdf5file, 'r') as f:
-            conditions = f.keys()
-        for cond in conditions:
-            with h5py.File(self.hdf5file, 'a') as f:
-                runs = f[cond].keys()
-            for run in runs:
-                try:
-                    hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
-                    hlab.process_selection_for_run(cond, run)
-                except KeyError:
-                    logging.warning('skipping %s due to lack of data.')
 
 
 if __name__ == '__main__':

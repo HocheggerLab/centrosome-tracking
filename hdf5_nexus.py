@@ -3,6 +3,7 @@ import datetime
 import logging
 import os
 import re
+import sys
 from subprocess import call
 
 import h5py
@@ -10,6 +11,7 @@ import numpy as np
 import pandas as pd
 import tifffile as tf
 
+import stats
 from imagej_pandas import ImagejPandas
 
 
@@ -177,37 +179,8 @@ class LabHDF5NeXusFile():
                         df = pd.read_hdf(self.filename, key=selection_key, mode='r')
                         df['condition'] = experiment_tag
                         df['run'] = run
-                        for nuc_id, df_nuc in df.groupby('Nuclei'):
-                            logging.debug('getting exp %s run %s nuclei N%02d' % (experiment_tag, run, nuc_id))
-                            dc = ImagejPandas.dist_vel_acc_centrosomes(df_nuc)
-                            if len(dc) > 0:
-                                maxframe1 = df_nuc.loc[df_nuc['CentrLabel'] == 'A', 'Frame'].max()
-                                maxframe2 = df_nuc.loc[df_nuc['CentrLabel'] == 'B', 'Frame'].max()
-                                maxframedc = dc['Frame'].max()
-                                minframe1 = min(maxframe1, maxframedc)
-                                minframe2 = min(maxframe2, maxframedc)
-
-                                idx1 = (df_nuc['CentrLabel'] == 'A') & (df_nuc['Frame'] <= minframe1)
-                                idx2 = (df_nuc['CentrLabel'] == 'B') & (df_nuc['Frame'] <= minframe2)
-
-                                df_nuc.loc[idx1, 'DistCentr'] = dc[dc['Frame'] <= minframe1]['DistCentr'].values
-                                df_nuc.loc[idx1, 'SpeedCentr'] = -dc[dc['Frame'] <= minframe1]['SpeedCentr'].values
-                                df_nuc.loc[idx1, 'AccCentr'] = -dc[dc['Frame'] <= minframe1]['AccCentr'].values
-                                df_nuc.loc[idx2, 'DistCentr'] = -dc[dc['Frame'] <= minframe2]['DistCentr'].values
-                                df_nuc.loc[idx2, 'SpeedCentr'] = dc[dc['Frame'] <= minframe2]['SpeedCentr'].values
-                                df_nuc.loc[idx2, 'AccCentr'] = dc[dc['Frame'] <= minframe2]['AccCentr'].values
-                                df_out = df_out.append(df_nuc)
-
-                    # if 'boundary' in f['%s/%s/processed' % (experiment_tag, run)]:
-                    #     df = pd.read_hdf(self.filename, key='%s/%s/processed/boundary' % (experiment_tag, run))
-                    #     for nuc_id, df_nuc in df.groupby('Nuclei'):
-                    #         ix = (df_out['condition'] == experiment_tag) & (df_out['run'] == run) & \
-                    #              (df_out['Nuclei'] == nuc_id)
-                    #         df_out.loc[ix, 'CellBound'] = df_nuc['CellBound']
-                    #         df_out.loc[ix, 'CellX'] = df_nuc['CellX']
-                    #         df_out.loc[ix, 'CellY'] = df_nuc['CellY']
-
-        return df_out
+                        df_out = df_out.append(df)
+        return stats.reconstruct_time(df_out)
 
     @property
     def mask(self):
@@ -221,7 +194,7 @@ class LabHDF5NeXusFile():
                         msk['condition'] = experiment_tag
                         msk['run'] = run
                         df_msk = df_msk.append(msk)
-        return df_msk
+        return stats.reconstruct_time(df_msk)
 
     def selectiondicts_run(self, experiment_tag, run):
         centrosome_inclusion_dict = dict()
@@ -279,17 +252,29 @@ class LabHDF5NeXusFile():
         pdhdf_measured.drop(['NuclX', 'NuclY', 'NuclBound'], axis=1, inplace=True)
         pdhdf_merge = pdhdf_measured.merge(pdhdf_nuclei)
 
-        proc_df, mask_df = ImagejPandas.process_dataframe(pdhdf_merge, nuclei_list=nuclei_list,
-                                                          centrosome_inclusion_dict=centrosome_inclusion_dict)
+        # merge with cell boundary data
+        with h5py.File(self.filename, 'r') as f:
+            if 'boundary' in f['%s/%s/processed' % (experiment_tag, run)]:
+                df_cell = pd.read_hdf(self.filename, key='%s/%s/processed/boundary' % (experiment_tag, run))
+                df_cell = df_cell.loc[~df_cell['CellBound'].isnull(), :]
 
-        with h5py.File(self.filename, 'a') as f:
-            fproc = f['%s/%s/processed' % (experiment_tag, run)]
-            if 'pandas_dataframe' in fproc: del fproc['pandas_dataframe']
-            if 'pandas_masks' in fproc: del fproc['pandas_masks']
+                if 'CellBound' in pdhdf_merge.columns:
+                    logging.info('clearing CellBound')
+                    pdhdf_merge.drop(['CellX', 'CellY', 'CellBound'], axis=1, inplace=True)
+                pdhdf_merge = pdhdf_merge.merge(df_cell)
 
-        if proc_df.empty:
-            logging.warning('dataframe is empty')
-        else:
+        pdhdf_merge['condition'] = experiment_tag
+        pdhdf_merge['run'] = run
+
+        try:
+            proc_df, mask_df = ImagejPandas.process_dataframe(pdhdf_merge, nuclei_list=nuclei_list,
+                                                              centrosome_inclusion_dict=centrosome_inclusion_dict)
+
+            with h5py.File(self.filename, 'a') as f:
+                fproc = f['%s/%s/processed' % (experiment_tag, run)]
+                if 'pandas_dataframe' in fproc: del fproc['pandas_dataframe']
+                if 'pandas_masks' in fproc: del fproc['pandas_masks']
+
             dfn_join = mskn_join = pd.DataFrame()
             for nuc_id, df_nuc in proc_df.groupby('Nuclei'):
                 logging.debug(
@@ -303,7 +288,8 @@ class LabHDF5NeXusFile():
                 time_ofc, frame_ofc, dist_ofc = ImagejPandas.get_contact_time(df_nuc, dthrsh)
                 if time_ofc is not None:
                     logging.debug('time of contact=%0.1f frame=%d dist=%0.1f' % (time_ofc, frame_ofc, dist_ofc))
-                    centrosomes_ofc = df_nuc[df_nuc['Frame'] == frame_ofc]['Centrosome'].unique()
+                    frames_near_toc = [frame_ofc, frame_ofc - 1, frame_ofc + 1]
+                    centrosomes_ofc = df_nuc[df_nuc['Frame'].isin(frames_near_toc)]['Centrosome'].unique()
                     if len(centrosomes_ofc) == 2:
                         logging.debug('--> joining centrosomes %d and %d' % (centrosomes_ofc[0], centrosomes_ofc[1]))
                         dfj, mskj = ImagejPandas.join_tracks(df_nuc, centrosomes_ofc[0], centrosomes_ofc[1])
@@ -330,11 +316,25 @@ class LabHDF5NeXusFile():
                         centr_id = int(centr_str[1:])
                         proc_df.loc[proc_df['Centrosome'] == centr_id, 'CentrLabel'] = 'B'
                         mask_df.loc[mask_df['Centrosome'] == centr_id, 'CentrLabel'] = 'B'
-            proc_df.drop(proc_df[proc_df['CentrLabel'] == None].index, inplace=True)
+
+                        proc_df = ImagejPandas.dist_vel_acc_centrosomes(proc_df[~proc_df['CentrLabel'].isnull()])
+
+                        maxframe1 = proc_df.loc[proc_df['CentrLabel'] == 'A', 'Frame'].max()
+                        maxframedc = proc_df['Frame'].max()
+                        minframe1 = min(maxframe1, maxframedc)
+
+                        idx1 = (proc_df['CentrLabel'] == 'A') & (proc_df['Frame'] <= minframe1)
+                        proc_df.loc[idx1, 'SpeedCentr'] *= -1
+                        proc_df.loc[idx1, 'AccCentr'] *= -1
+
             mask_df = mask_df[mask_df['Nuclei'] > 0]
 
             proc_df.to_hdf(self.filename, key='%s/%s/processed/pandas_dataframe' % (experiment_tag, run), mode='r+')
             mask_df.to_hdf(self.filename, key='%s/%s/processed/pandas_masks' % (experiment_tag, run), mode='r+')
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            logging.warning('Problem processing %s-%s in line %d of hdf5_nexus.py:\r\n%s' % (
+                experiment_tag, run, exc_tb.tb_lineno, e))
 
     def associate_centrosome_with_nuclei(self, centr_id, nuc_id, experiment_tag, run, centrosome_group=0):
         with h5py.File(self.filename, 'a') as f:
