@@ -1,5 +1,7 @@
 import codecs
+import logging
 import os
+import sys
 import time
 
 import jinja2 as j2
@@ -17,7 +19,7 @@ sns.set_style('whitegrid')
 sns.set_context('paper')
 
 
-def centr_masks(msk):
+def centrosome_masks(msk):
     if msk['Nuclei'].unique().size > 1 and msk['condition'].unique().size > 1 and msk['run'].unique().size > 1:
         raise IndexError('Just one track per mask retrieval.')
     msk = msk.set_index(['condition', 'run', 'Nuclei', 'Frame', 'Time']).sort_index()
@@ -46,15 +48,20 @@ def plots_for_individual(df, mask=None):
     ax6 = plt.subplot(gs[6, 0])
 
     between_df = df[df['CentrLabel'] == 'A']
-    mask_c = centr_masks(mask) if mask is not None else None
+    mask_c = centrosome_masks(mask) if mask is not None else None
     time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
-    sp.distance_to_nuclei_center(df, ax1, mask=mask, time_contact=time_of_c)
-    sp.speed_to_nucleus(df, ax2, mask=mask, time_contact=time_of_c)
-    sp.acceleration_to_nucleus(df, ax3, mask=mask, time_contact=time_of_c)
-    sp.distance_between_centrosomes(between_df, ax4, mask=mask_c, time_contact=time_of_c)
-    sp.speed_between_centrosomes(between_df, ax5, mask=mask_c, time_contact=time_of_c)
-    sp.plot_acceleration_between_centrosomes(between_df, ax6, mask=mask_c, time_contact=time_of_c)
+    try:
+        sp.distance_to_nuclei_center(df, ax1, mask=mask, time_contact=time_of_c)
+        sp.speed_to_nucleus(df, ax2, mask=mask, time_contact=time_of_c)
+        sp.acceleration_to_nucleus(df, ax3, mask=mask, time_contact=time_of_c)
+        sp.distance_between_centrosomes(between_df, ax4, mask=mask_c, time_contact=time_of_c)
+        sp.speed_between_centrosomes(between_df, ax5, mask=mask_c, time_contact=time_of_c)
+        sp.plot_acceleration_between_centrosomes(between_df, ax6, mask=mask_c, time_contact=time_of_c)
+    except ValueError as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        logging.warning('Problem processing %s-%s in line %d of run_plot_report.py:\r\n%s' % (
+            run, nuclei, exc_tb.tb_lineno, e))
 
     # change y axis title properties for small plots
     for _ax in [ax2, ax3, ax4, ax5, ax6]:

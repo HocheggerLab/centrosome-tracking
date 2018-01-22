@@ -125,7 +125,7 @@ def retreat0(_df, _mask):
         mask['Time'] = mask['Time'].astype('int32')
 
         between_df = df[df['CentrLabel'] == 'A']
-        mask_c = r.centr_masks(mask)
+        mask_c = r.centrosome_masks(mask)
         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_TURQUOISE]):
@@ -571,7 +571,7 @@ def animations(_df, _mask):
         mask['Time'] = mask['Time'].astype('int32')
 
         between_df = df[df['CentrLabel'] == 'A']
-        mask_c = r.centr_masks(mask)
+        mask_c = r.centrosome_masks(mask)
         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_TURQUOISE]):
