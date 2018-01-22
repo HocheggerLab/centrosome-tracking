@@ -77,8 +77,10 @@ for _, _df in df_matlab.groupby(['condition', 'run', 'Nuclei']):
 
 ordered_columns = ['condition', 'run', 'Nuclei', 'Centrosome', 'CentrLabel',
                    'Frame', 'Time', 'CentX', 'CentY', 'NuclX', 'NuclY', 'CNx', 'CNy',
-                   'Dist', 'Speed', 'Acc', 'DistCentr', 'SpeedCentr', 'AccCentr', 'NuclBound']
-df_out.loc[:, 'NuclBound'] = None
+                   'Dist', 'Speed', 'Acc', 'DistCentr', 'SpeedCentr', 'AccCentr', 'NuclBound',
+                   'CellX', 'CellY', 'DistCell', 'SpdCell', 'AccCell', 'CellBound']
+df_out = df_out.assign(NuclBound=np.nan, CellX=np.nan, CellY=np.nan, DistCell=np.nan,
+                       SpdCell=np.nan, AccCell=np.nan, CellBound=np.nan)
 df_out = df_out[ordered_columns]
 
 df_c = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
