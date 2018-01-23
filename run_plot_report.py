@@ -4,6 +4,7 @@ import os
 import sys
 import time
 
+import coloredlogs
 import jinja2 as j2
 import matplotlib
 import matplotlib.gridspec
@@ -17,17 +18,7 @@ from imagej_pandas import ImagejPandas
 
 sns.set_style('whitegrid')
 sns.set_context('paper')
-
-
-def centrosome_masks(msk):
-    if msk['Nuclei'].unique().size > 1 and msk['condition'].unique().size > 1 and msk['run'].unique().size > 1:
-        raise IndexError('Just one track per mask retrieval.')
-    msk = msk.set_index(['condition', 'run', 'Nuclei', 'Frame', 'Time']).sort_index()
-    omsk = pd.DataFrame()
-    omsk['DistCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Dist']) & (msk.loc[msk['CentrLabel'] == 'B', 'Dist'])
-    omsk['SpeedCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Speed']) & (msk.loc[msk['CentrLabel'] == 'B', 'Speed'])
-    omsk['AccCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Acc']) & (msk.loc[msk['CentrLabel'] == 'B', 'Acc'])
-    return omsk.reset_index()
+coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 
 
 def plots_for_individual(df, mask=None):
@@ -41,27 +32,26 @@ def plots_for_individual(df, mask=None):
     plt.clf()
     gs = matplotlib.gridspec.GridSpec(7, 1)
     ax1 = plt.subplot(gs[0:2, 0])
-    ax2 = plt.subplot(gs[2, 0])
-    ax3 = plt.subplot(gs[3, 0])
-    ax4 = plt.subplot(gs[4, 0])
-    ax5 = plt.subplot(gs[5, 0])
-    ax6 = plt.subplot(gs[6, 0])
+    ax2 = plt.subplot(gs[2, 0], sharex=ax1)
+    ax3 = plt.subplot(gs[3, 0], sharex=ax1)
+    ax4 = plt.subplot(gs[4, 0], sharex=ax1)
+    ax5 = plt.subplot(gs[5, 0], sharex=ax1)
+    ax6 = plt.subplot(gs[6, 0], sharex=ax1)
 
     between_df = df[df['CentrLabel'] == 'A']
-    mask_c = centrosome_masks(mask) if mask is not None else None
     time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
     try:
         sp.distance_to_nuclei_center(df, ax1, mask=mask, time_contact=time_of_c)
         sp.speed_to_nucleus(df, ax2, mask=mask, time_contact=time_of_c)
         sp.acceleration_to_nucleus(df, ax3, mask=mask, time_contact=time_of_c)
-        sp.distance_between_centrosomes(between_df, ax4, mask=mask_c, time_contact=time_of_c)
-        sp.speed_between_centrosomes(between_df, ax5, mask=mask_c, time_contact=time_of_c)
-        sp.plot_acceleration_between_centrosomes(between_df, ax6, mask=mask_c, time_contact=time_of_c)
-    except ValueError as e:
+        sp.distance_between_centrosomes(between_df, ax4, mask=mask, time_contact=time_of_c)
+        sp.speed_between_centrosomes(between_df, ax5, mask=mask, time_contact=time_of_c)
+        sp.plot_acceleration_between_centrosomes(between_df, ax6, mask=mask, time_contact=time_of_c)
+    except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
-        logging.warning('Problem processing %s-%s in line %d of run_plot_report.py:\r\n%s' % (
-            run, nuclei, exc_tb.tb_lineno, e))
+        logging.warning('Problem processing %s %s-%s in line %d of run_plot_report.py:\r\n%s' % (
+            condition, run, nuclei, exc_tb.tb_lineno, e))
 
     # change y axis title properties for small plots
     for _ax in [ax2, ax3, ax4, ax5, ax6]:
@@ -112,17 +102,13 @@ if __name__ == '__main__':
         os.makedirs('_html/img')
     _f = os.path.abspath('_html')
 
-    df_disk = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
+    df_disk = pd.read_pickle('/Users/Fabio/merge.pandas')
     df_msk_disk = pd.read_pickle('/Users/Fabio/mask.pandas')
+
     html_cond = ''
     for (cond_id, run_id), df_cond in df_disk.groupby(['condition', 'run']):
         msk_cond = df_msk_disk[(df_msk_disk['condition'] == cond_id) & (df_msk_disk['run'] == run_id)]
         html_cond += html_centrosomes_condition_run_subreport(df_cond, mask=msk_cond)
-
-    df_disk = pd.read_pickle('/Users/Fabio/matlab.pandas')
-    df_msk_disk = pd.DataFrame()
-    for (cond_id, run_id), df_cond in df_disk.groupby(['condition', 'run']):
-        html_cond += html_centrosomes_condition_run_subreport(df_cond)
 
     master_template = """<!DOCTYPE html>
             <html>

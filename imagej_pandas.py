@@ -12,9 +12,9 @@ import mechanics as m
 class ImagejPandas(object):
     DIST_THRESHOLD = 0.5  # um before 1 frame of contact
     TIME_BEFORE_CONTACT = 30
-    MASK_INDEX = ['Frame', 'Time', 'Nuclei', 'Centrosome']
+    MASK_INDEX = ['Frame', 'Time', 'Nuclei', 'CentrLabel']
     NUCLEI_INDIV_INDEX = ['condition', 'run', 'Nuclei']
-    CENTROSOME_INDIV_INDEX = NUCLEI_INDIV_INDEX + ['Centrosome']
+    CENTROSOME_INDIV_INDEX = NUCLEI_INDIV_INDEX + ['CentrLabel']
 
     def __init__(self, filename):
         self.path_csv = filename
@@ -37,12 +37,15 @@ class ImagejPandas(object):
 
     @staticmethod
     def get_contact_time(df, distance_threshold):
+        if df.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).index.unique().size > 1:
+            raise Exception('this function accepts just one track pair per analysis.')
         # get all distances less than a threshold, order them by time and pick the earlier one
-        cent_list = df['Centrosome'].unique()
+        time, frame, dist = None, None, None
+        cent_list = df['CentrLabel'].unique()
         if len(cent_list) == 2:
             dsf = ImagejPandas.dist_vel_acc_centrosomes(df) if 'DistCentr' not in df else df
             dsr = dsf[dsf['DistCentr'] <= distance_threshold]
-
+            tail_analysis = False
             if dsr.size > 0:
                 zeros_df = dsr[dsr['DistCentr'] == 0]
                 if zeros_df.size > 0:
@@ -56,13 +59,23 @@ class ImagejPandas(object):
                     time = dsd.iloc[0]['Time']
                     dist = dsd.index[0]
                     # most of the times, when centrosomes come together we see that one track is lost
-                    if len(dsf.loc[dsf['Frame'] == frame + 1, 'Centrosome']) == 1:
-                        frame += 1
-                        time = dsf.loc[dsf['Frame'] == frame, 'Time'].iloc[0]
-                        dist = dsf.loc[dsf['Frame'] == frame, 'DistCentr'].iloc[0]
+                    tail_analysis = True
+            else:
+                tail_analysis = True
 
-                return time, frame, dist
-        return None, None, None
+            if tail_analysis:
+                logging.debug('doing tail analysis for %s %s %s' % (
+                    df.iloc[0]['condition'], df.iloc[0]['run'], df.iloc[0]['Nuclei']))
+                dsu = dsf.set_index(['Frame', 'CentrLabel']).sort_index().unstack('CentrLabel')
+                # most of the times, when centrosomes come together we see that one track is lost
+                dsu = dsu.fillna(method='bfill')
+                filtered = dsu[~dsu['DistCentr'].notna().all(axis=1)].stack().reset_index()
+                # check that only one centrosome (eg 'A') is present
+                if not filtered.empty and len(filtered['CentrLabel'].unique()) == 1:
+                    q = filtered.iloc[0]
+                    return q['Time'], q['Frame'], 0
+
+        return time, frame, dist
 
     @staticmethod
     def vel_acc_nuclei(df):
@@ -75,19 +88,19 @@ class ImagejPandas(object):
     @staticmethod
     def dist_vel_acc_centrosomes(df):
         def dist_between(df):
-            cent_list = df['Centrosome'].unique()
-            if len(cent_list) != 2: return
-            df = df.set_index(['Frame', 'Centrosome']).sort_index()
-            dfu = df.unstack('Centrosome')
-            ddx = dfu['CNx'][cent_list[0]] - dfu['CNx'][cent_list[1]]
-            ddy = dfu['CNy'][cent_list[0]] - dfu['CNy'][cent_list[1]]
-            df = df.reset_index().set_index(['Frame']).sort_index()
+            dfu = df.set_index(['Frame', 'CentrLabel']).sort_index().unstack('CentrLabel')
+            ddx = dfu['CentX']['A'] - dfu['CentX']['B']
+            ddy = dfu['CentY']['A'] - dfu['CentY']['B']
+
             dist = (ddx ** 2 + ddy ** 2).map(np.sqrt)
-            df.loc[:, 'DistCentr'] = dist
-            d = df[['Time', 'DistCentr']].diff()
-            df.loc[:, 'SpeedCentr'] = d.DistCentr / d.Time
-            df.loc[:, 'AccCentr'] = d.DistCentr.diff() / d.Time
-            return df.reset_index()
+            time = dfu['Time'].max(axis=1)
+            dfu.loc[:, ('DistCentr', 'A')] = dist
+            dfu.loc[:, ('DistCentr', 'B')] = dist
+            dfu.loc[:, ('SpeedCentr', 'A')] = dist.diff() / time.diff()
+            dfu.loc[:, ('SpeedCentr', 'B')] = dist.diff() / time.diff()
+            dfu.loc[:, ('AccCentr', 'A')] = dist.diff().diff() / time.diff()
+            dfu.loc[:, ('AccCentr', 'B')] = dist.diff().diff() / time.diff()
+            return dfu.stack().reset_index()
 
         df = df.groupby(ImagejPandas.NUCLEI_INDIV_INDEX).apply(dist_between)
         return df.reset_index(drop=True)
@@ -122,75 +135,22 @@ class ImagejPandas(object):
 
     @staticmethod
     def interpolate_data(df):
-        if df.groupby(['Frame', 'Nuclei', 'Centrosome']).size().max() > 1:
+        if df.groupby(ImagejPandas.MASK_INDEX).size().max() > 1:
             raise LookupError('this function accepts just 1 value per (frame,centrosome)')
 
         s = df.set_index(ImagejPandas.MASK_INDEX).sort_index()
-        u = s.unstack('Centrosome')
-        umask = u.isnull()  # true for interpolated values
+        u = s.unstack('CentrLabel')
+        u.fillna(value=np.nan, inplace=True)
+        umask = u.notna()  # false for interpolated values
+        umask['Centrosome'] = u['Centrosome']
         u = u.interpolate(limit=30, limit_direction='backward')
+        idx = u['Centrosome'].notna().all(axis=1)
 
+        u.loc[idx, ('condition', 'A')] = u.loc[idx, ('condition', 'A')].fillna(u.loc[idx, ('condition', 'B')])
+        u.loc[idx, ('run', 'A')] = u.loc[idx, ('run', 'A')].fillna(u.loc[idx, ('run', 'B')])
+        u.loc[idx, ('NuclBound', 'A')] = u.loc[idx, ('NuclBound', 'A')].fillna(u.loc[idx, ('NuclBound', 'B')])
+
+        u.loc[idx, ('condition', 'B')] = u.loc[idx, ('condition', 'B')].fillna(u.loc[idx, ('condition', 'A')])
+        u.loc[idx, ('run', 'B')] = u.loc[idx, ('run', 'B')].fillna(u.loc[idx, ('run', 'A')])
+        u.loc[idx, ('NuclBound', 'B')] = u.loc[idx, ('NuclBound', 'B')].fillna(u.loc[idx, ('NuclBound', 'A')])
         return u.stack().reset_index(), umask.stack().reset_index()
-
-    @staticmethod
-    def join_tracks(df, cn, cm):
-        u = df[df['Centrosome'].isin([cn, cm])]
-        # search for sup{lny}
-        supdn = u.groupby('Centrosome')['Time'].max()
-        # get the time of the minimum of the two values
-        tc = supdn[supdn == supdn.min()].values[0]
-
-        s = u.set_index(ImagejPandas.MASK_INDEX).sort_index().unstack('Centrosome')
-        # where are the NaN's?
-        nans_are_in = s['Dist'].transpose().isnull().any(axis=1)
-        values_where_nans_are_in = nans_are_in[nans_are_in].keys().values
-
-        mask = s.isnull().stack().reset_index()
-
-        if values_where_nans_are_in.size == 1:
-            _timeidx = s.index.levels[1]
-            if values_where_nans_are_in[0] == cm:
-                g = s[_timeidx > tc].transpose().fillna(method='ffill').transpose()
-            else:
-                g = s[_timeidx > tc].transpose().fillna(method='bfill').transpose()
-            s[_timeidx > tc] = g
-        u = s.stack()
-
-        return u.reset_index(), mask
-
-    @staticmethod
-    def process_dataframe(df, nuclei_list=None, centrosome_inclusion_dict=None, max_time_dict=None):
-        # filter non wanted centrosomes
-        keep_centrosomes = list()
-        for _cnuc in centrosome_inclusion_dict: keep_centrosomes.extend(centrosome_inclusion_dict[_cnuc])
-        df = df[df['Centrosome'].isin(keep_centrosomes)]
-        df = ImagejPandas.vel_acc_nuclei(df)  # call to make distance & acceleration columns appear
-
-        # assign wanted centrosomes to nuclei
-        if centrosome_inclusion_dict is not None:
-            for nuId in centrosome_inclusion_dict.keys():
-                for centId in centrosome_inclusion_dict[nuId]:
-                    df.loc[df['Centrosome'] == centId, 'Nuclei'] = nuId
-
-        df.dropna(how='all', inplace=True)
-        df_filtered_nucs, df_masks = pd.DataFrame(), pd.DataFrame()
-        for (nucleus_id), filtered_nuc_df in df.groupby(['Nuclei']):
-            if nucleus_id in nuclei_list:
-                if (max_time_dict is not None) and (nucleus_id in max_time_dict):
-                    filtered_nuc_df = filtered_nuc_df[filtered_nuc_df['Time'] <= max_time_dict[nucleus_id]]
-
-                try:
-                    filtered_nuc_df, imask = ImagejPandas.interpolate_data(filtered_nuc_df)
-
-                    # process interpolated data mask
-                    im = imask.set_index(['Frame', 'Time', 'Nuclei', 'Centrosome'])
-                    mask = (~im).reset_index()
-
-                    # compute velocity with interpolated data
-                    filtered_nuc_df = ImagejPandas.vel_acc_nuclei(filtered_nuc_df)
-                    df_filtered_nucs = df_filtered_nucs.append(filtered_nuc_df)
-                    df_masks = df_masks.append(mask)
-                except LookupError as le:
-                    logging.warning('%s. Check raw input data for nuclei=N%d' % (le, nucleus_id))
-
-        return df_filtered_nucs, df_masks

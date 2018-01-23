@@ -341,11 +341,11 @@ def distance_to_nuclei_center(df, ax, mask=None, time_contact=None, plot_interp=
 
         if mask is not None and not mask.empty:
             tmask = mask[mask['Centrosome'] == centr_lbl].set_index('Time').sort_index()
-            orig = track['Dist'][tmask['Dist']]
-            interp = track['Dist'][~tmask['Dist']]
+            orig = track.loc[tmask.index, 'Dist'][tmask['Dist']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
             if plot_interp:
+                interp = track['Dist'][~tmask['Dist']]
                 if len(interp) > 0:
                     interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
                 track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
@@ -379,10 +379,10 @@ def distance_to_cell_center(df, ax, mask=None, time_contact=None, plot_interp=Fa
         if mask is not None and not mask.empty:
             tmask = mask[mask['Centrosome'] == centr_lbl].set_index('Time').sort_index()
             orig = track['DistCell'][tmask['DistCell']]
-            interp = track['DistCell'][~tmask['DistCell']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
             if plot_interp:
+                interp = track['DistCell'][~tmask['DistCell']]
                 if len(interp) > 0:
                     interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
                 track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
@@ -406,7 +406,7 @@ def distance_between_centrosomes(df, ax, mask=None, time_contact=None):
     track = df.set_index('Time').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask.set_index('Time').sort_index()
+        tmask = mask[mask['CentrLabel'] == 'A'].set_index('Time').sort_index()
         orig = track['DistCentr'][tmask['DistCentr']]
         interp = track['DistCentr'][~tmask['DistCentr']]
         if len(orig) > 0:
@@ -440,7 +440,7 @@ def speed_to_nucleus(df, ax, mask=None, time_contact=None):
 
         if mask is not None and not mask.empty:
             tmask = mask[mask['Centrosome'] == lbl_centr].set_index('Time').sort_index()
-            orig = track['Speed'][tmask['Speed']]
+            orig = track.loc[tmask.index, 'Speed'][tmask['Speed']]
             interp = track['Speed'][~tmask['Speed']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
@@ -464,7 +464,7 @@ def speed_between_centrosomes(df, ax, mask=None, time_contact=None):
     track = df.set_index('Time').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask.set_index('Time').sort_index()
+        tmask = mask[mask['CentrLabel'] == 'A'].set_index('Time').sort_index()
         orig = track['SpeedCentr'][tmask['SpeedCentr']]
         interp = track['SpeedCentr'][~tmask['SpeedCentr']]
         if len(orig) > 0:
@@ -497,7 +497,7 @@ def acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
 
         if mask is not None and not mask.empty:
             tmask = mask[mask['Centrosome'] == lbl_centr].set_index('Time').sort_index()
-            orig = track['Acc'][tmask['Acc']]
+            orig = track.loc[tmask.index, 'Acc'][tmask['Acc']]
             interp = track['Acc'][~tmask['Acc']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
@@ -521,7 +521,7 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
     track = df.set_index('Time').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask.set_index('Time').sort_index()
+        tmask = mask[mask['CentrLabel'] == 'A'].set_index('Time').sort_index()
         orig = track['AccCentr'][tmask['AccCentr']]
         interp = track['AccCentr'][~tmask['AccCentr']]
         if len(orig) > 0:
