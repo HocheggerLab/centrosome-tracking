@@ -1,9 +1,9 @@
-import os
 import logging
+import os
 from collections import OrderedDict
 
-import coloredlogs
 import PIL.Image
+import coloredlogs
 import matplotlib
 import matplotlib.axes
 import matplotlib.gridspec
@@ -19,6 +19,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 import plot_special_tools as sp
 import stats as st
+from imagej_pandas import ImagejPandas
 
 logging.info(font_manager.OSXInstalledFonts())
 logging.info(font_manager.OSXFontDirectories)
@@ -76,45 +77,170 @@ def sorted_conditions(df, original_conds):
     return dfc, conditions, _colors
 
 
+def gen_dist_data(df):
+    stats = pd.DataFrame()
+    dt_before_contact = 30
+    t_per_frame = 5
+    d_thr = ImagejPandas.DIST_THRESHOLD
+    for i, (id, idf) in enumerate(df.groupby(ImagejPandas.NUCLEI_INDIV_INDEX)):
+        logging.debug(id)
+
+        time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(idf, d_thr)
+        print([time_of_c, frame_of_c, dist_of_c])
+        if time_of_c is not None:
+            frame_before = frame_of_c - dt_before_contact / t_per_frame
+            if frame_before < 0:
+                frame_before = 0
+            dists_before_contact = idf[idf['Frame'] == frame_before]['Dist'].values
+            min_dist = max_dist = time_before = np.NaN
+            if len(dists_before_contact) > 0:
+                max_dist = max(dists_before_contact)
+                min_dist = min(dists_before_contact)
+                time_before = idf[idf['Frame'] == frame_before]['Time'].unique()[0]
+        else:
+            frame_before = time_before = min_dist = max_dist = np.NaN
+
+        df_row1 = pd.DataFrame({'Tag': [id],
+                                'Nuclei': idf['Nuclei'].unique()[0],
+                                'Frame': [frame_before],
+                                'Time': [time_before],
+                                'Stat': '30Before',
+                                'Type': 'C1 (Away)',
+                                'Dist': [max_dist]})
+        df_row2 = pd.DataFrame({'Tag': [id],
+                                'Nuclei': idf['Nuclei'].unique()[0],
+                                'Frame': [frame_before],
+                                'Time': [time_before],
+                                'Stat': '30Before',
+                                'Type': 'C2 (Close)',
+                                'Dist': [min_dist]})
+        df_rown = pd.DataFrame({'Tag': [id],
+                                'Nuclei': idf['Nuclei'].unique()[0],
+                                'Frame': [frame_of_c],
+                                'Time': [time_of_c],
+                                'Stat': 'Contact',
+                                'Type': 'Nucleus\nCentroid',
+                                'Dist': [dist_of_c]})
+        df_rowc = pd.DataFrame({'Tag': [id],
+                                'Nuclei': idf['Nuclei'].unique()[0],
+                                'Frame': [frame_of_c],
+                                'Time': [time_of_c],
+                                'Stat': 'Contact',
+                                'Type': 'Cell\nCentroid',
+                                'Dist': idf.loc[idf['Frame'] == frame_of_c, 'DistCell'].min()})
+        stats = stats.append(df_row1, ignore_index=True)
+        stats = stats.append(df_row2, ignore_index=True)
+        stats = stats.append(df_rown, ignore_index=True)
+        stats = stats.append(df_rowc, ignore_index=True)
+
+    # sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
+    sdata = stats[stats['Dist'].notnull()]
+    sdata['Dist'] = sdata.Dist.astype(np.float64)  # fixes a bug of seaborn
+
+    logging.debug('individuals for boxplot:\r\n%s' %
+                  sdata[(sdata['Stat'] == 'Contact') & (sdata['Type'] == 'Cell\nCentroid')])
+
+    return sdata
+
+
 def fig_1(df, dfc):
     _conds = ['1_N.C.', '1_P.C.']
     df, conds, colors = sorted_conditions(df, _conds)
     dfc, conds, colors = sorted_conditions(dfc, _conds)
 
-    fig = matplotlib.pyplot.gcf()
-    fig.clf()
-    fig.set_size_inches(_fig_size_A3)
-    gs = matplotlib.gridspec.GridSpec(3, 2)
-    ax1 = plt.subplot(gs[0, 0])
-    ax2 = plt.subplot(gs[0, 1])
-    ax3 = plt.subplot(gs[1, :])
-    ax4 = plt.subplot(gs[2, 0], projection='3d')
-    ax5 = plt.subplot(gs[2, 1], projection='3d')
+    with PdfPages('/Users/Fabio/fig1.pdf') as pdf:
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches(_fig_size_A3)
+        gs = matplotlib.gridspec.GridSpec(3, 2)
+        ax1 = plt.subplot(gs[0, 0])
+        ax2 = plt.subplot(gs[0, 1])
+        ax3 = plt.subplot(gs[1, :])
+        ax4 = plt.subplot(gs[2, 0], projection='3d')
+        ax5 = plt.subplot(gs[2, 1], projection='3d')
 
-    with sns.color_palette(colors):
-        mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1)
-        pmat = st.p_values(mua, 'SpeedCentr', 'condition')
-        ax1.text(0.5, 0.6, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
-        ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
+        with sns.color_palette(colors):
+            mua = df[df['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+            # mua['SpeedCentr'] *= -1
+            # print df[df['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei'])['DistCentr'].describe()['min']
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=3, ax=ax1)
+            pmat = st.p_values(mua, 'SpeedCentr', 'condition')
+            ax1.text(0.5, 0.6, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
+            ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m \cdot min^{-1}]$')
 
-        sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition', estimator=np.nanmean,
-                   lw=3,
-                   ax=ax2, err_style=['unit_traces'], err_kws=_err_kws)
-        ax2.set_xlabel('Time previous contact $[min]$')
-        ax2.set_ylabel(new_distcntr_name)
-        ax2.legend(title=None, loc='upper left')
+            sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean,
+                       lw=3,
+                       ax=ax2, err_style=['unit_traces'], err_kws=_err_kws)
+            ax2.set_xlabel('Time previous contact $[min]$')
+            ax2.set_ylabel(new_distcntr_name)
+            ax2.legend(title=None, loc='upper left')
 
-        sp.congression(df, ax=ax3, order=conds)
+            sp.congression(df, ax=ax3, order=conds)
 
-    sp.ribbon(df[df['condition'] == '-STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax4)
-    sp.ribbon(df[df['condition'] == '+STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax5)
+        sp.ribbon(df[df['condition'] == '-STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax4)
+        sp.ribbon(df[df['condition'] == '+STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax5)
 
-    # bugfix: rotate xticks for last subplot
-    for tick in ax5.get_xticklabels():
-        tick.set_rotation('horizontal')
+        # bugfix: rotate xticks for last subplot
+        for tick in ax5.get_xticklabels():
+            tick.set_rotation('horizontal')
 
-    plt.savefig('/Users/Fabio/fig1.pdf', format='pdf')
+        pdf.savefig()
+        plt.close()
+
+
+def fig_2_selected_track(df, mask):
+    df_selected = df[(df['condition'] == 'pc') & (df['run'] == 'run_114') & (df['Nuclei'] == 2)]
+    msk_selected = mask[(mask['condition'] == 'pc') & (mask['run'] == 'run_114') & (mask['Nuclei'] == 2)]
+
+    df_valid = df.loc[~df['CellBound'].isnull(), :]
+    logging.debug(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique())
+    logging.debug(len(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique()))
+
+    stats = gen_dist_data(df[(df['condition'] == 'pc')])
+    order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid', 'Cell\nCentroid']
+    with PdfPages('/Users/Fabio/fig22.pdf') as pdf:
+        # ---------------------------
+        #          FIRST PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(10, 10), dpi=600)
+        fig.clf()
+        gs = matplotlib.gridspec.GridSpec(4, 2)
+        ax1 = plt.subplot(gs[0:2, 0])
+        ax2 = plt.subplot(gs[2:4, 0], sharex=ax1)
+        ax4 = plt.subplot(gs[1:3, 1])
+
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df_selected, ImagejPandas.DIST_THRESHOLD)
+            sp.distance_to_nuclei_center(df_selected, ax1, mask=msk_selected, time_contact=time_of_c)
+            # sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c)
+            sp.distance_to_cell_center(df_selected, ax2, time_contact=time_of_c)
+
+            # sp.anotated_boxplot(sdata,'Dist',cat='Type',ax=ax4)
+            sns.boxplot(data=stats, y='Dist', x='Type', order=order, width=0.5, linewidth=0.5, fliersize=0, ax=ax4)
+            for i, artist in enumerate(ax4.artists):
+                artist.set_facecolor('None')
+                artist.set_edgecolor(sp.SUSSEX_COBALT_BLUE)
+                artist.set_zorder(5000)
+            for i, artist in enumerate(ax4.lines):
+                artist.set_color(sp.SUSSEX_COBALT_BLUE)
+                artist.set_zorder(5000)
+            sns.swarmplot(data=stats, y='Dist', x='Type', order=order, size=3, zorder=100, color=sp.SUSSEX_CORAL_RED,
+                          ax=ax4)
+
+        # change y axis title properties for small plots
+        for _ax in [ax1, ax2]:
+            _ax.set_ylabel(_ax.get_ylabel(), rotation='vertical', ha='center')
+            _ax.set_xlim(0, _ax.get_xlim()[1])
+            _ax.set_ylim(0, _ax.get_ylim()[1])
+
+        ax1.set_xlabel('')
+        ax2.set_xlabel('Time $[min]$')
+        ax4.set_xlabel('')
+        ax4.set_ylabel('D(time of contact) $[\mu m]$')
+
+        pdf.savefig()
+        plt.close()
 
 
 def fig_2(df):
@@ -464,11 +590,12 @@ if __name__ == '__main__':
     sp.render_tracked_centrosomes('/Users/Fabio/centrosomes.nexus.hdf5', 'pc', 'run_114', 2)
     img_fnames = [os.path.join('/Users/Fabio/data', 'run_114_N02_F%03d.png' % f) for f in range(20)]
     images = [PIL.Image.open(path) for path in img_fnames]
-
     pil_grid = sp.pil_grid(images, max_horiz=5)
     pil_grid.save('/Users/Fabio/data/fig1_grid.png')
 
+    df = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
     df_m = pd.read_pickle('/Users/Fabio/merge.pandas')
+    df_msk = pd.read_pickle('/Users/Fabio/mask.pandas')
     df_mc = pd.read_pickle('/Users/Fabio/merge_centered.pandas')
 
     df_m = df_m.loc[df_m['Time'] >= 0, :]
@@ -486,8 +613,8 @@ if __name__ == '__main__':
     df_m['indv'] = df_m['condition'] + '-' + df_m['run'] + '-' + df_m['Nuclei'].map(int).map(str) + '-' + \
                    df_m['Centrosome'].map(int).map(str)
 
-    for id, df in df_m.groupby(['condition']):
-        logging.info('condition %s: %d tracks' % (id, len(df['indv'].unique()) / 2.0))
+    for id, dfc in df_m.groupby(['condition']):
+        logging.info('condition %s: %d tracks' % (id, len(dfc['indv'].unique()) / 2.0))
     df_m = rename_conditions(df_m)
     dfcentr = rename_conditions(dfcentr)
 
@@ -500,14 +627,10 @@ if __name__ == '__main__':
 
     fig_1(df_m, dfcentr)
     fig_2(df_m)
+    fig_2_selected_track(df_m, df_msk)
     fig_3(df_m, dfcentr)
     fig_3sup(dfcentr)
     fig_4(df_m, dfcentr)
     fig_4sup(df_m, dfcentr)
     # fig_5(df_m, dfcentr)
     fig_6(df_m, dfcentr)
-
-    # # d = df_m[df_m['CentrLabel'] == 'A']
-    # d = dfcentr
-    # dfct = d[d['condition'] == names['hset']]
-    #
