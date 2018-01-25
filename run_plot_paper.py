@@ -14,6 +14,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import font_manager
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import MultipleLocator
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -25,10 +26,19 @@ logging.info(font_manager.OSXInstalledFonts())
 logging.info(font_manager.OSXFontDirectories)
 
 plt.style.use('bmh')
-# plt.style.use('ggplot')
-# sns.set(context='paper', style='whitegrid', font='Helvetica Neue')
-matplotlib.rc('pdf', fonttype=42)
-matplotlib.rc('svg', fonttype='none')
+print matplotlib.rcParams.keys()
+# Type 2/TrueType fonts.
+matplotlib.rcParams.update({'pdf.fonttype': 42})
+matplotlib.rcParams.update({'ps.fonttype': 42})
+
+matplotlib.rcParams.update({'font.family': 'sans-serif'})
+matplotlib.rcParams.update({'font.sans-serif': ['Arial']})
+matplotlib.rcParams.update({'axes.titlesize': 8})
+matplotlib.rcParams.update({'axes.labelsize': 7})
+matplotlib.rcParams.update({'xtick.labelsize': 7})
+matplotlib.rcParams.update({'ytick.labelsize': 7})
+
+matplotlib.rcParams.update({'legend.fontsize': 7})
 
 pd.set_option('display.width', 320)
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
@@ -46,16 +56,18 @@ names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_FAKI', 'FAKi'),
                      ('hset', 'Hset'),
                      ('kif25', 'Kif25'),
-                     ('hset+kif25', 'Hset+Kif25')])
+                     ('hset+kif25', 'Hset+Kif25'),
+                     ('mother-daughter', '+STLC mother daughter')])
 col_palette = ["#e74c3c", "#34495e",
                "#3498db", sns.xkcd_rgb["teal green"], "#9b59b6", "#2ecc71",
                sns.xkcd_rgb["windows blue"], sns.xkcd_rgb["medium green"],
                '#91744B', sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"],
-               '#91744B', sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"]]
+               '#91744B', sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"], "#3498db"]
 cond_colors = dict(zip(names.keys(), col_palette))
 _fig_size_A3 = (11.7, 16.5)
-_err_kws = {'alpha': 0.3, 'lw': 1}
+_err_kws = {'alpha': 0.3, 'lw': 0.5}
 msd_ylim = [0, 420]
+_dpi = 600
 
 
 def rename_conditions(df):
@@ -145,128 +157,262 @@ def gen_dist_data(df):
 
 def fig_1(df, dfc):
     _conds = ['1_N.C.', '1_P.C.']
-    df, conds, colors = sorted_conditions(df, _conds)
+    dfs, conds, colors = sorted_conditions(df, _conds)
     dfc, conds, colors = sorted_conditions(dfc, _conds)
 
-    with PdfPages('/Users/Fabio/fig1.pdf') as pdf:
-        fig = matplotlib.pyplot.gcf()
-        fig.clf()
-        fig.set_size_inches(_fig_size_A3)
-        gs = matplotlib.gridspec.GridSpec(3, 2)
-        ax1 = plt.subplot(gs[0, 0])
-        ax2 = plt.subplot(gs[0, 1])
-        ax3 = plt.subplot(gs[1, :])
-        ax4 = plt.subplot(gs[2, 0], projection='3d')
-        ax5 = plt.subplot(gs[2, 1], projection='3d')
+    sp.render_tracked_centrosomes('/Users/Fabio/centrosomes.nexus.hdf5', 'pc', 'run_114', 2)
+    img_fnames = [os.path.join('/Users/Fabio/data', 'run_114_N02_F%03d.png' % f) for f in range(20)]
+    images = [PIL.Image.open(path) for path in img_fnames]
+    pil_grid = sp.pil_grid(images, max_horiz=5)
+    pil_grid.save('/Users/Fabio/data/fig1_grid.png')
 
-        with sns.color_palette(colors):
-            mua = df[df['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+    with PdfPages('/Users/Fabio/fig1.pdf') as pdf:
+        fig = plt.figure(dpi=_dpi)
+        fig.clf()
+        fig.set_size_inches(1.3, 1.3)
+        ax = fig.gca()
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            mua = dfs[dfs['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
             # mua['SpeedCentr'] *= -1
             # print df[df['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei'])['DistCentr'].describe()['min']
-            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=3, ax=ax1)
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax)
             pmat = st.p_values(mua, 'SpeedCentr', 'condition')
-            ax1.text(0.5, 0.6, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
-            ax1.set_ylabel('Avg. track speed between centrosomes $[\mu m \cdot min^{-1}]$')
+            ax.text(0.5, 1.3, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
+            ax.set_ylabel('Avg. track speed between centrosomes $[\mu m \cdot min^{-1}]$')
 
+        pdf.savefig(transparent=True, bbox_inches='tight')
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(dpi=_dpi)
+        fig.clf()
+        fig.set_size_inches(1.3, 1.3)
+        ax = fig.gca()
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
             sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition',
-                       estimator=np.nanmean,
-                       lw=3,
-                       ax=ax2, err_style=['unit_traces'], err_kws=_err_kws)
-            ax2.set_xlabel('Time previous contact $[min]$')
-            ax2.set_ylabel(new_distcntr_name)
-            ax2.legend(title=None, loc='upper left')
+                       estimator=np.nanmean, lw=3,
+                       ax=ax, err_style=['unit_traces'], err_kws=_err_kws)
+            ax.set_xlabel('Time previous contact $[min]$')
+            ax.set_ylabel(new_distcntr_name)
+            ax.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight')
 
-            sp.congression(df, ax=ax3, order=conds)
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(dpi=_dpi)
+        fig.clf()
+        fig.set_size_inches(w=2.8, h=1.3)
+        ax = fig.gca()
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            sp.congression(dfs, ax=ax, order=conds)
+        pdf.savefig(transparent=True, bbox_inches='tight')
 
-        sp.ribbon(df[df['condition'] == '-STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax4)
-        sp.ribbon(df[df['condition'] == '+STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax5)
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(dpi=_dpi)
+        fig.clf()
+        fig.set_size_inches(2.2, 2.2)
+        ax = fig.gca(projection='3d')
+        sp.ribbon(dfs[dfs['condition'] == '-STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax)
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
-        # bugfix: rotate xticks for last subplot
-        for tick in ax5.get_xticklabels():
-            tick.set_rotation('horizontal')
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(dpi=_dpi)
+        fig.clf()
+        fig.set_size_inches(2.2, 2.2)
+        ax = fig.gca(projection='3d')
+        sp.ribbon(dfs[dfs['condition'] == '+STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax)
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
-        pdf.savefig()
-        plt.close()
-
-
-def fig_2_selected_track(df, mask):
-    df_selected = df[(df['condition'] == 'pc') & (df['run'] == 'run_114') & (df['Nuclei'] == 2)]
-    msk_selected = mask[(mask['condition'] == 'pc') & (mask['run'] == 'run_114') & (mask['Nuclei'] == 2)]
-
-    df_valid = df.loc[~df['CellBound'].isnull(), :]
-    logging.debug(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique())
-    logging.debug(len(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique()))
-
-    stats = gen_dist_data(df[(df['condition'] == 'pc')])
-    order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid', 'Cell\nCentroid']
-    with PdfPages('/Users/Fabio/fig22.pdf') as pdf:
+        # MSD
+        dfs = dfs[dfs['Time'] <= 50]
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(10, 10), dpi=600)
+        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
         fig.clf()
-        gs = matplotlib.gridspec.GridSpec(4, 2)
-        ax1 = plt.subplot(gs[0:2, 0])
-        ax2 = plt.subplot(gs[2:4, 0], sharex=ax1)
-        ax4 = plt.subplot(gs[1:3, 1])
-
+        ax1 = fig.gca()
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df_selected, ImagejPandas.DIST_THRESHOLD)
-            sp.distance_to_nuclei_center(df_selected, ax1, mask=msk_selected, time_contact=time_of_c)
-            # sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c)
-            sp.distance_to_cell_center(df_selected, ax2, time_contact=time_of_c)
+            sp.msd(dfs[dfs['condition'] == names['1_N.C.']], ax1, ylim=[0, 120])
+        ax1.set_ylabel('Mean Square Displacement')
+        ax1.set_xlabel('time delay [min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig.clf()
+        ax2 = fig.gca(sharey=ax1)
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            sp.msd(dfs[dfs['condition'] == names['1_P.C.']], ax2, ylim=[0, 120])
+        ax2.set_ylabel('Mean Square Displacement')
+        ax2.set_xlabel('time delay [min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig.clf()
+        ax3 = fig.gca()
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            sp.msd_indivs(dfs[dfs['condition'] == names['1_N.C.']], ax3, ylim=msd_ylim)
+        ax3.set_ylabel('Mean Square Displacement')
+        ax3.set_xlabel('time delay [min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig.clf()
+        ax4 = fig.gca(sharey=ax3)
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            sp.msd_indivs(dfs[dfs['condition'] == names['1_P.C.']], ax4, ylim=msd_ylim)
+        ax4.set_ylabel('Mean Square Displacement')
+        ax4.set_xlabel('time delay [min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # DISTANCES boxplot
+        df_valid = df.loc[~df['CellBound'].isnull(), :]
+        logging.debug(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique())
+        logging.debug(len(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique()))
+
+        stats = gen_dist_data(df[(df['condition'] == 'pc')])
+        order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid', 'Cell\nCentroid']
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.5, 1.7), dpi=_dpi)
+        fig.clf()
+        ax = fig.gca()
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
             # sp.anotated_boxplot(sdata,'Dist',cat='Type',ax=ax4)
-            sns.boxplot(data=stats, y='Dist', x='Type', order=order, width=0.5, linewidth=0.5, fliersize=0, ax=ax4)
-            for i, artist in enumerate(ax4.artists):
+            sns.boxplot(data=stats, y='Dist', x='Type', order=order, width=0.5, linewidth=0.5, fliersize=0, ax=ax)
+            for i, artist in enumerate(ax.artists):
                 artist.set_facecolor('None')
                 artist.set_edgecolor(sp.SUSSEX_COBALT_BLUE)
                 artist.set_zorder(5000)
-            for i, artist in enumerate(ax4.lines):
+            for i, artist in enumerate(ax.lines):
                 artist.set_color(sp.SUSSEX_COBALT_BLUE)
                 artist.set_zorder(5000)
             sns.swarmplot(data=stats, y='Dist', x='Type', order=order, size=3, zorder=100, color=sp.SUSSEX_CORAL_RED,
-                          ax=ax4)
+                          ax=ax)
+        ax.set_xlabel('')
+        ax.set_ylabel('Distance [um]')
+        pmat = st.p_values(stats, 'Dist', 'Type', filename='/Users/Fabio/fig1-pv-dist.xls')
+
+        pdf.savefig(bbox_inches='tight')
+
+
+def fig_1_selected_track(df, mask):
+    df_selected = df[(df['condition'] == 'pc') & (df['run'] == 'run_114') & (df['Nuclei'] == 2)]
+    msk_selected = mask[(mask['condition'] == 'pc') & (mask['run'] == 'run_114') & (mask['Nuclei'] == 2)]
+
+    with PdfPages('/Users/Fabio/fig1-selected.pdf') as pdf:
+        # ---------------------------
+        #          FIRST PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.6, 2.6), dpi=_dpi)
+        fig.clf()
+        gs = matplotlib.gridspec.GridSpec(4, 1)
+        ax1 = plt.subplot(gs[0:2, 0])
+        ax2 = plt.subplot(gs[2:4, 0], sharex=ax1)
+
+        with sns.color_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED]):
+            time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df_selected, ImagejPandas.DIST_THRESHOLD)
+            sp.distance_to_nuclei_center(df_selected, ax1, mask=msk_selected, time_contact=time_of_c)
+            # sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c)
+            sp.distance_to_cell_center(df_selected, ax2, mask=msk_selected, time_contact=time_of_c)
 
         # change y axis title properties for small plots
         for _ax in [ax1, ax2]:
+            # _ax.set_xlabel(_ax.get_xlabel(), rotation='horizontal', ha='center')
             _ax.set_ylabel(_ax.get_ylabel(), rotation='vertical', ha='center')
             _ax.set_xlim(0, _ax.get_xlim()[1])
             _ax.set_ylim(0, _ax.get_ylim()[1])
+        ax1.set_ylabel('[um]')
+        ax2.set_ylabel('[um]')
+        ax1.set_title('distance from nuleus centroid')
+        ax2.set_title('distance from cell centroid')
+        ax2.set_xlabel('time [min]')
+        ax2.xaxis.set_major_locator(MultipleLocator(30))
+        plt.setp(ax2.get_xticklabels(), visible=True)
+        plt.subplots_adjust(hspace=0.7)
 
-        ax1.set_xlabel('')
-        ax2.set_xlabel('Time $[min]$')
-        ax4.set_xlabel('')
-        ax4.set_ylabel('D(time of contact) $[\mu m]$')
-
-        pdf.savefig()
-        plt.close()
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
-def fig_2(df):
-    _conds = ['1_N.C.', '1_P.C.']
-    df, conds, colors = sorted_conditions(df, _conds)
+def fig_1_mother_daughter(df, dfc):
+    # MOTHER-DAUGHTER
+    _conds = ['mother-daughter']
+    with PdfPages('/Users/Fabio/fig1-mother.pdf') as pdf:
+        dfs, conds, colors = sorted_conditions(df, _conds)
 
-    df = df[df['Time'] <= 50]
+        # ---------------------------
+        #          FIRST PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig.clf()
+        ax1 = fig.add_subplot(111)
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            sp.msd(dfs[dfs['condition'] == names['mother-daughter']], ax1, ylim=[0, 120])
+        ax1.set_xlabel('time delay [min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
-    fig = matplotlib.pyplot.gcf()
-    fig.clf()
-    fig.set_size_inches(11.7, 11.7)
-    gs = matplotlib.gridspec.GridSpec(2, 2)
-    ax1 = plt.subplot(gs[0, 0])
-    ax2 = plt.subplot(gs[0, 1])
-    ax3 = plt.subplot(gs[1, 0])
-    ax4 = plt.subplot(gs[1, 1])
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig.clf()
+        ax2 = fig.add_subplot(111, sharey=ax1)
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            df_msd = ImagejPandas.msd_centrosomes(dfs)
+            df_msd.loc[df_msd['CentrLabel'] == 'A', 'CentrLabel'] = 'Mother'
+            df_msd.loc[df_msd['CentrLabel'] == 'B', 'CentrLabel'] = 'Daugther'
 
-    sp.msd(df[df['condition'] == names['1_N.C.']], ax1, ylim=[0, 120])
-    sp.msd(df[df['condition'] == names['1_P.C.']], ax2, ylim=[0, 120])
-    sp.msd_indivs(df[df['condition'] == names['1_N.C.']], ax3, ylim=msd_ylim)
-    sp.msd_indivs(df[df['condition'] == names['1_P.C.']], ax4, ylim=msd_ylim)
+            sns.tsplot(data=df_msd[df_msd['CentrLabel'] == 'Mother'], color='k', linestyle='-',
+                       time='Time', value='msd', unit='indv', condition='CentrLabel', estimator=np.nanmean, ax=ax2)
+            sns.tsplot(data=df_msd[df_msd['CentrLabel'] == 'Daugther'], color='k', linestyle='--',
+                       time='Time', value='msd', unit='indv', condition='CentrLabel', estimator=np.nanmean, ax=ax2)
+            ax2.set_ylim([0, 120])
+            ax2.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
+            ax2.set_xticks(np.arange(0, dfs['Time'].max(), 20.0))
+            ax2.legend(title=None, loc='upper left')
+            ax2.set_xlabel('time delay [min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
-    ax1.set_ylim(ax2.get_ylim())
-    ax3.set_ylim(ax4.get_ylim())
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig.clf()
+        ax3 = fig.add_subplot(111)
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            sp.msd_indivs(dfs[dfs['condition'] == names['mother-daughter']], ax3)
+        ax3.set_xlabel('time delay [min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
-    plt.savefig('/Users/Fabio/fig2.pdf', format='pdf')
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig.clf()
+        ax4 = fig.add_subplot(111, sharey=ax3)
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            sns.tsplot(data=df_msd, lw=3, err_style=['unit_traces'], err_kws=_err_kws,
+                       time='Time', value='msd', unit='indv', condition='CentrLabel', estimator=np.nanmean, ax=ax4)
+        ax4.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
+        ax4.set_xticks(np.arange(0, dfs['Time'].max(), 20.0))
+        ax4.legend(title=None, loc='upper left')
+        ax4.set_xlabel('time delay [min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
 def fig_3(df, dfc):
@@ -456,7 +602,7 @@ def fig_5(df, dfc):
         for tick in ax6.get_xticklabels():
             tick.set_rotation('horizontal')
 
-        pdf.savefig()
+        pdf.savefig(bbox_inches='tight')
         plt.close()
 
         fig.clf()
@@ -482,7 +628,7 @@ def fig_5(df, dfc):
         # bugfix: rotate xticks for last subplot
         for tick in ax6.get_xticklabels():
             tick.set_rotation('horizontal')
-        pdf.savefig()
+        pdf.savefig(bbox_inches='tight')
         plt.close()
 
 
@@ -540,7 +686,7 @@ def fig_6(df, dfc):
         for tick in ax5.get_xticklabels():
             tick.set_rotation('horizontal')
 
-        pdf.savefig()
+        pdf.savefig(bbox_inches='tight')
         plt.close()
 
         fig.clf()
@@ -566,7 +712,7 @@ def fig_6(df, dfc):
         # bugfix: rotate xticks for last subplot
         for tick in ax6.get_xticklabels():
             tick.set_rotation('horizontal')
-        pdf.savefig()
+        pdf.savefig(bbox_inches='tight')
         plt.close()
 
 
@@ -587,13 +733,6 @@ if __name__ == '__main__':
     new_distcntr_name = 'Distance between centrosomes $[\mu m]$'
     new_speedcntr_name = 'Speed between centrosomes $[\mu m/min]$'
 
-    sp.render_tracked_centrosomes('/Users/Fabio/centrosomes.nexus.hdf5', 'pc', 'run_114', 2)
-    img_fnames = [os.path.join('/Users/Fabio/data', 'run_114_N02_F%03d.png' % f) for f in range(20)]
-    images = [PIL.Image.open(path) for path in img_fnames]
-    pil_grid = sp.pil_grid(images, max_horiz=5)
-    pil_grid.save('/Users/Fabio/data/fig1_grid.png')
-
-    df = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
     df_m = pd.read_pickle('/Users/Fabio/merge.pandas')
     df_msk = pd.read_pickle('/Users/Fabio/mask.pandas')
     df_mc = pd.read_pickle('/Users/Fabio/merge_centered.pandas')
@@ -610,27 +749,32 @@ if __name__ == '__main__':
         ['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY', 'Speed', 'Acc'],
         axis=1, inplace=True)
 
-    df_m['indv'] = df_m['condition'] + '-' + df_m['run'] + '-' + df_m['Nuclei'].map(int).map(str) + '-' + \
-                   df_m['Centrosome'].map(int).map(str)
+    df_m.loc[:, 'indv'] = df_m['condition'] + '-' + df_m['run'] + '-' + df_m['Nuclei'].map(int).map(str) + '-' + \
+                          df_m['Centrosome'].map(int).map(str)
+    df_mc.loc[:, 'indv'] = df_mc['condition'] + '-' + df_mc['run'] + '-' + df_mc['Nuclei'].map(int).map(str) + '-' + \
+                           df_mc['Centrosome']
 
     for id, dfc in df_m.groupby(['condition']):
         logging.info('condition %s: %d tracks' % (id, len(dfc['indv'].unique()) / 2.0))
     df_m = rename_conditions(df_m)
+    df_mc = rename_conditions(df_mc)
     dfcentr = rename_conditions(dfcentr)
 
     # filter starting distances greater than a threshold
-    indivs_filter = dfcentr.set_index(['Time', 'indv']).unstack('indv')['DistCentr'].fillna(method='bfill').iloc[0]
-    indivs_filter = indivs_filter[indivs_filter > 5].index.values
-    dfcentr = dfcentr[dfcentr['indv'].isin(indivs_filter)]
+    # indivs_filter = dfcentr.set_index(['Time', 'indv']).unstack('indv')['DistCentr'].fillna(method='bfill').iloc[0]
+    # indivs_filter = indivs_filter[indivs_filter > 5].index.values
+    # dfcentr = dfcentr[dfcentr['indv'].isin(indivs_filter)]
 
     color_keys(dfcentr)
 
     fig_1(df_m, dfcentr)
-    fig_2(df_m)
-    fig_2_selected_track(df_m, df_msk)
-    fig_3(df_m, dfcentr)
-    fig_3sup(dfcentr)
-    fig_4(df_m, dfcentr)
-    fig_4sup(df_m, dfcentr)
-    # fig_5(df_m, dfcentr)
-    fig_6(df_m, dfcentr)
+    fig_1_selected_track(df_m, df_msk)
+    fig_1_mother_daughter(df_m, df_mc)
+    # fig_2(df_m)
+    # fig_2_selected_track(df_m, df_msk)
+    # fig_3(df_m, dfcentr)
+    # fig_3sup(dfcentr)
+    # fig_4(df_m, dfcentr)
+    # fig_4sup(df_m, dfcentr)
+    # # fig_5(df_m, dfcentr)
+    # fig_6(df_m, dfcentr)
