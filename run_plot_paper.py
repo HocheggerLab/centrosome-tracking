@@ -145,6 +145,39 @@ def gen_dist_data(df):
         stats = stats.append(df_rown, ignore_index=True)
         stats = stats.append(df_rowc, ignore_index=True)
 
+    df_d_to_nuclei_centr = pd.DataFrame([
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 2.9],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 5.8],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 3.3],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 8.9],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 5.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 3.3],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 5.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 1.8],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 6.9],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 8.7],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 6.2],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 2.0],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 7.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 7.8],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 1.3],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 10.4],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 5.6],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 7.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 9.8],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 8.7],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 6.4],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 7.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 4.9],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 5.0],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 0.7],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 15.1],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 8.2],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 4.0],
+        ['manual', 0, 0, 0, 'Contact', 'Cell\n(manual)', 3.3],
+    ], columns=['Tag', 'Nuclei', 'Frame', 'Time', 'Stat', 'Type', 'Dist'])
+    stats = stats.append(df_d_to_nuclei_centr, ignore_index=True)
+
     # sdata = stats[(stats['Stat'] == 'Contact') & (stats['Dist'].notnull())][['Dist', 'Type']]
     sdata = stats[stats['Dist'].notnull()]
     sdata['Dist'] = sdata.Dist.astype(np.float64)  # fixes a bug of seaborn
@@ -167,18 +200,18 @@ def fig_1(df, dfc):
     pil_grid.save('/Users/Fabio/data/fig1_grid.png')
 
     with PdfPages('/Users/Fabio/fig1.pdf') as pdf:
+        sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
         fig = plt.figure(dpi=_dpi)
         fig.clf()
         fig.set_size_inches(1.3, 1.3)
         ax = fig.gca()
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            mua = dfs[dfs['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-            # mua['SpeedCentr'] *= -1
-            # print df[df['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei'])['DistCentr'].describe()['min']
-            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax)
-            pmat = st.p_values(mua, 'SpeedCentr', 'condition')
-            ax.text(0.5, 1.3, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
-            ax.set_ylabel('Avg. track speed between centrosomes $[\mu m \cdot min^{-1}]$')
+        mua = dfs[dfs['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+        # mua['SpeedCentr'] *= -1
+        # print df[df['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei'])['DistCentr'].describe()['min']
+        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax)
+        pmat = st.p_values(mua, 'SpeedCentr', 'condition')
+        ax.text(0.5, 1.3, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
+        ax.set_ylabel('Avg. track speed between centrosomes $[\mu m \cdot min^{-1}]$')
 
         pdf.savefig(transparent=True, bbox_inches='tight')
 
@@ -189,13 +222,12 @@ def fig_1(df, dfc):
         fig.clf()
         fig.set_size_inches(1.3, 1.3)
         ax = fig.gca()
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition',
-                       estimator=np.nanmean, lw=3,
-                       ax=ax, err_style=['unit_traces'], err_kws=_err_kws)
-            ax.set_xlabel('Time previous contact $[min]$')
-            ax.set_ylabel(new_distcntr_name)
-            ax.legend(title=None, loc='upper left')
+        sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition',
+                   estimator=np.nanmean, lw=3,
+                   ax=ax, err_style=['unit_traces'], err_kws=_err_kws)
+        ax.set_xlabel('Time previous contact $[min]$')
+        ax.set_ylabel(new_distcntr_name)
+        ax.legend(title=None, loc='upper left')
         pdf.savefig(transparent=True, bbox_inches='tight')
 
         # ---------------------------
@@ -205,8 +237,7 @@ def fig_1(df, dfc):
         fig.clf()
         fig.set_size_inches(w=2.8, h=1.3)
         ax = fig.gca()
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            sp.congression(dfs, ax=ax, order=conds)
+        sp.congression(dfs, ax=ax, order=conds)
         pdf.savefig(transparent=True, bbox_inches='tight')
 
         # ---------------------------
@@ -231,14 +262,14 @@ def fig_1(df, dfc):
 
         # MSD
         dfs = dfs[dfs['Time'] <= 50]
+        sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
         fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
         fig.clf()
         ax1 = fig.gca()
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            sp.msd(dfs[dfs['condition'] == names['1_N.C.']], ax1, ylim=[0, 120])
+        sp.msd(dfs[dfs['condition'] == names['1_N.C.']], ax1, ylim=[0, 120])
         ax1.set_ylabel('Mean Square Displacement')
         ax1.set_xlabel('time delay [min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
@@ -249,8 +280,7 @@ def fig_1(df, dfc):
         fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
         fig.clf()
         ax2 = fig.gca(sharey=ax1)
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            sp.msd(dfs[dfs['condition'] == names['1_P.C.']], ax2, ylim=[0, 120])
+        sp.msd(dfs[dfs['condition'] == names['1_P.C.']], ax2, ylim=[0, 120])
         ax2.set_ylabel('Mean Square Displacement')
         ax2.set_xlabel('time delay [min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
@@ -261,8 +291,7 @@ def fig_1(df, dfc):
         fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
         fig.clf()
         ax3 = fig.gca()
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            sp.msd_indivs(dfs[dfs['condition'] == names['1_N.C.']], ax3, ylim=msd_ylim)
+        sp.msd_indivs(dfs[dfs['condition'] == names['1_N.C.']], ax3, ylim=msd_ylim)
         ax3.set_ylabel('Mean Square Displacement')
         ax3.set_xlabel('time delay [min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
@@ -273,8 +302,7 @@ def fig_1(df, dfc):
         fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
         fig.clf()
         ax4 = fig.gca(sharey=ax3)
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            sp.msd_indivs(dfs[dfs['condition'] == names['1_P.C.']], ax4, ylim=msd_ylim)
+        sp.msd_indivs(dfs[dfs['condition'] == names['1_P.C.']], ax4, ylim=msd_ylim)
         ax4.set_ylabel('Mean Square Displacement')
         ax4.set_xlabel('time delay [min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
@@ -285,30 +313,30 @@ def fig_1(df, dfc):
         logging.debug(len(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique()))
 
         stats = gen_dist_data(df[(df['condition'] == 'pc')])
-        order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid', 'Cell\nCentroid']
+        order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid', 'Cell\nCentroid', 'Cell\n(manual)']
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.5, 1.7), dpi=_dpi)
+        fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
         fig.clf()
         ax = fig.gca()
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            # sp.anotated_boxplot(sdata,'Dist',cat='Type',ax=ax4)
-            sns.boxplot(data=stats, y='Dist', x='Type', order=order, width=0.5, linewidth=0.5, fliersize=0, ax=ax)
-            for i, artist in enumerate(ax.artists):
-                artist.set_facecolor('None')
-                artist.set_edgecolor(sp.SUSSEX_COBALT_BLUE)
-                artist.set_zorder(5000)
-            for i, artist in enumerate(ax.lines):
-                artist.set_color(sp.SUSSEX_COBALT_BLUE)
-                artist.set_zorder(5000)
-            sns.swarmplot(data=stats, y='Dist', x='Type', order=order, size=3, zorder=100, color=sp.SUSSEX_CORAL_RED,
-                          ax=ax)
+        # sp.anotated_boxplot(sdata,'Dist',cat='Type',ax=ax4)
+        sns.boxplot(data=stats, y='Dist', x='Type', order=order, width=0.5, linewidth=0.5, fliersize=0, ax=ax)
+        for i, artist in enumerate(ax.artists):
+            artist.set_facecolor('None')
+            artist.set_edgecolor(sp.SUSSEX_COBALT_BLUE)
+            artist.set_zorder(5000)
+        for i, artist in enumerate(ax.lines):
+            artist.set_color(sp.SUSSEX_COBALT_BLUE)
+            artist.set_zorder(5000)
+        sns.swarmplot(data=stats, y='Dist', x='Type', order=order, size=3, zorder=100, color=sp.SUSSEX_CORAL_RED,
+                      ax=ax)
         ax.set_xlabel('')
         ax.set_ylabel('Distance [um]')
+        # ax2.yaxis.set_major_locator(MultipleLocator(5))
         pmat = st.p_values(stats, 'Dist', 'Type', filename='/Users/Fabio/fig1-pv-dist.xls')
 
-        pdf.savefig(bbox_inches='tight')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
 def fig_1_selected_track(df, mask):
