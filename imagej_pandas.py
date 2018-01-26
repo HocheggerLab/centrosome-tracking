@@ -138,19 +138,32 @@ class ImagejPandas(object):
         if df.groupby(ImagejPandas.MASK_INDEX).size().max() > 1:
             raise LookupError('this function accepts just 1 value per (frame,centrosome)')
 
-        s = df.set_index(ImagejPandas.MASK_INDEX).sort_index()
-        u = s.unstack('CentrLabel')
-        u.fillna(value=np.nan, inplace=True)
-        umask = u.notna()  # false for interpolated values
-        umask['Centrosome'] = u['Centrosome']
-        u = u.interpolate(limit=30, limit_direction='backward')
-        idx = u['Centrosome'].notna().all(axis=1)
+        def interpolate(df):
+            s = df.set_index(['Frame', 'Time', 'Nuclei', 'CentrLabel']).sort_index()
+            u = s.unstack('CentrLabel')
+            u.fillna(value=np.nan, inplace=True)
+            u = u.interpolate(limit=30, limit_direction='backward')
+            idx = u['Centrosome'].notna().all(axis=1)
 
-        u.loc[idx, ('condition', 'A')] = u.loc[idx, ('condition', 'A')].fillna(u.loc[idx, ('condition', 'B')])
-        u.loc[idx, ('run', 'A')] = u.loc[idx, ('run', 'A')].fillna(u.loc[idx, ('run', 'B')])
-        u.loc[idx, ('NuclBound', 'A')] = u.loc[idx, ('NuclBound', 'A')].fillna(u.loc[idx, ('NuclBound', 'B')])
+            u.loc[idx, ('condition', 'A')] = u.loc[idx, ('condition', 'A')].fillna(u.loc[idx, ('condition', 'B')])
+            u.loc[idx, ('run', 'A')] = u.loc[idx, ('run', 'A')].fillna(u.loc[idx, ('run', 'B')])
+            u.loc[idx, ('NuclBound', 'A')] = u.loc[idx, ('NuclBound', 'A')].fillna(u.loc[idx, ('NuclBound', 'B')])
 
-        u.loc[idx, ('condition', 'B')] = u.loc[idx, ('condition', 'B')].fillna(u.loc[idx, ('condition', 'A')])
-        u.loc[idx, ('run', 'B')] = u.loc[idx, ('run', 'B')].fillna(u.loc[idx, ('run', 'A')])
-        u.loc[idx, ('NuclBound', 'B')] = u.loc[idx, ('NuclBound', 'B')].fillna(u.loc[idx, ('NuclBound', 'A')])
-        return u.stack().reset_index(), umask.stack().reset_index()
+            u.loc[idx, ('condition', 'B')] = u.loc[idx, ('condition', 'B')].fillna(u.loc[idx, ('condition', 'A')])
+            u.loc[idx, ('run', 'B')] = u.loc[idx, ('run', 'B')].fillna(u.loc[idx, ('run', 'A')])
+            u.loc[idx, ('NuclBound', 'B')] = u.loc[idx, ('NuclBound', 'B')].fillna(u.loc[idx, ('NuclBound', 'A')])
+            return u.stack().reset_index()
+
+        def mask(df):
+            s = df.set_index(['Frame', 'Time', 'Nuclei', 'CentrLabel']).sort_index()
+            u = s.unstack('CentrLabel')
+            u.fillna(value=np.nan, inplace=True)
+            umask = u.notna()  # false for interpolated values
+            umask['condition'] = u['condition']
+            umask['run'] = u['run']
+            umask['Centrosome'] = u['Centrosome']
+            return umask.stack().reset_index()
+
+        dfout = df.groupby(ImagejPandas.NUCLEI_INDIV_INDEX).apply(interpolate)
+        mask = df.groupby(ImagejPandas.NUCLEI_INDIV_INDEX).apply(mask)
+        return dfout.reset_index(drop=True), mask.reset_index(drop=True)

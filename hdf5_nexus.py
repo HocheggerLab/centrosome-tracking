@@ -203,6 +203,8 @@ class LabHDF5NeXusFile():
     def process_selection_for_run(self, experiment_tag, run):
         with h5py.File(self.filename, 'r') as f:
             nuclei_list = f['%s/%s/selection' % (experiment_tag, run)].keys()
+            logging.debug(
+                'for %s %s there are %d nuclei: %s' % (experiment_tag, run, len(nuclei_list), str(nuclei_list)))
             # don't keep processing if there's nothing to do
             if len(nuclei_list) == 0: return
 
@@ -213,6 +215,7 @@ class LabHDF5NeXusFile():
 
         # update centrosome nuclei from selection
         centrosomes_of_nuclei_a = centrosomes_of_nuclei_b = None
+        centrosomes_all = list()
         with h5py.File(self.filename, 'r') as f:
             for nuclei_str in nuclei_list:
                 if nuclei_str == 'pandas_dataframe' or nuclei_str == 'pandas_masks': continue
@@ -222,10 +225,18 @@ class LabHDF5NeXusFile():
                 centrosomes_of_nuclei_b = [int(c[1:]) for c in f['%s/B' % (sel_str)].keys()]
                 for centr_id in centrosomes_of_nuclei_a + centrosomes_of_nuclei_b:
                     pdhdf_measured.loc[pdhdf_measured['Centrosome'] == centr_id, 'Nuclei'] = nuclei_id
+                # tag centrosomes with the label given in the GUI
+                for centr_id in centrosomes_of_nuclei_a:
+                    pdhdf_measured.loc[pdhdf_measured['Centrosome'] == centr_id, 'CentrLabel'] = 'A'
+                for centr_id in centrosomes_of_nuclei_b:
+                    pdhdf_measured.loc[pdhdf_measured['Centrosome'] == centr_id, 'CentrLabel'] = 'B'
+
+                centrosomes_all.extend(centrosomes_of_nuclei_a + centrosomes_of_nuclei_b)
 
         # re-merge with nuclei data
         pdhdf_measured.drop(['NuclX', 'NuclY', 'NuclBound'], axis=1, inplace=True)
-        df_merge = pdhdf_measured.merge(pdhdf_nuclei)
+        pdhdf_measured = pdhdf_measured[pdhdf_measured['Centrosome'].isin(centrosomes_all)]
+        df_merge = pdhdf_measured.merge(pdhdf_nuclei, how='left')
 
         # merge with cell boundary data
         with h5py.File(self.filename, 'r') as f:
@@ -236,22 +247,17 @@ class LabHDF5NeXusFile():
                 if 'CellBound' in df_merge.columns and not df_cell.empty:
                     logging.info('clearing CellBound')
                     df_merge.drop(['CellX', 'CellY', 'CellBound'], axis=1, inplace=True)
-                df_merge = df_merge.merge(df_cell)
+                df_merge = df_merge.merge(df_cell, how='left')
 
         df_merge['condition'] = experiment_tag
         df_merge['run'] = run
+        logging.debug('nuclei to process: ' + str(df_merge.groupby(ImagejPandas.NUCLEI_INDIV_INDEX).size()))
 
         try:
             with h5py.File(self.filename, 'r+') as f:
                 fproc = f['%s/%s/processed' % (experiment_tag, run)]
                 if 'pandas_dataframe' in fproc: del fproc['pandas_dataframe']
                 if 'pandas_masks' in fproc: del fproc['pandas_masks']
-
-            # tag centrosomes with the label given in the GUI
-            for centr_id in centrosomes_of_nuclei_a:
-                df_merge.loc[df_merge['Centrosome'] == centr_id, 'CentrLabel'] = 'A'
-            for centr_id in centrosomes_of_nuclei_b:
-                df_merge.loc[df_merge['Centrosome'] == centr_id, 'CentrLabel'] = 'B'
 
             df_merge.dropna(how='all', inplace=True)
             df_merge = df_merge[~df_merge['CentrLabel'].isnull()]
@@ -268,8 +274,6 @@ class LabHDF5NeXusFile():
             proc_df.loc[idx1, 'AccCentr'] *= -1
 
             # process interpolated data mask
-            # im = imask.set_index(['Frame', 'Time', 'Nuclei','CentrLabel', 'Centrosome'])
-            # mask_df = im.reset_index()
             mask_df = imask[imask['Nuclei'] > 0]
             mi = mask_df.set_index(ImagejPandas.MASK_INDEX).sort_index()
             mu = mi.unstack('CentrLabel')
