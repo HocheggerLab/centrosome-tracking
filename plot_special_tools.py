@@ -16,7 +16,7 @@ import tifffile as tf
 from PIL import Image
 from PyQt4 import Qt, QtGui
 from PyQt4.QtCore import QRect
-from PyQt4.QtGui import QBrush, QColor, QPainter, QPen
+from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
@@ -107,7 +107,7 @@ class MyAxes3D(axes3d.Axes3D):
 
 def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_rotation='horizontal', cat='condition',
                      swarm=True, order=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.2, fliersize=0, order=order, ax=ax,
+    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
                 zorder=100)
     if swarm:
         _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, ax=ax, zorder=10)
@@ -116,6 +116,9 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_ro
                             zorder=10)
     for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
+        artist.set_zorder(5000)
+    for i, artist in enumerate(_ax.lines):
+        artist.set_zorder(5000)
 
     order = order if order is not None else data_grouped[cat].unique()
     for x, c in enumerate(order):
@@ -277,7 +280,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
     if df['condition'].unique().size > 1:
         raise Exception('Need just one condition for using this plotting function.')
 
-    _err_kws = {'alpha': 0.3, 'lw': 1}
+    _err_kws = {'alpha': 0.3, 'lw': 0.5}
     cond = df['condition'].unique()[0]
     df_msd = ImagejPandas.msd_centrosomes(df)
     df_msd = _msd_tag(df_msd)
@@ -378,7 +381,7 @@ def distance_to_cell_center(df, ax, mask=None, time_contact=None, plot_interp=Fa
 
         if mask is not None and not mask.empty:
             tmask = mask[mask['Centrosome'] == centr_lbl].set_index('Time').sort_index()
-            orig = track['DistCell'][tmask['DistCell']]
+            orig = track.loc[tmask.index, 'DistCell'][tmask['DistCell']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
             if plot_interp:
@@ -635,6 +638,8 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
             painter = QPainter()
             painter.begin(image_pixmap)
             painter.setRenderHint(QPainter.Antialiasing)
+            font = QFont('Arial', 25)
+            painter.setFont(font)
 
             nuc = nuclei_list['N%02d' % nuclei]
             nfxy = nuc['pos'].value
@@ -643,20 +648,10 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                 fidx = nuc_frames.searchsorted(frame)
                 nx = nfxy[fidx][1] * resolution
                 ny = nfxy[fidx][2] * resolution
-
-                # render nuclei centroid
-                painter.setPen(QPen(QBrush(QColor('transparent')), 2))
-                painter.setBrush(QColor('blue'))
-                painter.drawEllipse(nx - 5, ny - 5, 10, 10)
-
-                # painter.setPen(QPen(QBrush(QColor('white')), 2))
-                # painter.drawText(nx + 10, ny + 5, 'N%02d' % nuclei)
-
                 df_fr = df[df['Frame'] == frame]
                 sec = df_fr['Time'].iloc[0]
                 min = np.floor(sec / 60.0)
                 sec -= min * 60
-                # painter.drawText(10, 30, '%02d - (%03d,%03d)' % (frame, width, height))
                 painter.drawText(10, 30, '%02d:%02d' % (min, sec))
 
                 # render nuclei boundary
@@ -667,9 +662,18 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                         nucb_qpoints = [Qt.QPoint(x * resolution, y * resolution) for x, y in nucb_points]
                         nucb_poly = Qt.QPolygon(nucb_qpoints)
 
-                        painter.setPen(QPen(QBrush(QColor('yellow')), 2))
+                        painter.setPen(QPen(QBrush(QColor(SUSSEX_CORN_YELLOW)), 2))
                         painter.setBrush(QColor('transparent'))
+
                         painter.drawPolygon(nucb_poly)
+
+                        # render nuclei centroid
+                        painter.setPen(QPen(QBrush(QColor('transparent')), 2))
+                        painter.setBrush(QColor(SUSSEX_CORN_YELLOW))
+                        painter.drawEllipse(nx - 5, ny - 5, 10, 10)
+                        # painter.setPen(QPen(QBrush(QColor('white')), 2))
+                        # painter.drawText(nx + 10, ny + 5, 'N%02d' % nuclei)
+
 
                 # render cell boundary
                 cellframe = dfbound.loc[dfbound['Frame'] == frame]
@@ -682,19 +686,23 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                         nucb_poly = Qt.QPolygon(nucb_qpoints)
 
                         painter.setBrush(QColor('transparent'))
-                        painter.setPen(QPen(QBrush(QColor(0, 255, 0)), 2))
+                        painter.setPen(QPen(QBrush(QColor('white')), 2))
                         painter.drawPolygon(nucb_poly)
 
-                        # painter.drawText(cell_centroid[0] + 5, cell_centroid[1], 'C%02d' % (nuclei))
-
-                        painter.setBrush(QColor(0, 255, 0))
+                        # render cell centroid
+                        painter.setPen(QPen(QBrush(QColor('transparent')), 2))
+                        painter.setBrush(QColor('white'))
                         painter.drawEllipse(cell_centroid[0] - 5, cell_centroid[1] - 5, 10, 10)
+                        # painter.setPen(QPen(QBrush(QColor('white')), 2))
+                        # painter.drawText(cell_centroid[0] + 5, cell_centroid[1], 'C%02d' % (nuclei))
 
                 # draw centrosomes
                 painter.setBrush(QColor('transparent'))
                 centrosomes_of_nuclei_a = f['%s/%s/selection/%s/A' % (condition, run, 'N%02d' % nuclei)].keys()
                 centrosomes_of_nuclei_b = f['%s/%s/selection/%s/B' % (condition, run, 'N%02d' % nuclei)].keys()
-                painter.setPen(QPen(QBrush(QColor('orange')), 2))
+
+                # 1st centrosome
+                painter.setPen(QPen(QBrush(QColor(SUSSEX_SKY_BLUE)), 2))
                 for centr_str in centrosomes_of_nuclei_a:
                     cntr = centrosome_list[centr_str]
                     cfxy = cntr['pos'].value
@@ -704,8 +712,8 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                         cx = cfxy[fidx][1] * resolution
                         cy = cfxy[fidx][2] * resolution
                         painter.drawEllipse(cx - 5, cy - 5, 10, 10)
-
-                painter.setPen(QPen(QBrush(QColor('red')), 2))
+                # 2nd centrosome
+                painter.setPen(QPen(QBrush(QColor(SUSSEX_CORAL_RED)), 2))
                 for centr_str in centrosomes_of_nuclei_b:
                     cntr = centrosome_list[centr_str]
                     cfxy = cntr['pos'].value
@@ -718,10 +726,10 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
 
                 rect = QRect(cell_centroid[0] - cwidth / 2.0, cell_centroid[1] - cheight / 2.0, cwidth, cheight)
                 painter.setPen(QPen(QBrush(QColor('white')), 2))
-                painter.drawText(rect.x() + 10, rect.y() + 20, '%02d:%02d' % (min, sec))
+                painter.drawText(rect.x() + 10, rect.y() + 30, '%02d:%02d' % (min, sec))
 
                 xini, yini = rect.x() + cwidth - 70, rect.y() + cheight - 20
-                painter.drawText(xini + resolution * 10 / 8.0, yini - 5, '10um')
+                # painter.drawText(xini + resolution * 10 / 8.0, yini - 5, '10um')
                 painter.setPen(QPen(QBrush(QColor('white')), 4))
                 painter.drawLine(xini, yini, xini + resolution * 10, yini)
                 painter.end()

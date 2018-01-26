@@ -14,6 +14,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import font_manager
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import FormatStrFormatter
 from matplotlib.ticker import MultipleLocator
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
@@ -200,6 +201,9 @@ def fig_1(df, dfc):
     pil_grid.save('/Users/Fabio/data/fig1_grid.png')
 
     with PdfPages('/Users/Fabio/fig1.pdf') as pdf:
+        # ---------------------------
+        #          FIRST PAGE
+        # ---------------------------
         sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
         fig = plt.figure(dpi=_dpi)
         fig.clf()
@@ -210,9 +214,9 @@ def fig_1(df, dfc):
         # print df[df['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei'])['DistCentr'].describe()['min']
         sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax)
         pmat = st.p_values(mua, 'SpeedCentr', 'condition')
+        ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         ax.text(0.5, 1.3, 'pvalue=%0.2e' % pmat[0, 1], ha='center', size='small')
-        ax.set_ylabel('Avg. track speed between centrosomes $[\mu m \cdot min^{-1}]$')
-
+        ax.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight')
 
         # ---------------------------
@@ -225,8 +229,8 @@ def fig_1(df, dfc):
         sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition',
                    estimator=np.nanmean, lw=3,
                    ax=ax, err_style=['unit_traces'], err_kws=_err_kws)
-        ax.set_xlabel('Time previous contact $[min]$')
-        ax.set_ylabel(new_distcntr_name)
+        ax.set_xlabel('time prior contact [min]')
+        ax.set_ylabel('Distance [um]')
         ax.legend(title=None, loc='upper left')
         pdf.savefig(transparent=True, bbox_inches='tight')
 
@@ -320,7 +324,6 @@ def fig_1(df, dfc):
         fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
         fig.clf()
         ax = fig.gca()
-        # sp.anotated_boxplot(sdata,'Dist',cat='Type',ax=ax4)
         sns.boxplot(data=stats, y='Dist', x='Type', order=order, width=0.5, linewidth=0.5, fliersize=0, ax=ax)
         for i, artist in enumerate(ax.artists):
             artist.set_facecolor('None')
@@ -335,7 +338,15 @@ def fig_1(df, dfc):
         ax.set_ylabel('Distance [um]')
         # ax2.yaxis.set_major_locator(MultipleLocator(5))
         pmat = st.p_values(stats, 'Dist', 'Type', filename='/Users/Fabio/fig1-pv-dist.xls')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
+        fig.clf()
+        ax = fig.gca()
+        sp.anotated_boxplot(stats, 'Dist', cat='Type', ax=ax)
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
@@ -744,15 +755,29 @@ def fig_6(df, dfc):
         plt.close()
 
 
-def color_keys(dfc):
-    fig = matplotlib.pyplot.gcf()
-    fig.clf()
+def color_keys(df, dfc):
+    cldf, conds, colors = sorted_conditions(df, names.keys())
     coldf, conds, colors = sorted_conditions(dfc, names.keys())
-    with sns.color_palette(colors):
-        mua = coldf.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds)
-        fig.gca().set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
-        fig.savefig('/Users/Fabio/colors.pdf', format='pdf')
+    with PdfPages('/Users/Fabio/colors.pdf') as pdf:
+        with sns.color_palette(colors):
+            # ---------------------------
+            #          FIRST PAGE
+            # ---------------------------
+            fig = plt.figure(figsize=(20, 12.4), dpi=_dpi)
+            fig.clf()
+            mua = coldf.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds)
+            fig.gca().set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
+            pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+            # ---------------------------
+            #          NEXT PAGE
+            # ---------------------------
+            fig = plt.figure(figsize=(20, 12.4), dpi=_dpi)
+            fig.clf()
+            mua = cldf.groupby(ImagejPandas.CENTROSOME_INDIV_INDEX).mean().reset_index()
+            sp.anotated_boxplot(mua, 'v_s', order=conds)
+            pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
 if __name__ == '__main__':
@@ -793,7 +818,11 @@ if __name__ == '__main__':
     # indivs_filter = indivs_filter[indivs_filter > 5].index.values
     # dfcentr = dfcentr[dfcentr['indv'].isin(indivs_filter)]
 
-    color_keys(dfcentr)
+    print df_m['indv'].unique().size
+    # df_m = m.get_trk_length(df_m, x='CentX', y='CentY', time='Time', frame='Frame',
+    #                         group=ImagejPandas.CENTROSOME_INDIV_INDEX)
+    # print df_m['s']
+    # color_keys(df_m, dfcentr)
 
     fig_1(df_m, dfcentr)
     fig_1_selected_track(df_m, df_msk)
