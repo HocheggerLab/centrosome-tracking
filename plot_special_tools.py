@@ -105,19 +105,24 @@ class MyAxes3D(axes3d.Axes3D):
         zaxis.axes._draw_grid = draw_grid_old
 
 
-def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_rotation='horizontal', cat='condition',
+def anotated_boxplot(data_grouped, var, point_size=5, fontsize=7, cat='condition',
                      swarm=True, order=None, ax=None):
     sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
                 zorder=100)
+
+    point_color = sns.light_palette(SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
     if swarm:
-        _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, ax=ax, zorder=10)
+        _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, ax=ax, zorder=10,
+                            color=point_color)
     else:
         _ax = sns.stripplot(data=data_grouped, y=var, x=cat, jitter=True, size=point_size, order=order, ax=ax,
-                            zorder=10)
+                            zorder=10, color=point_color)
     for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
+        artist.set_edgecolor('k')
         artist.set_zorder(5000)
     for i, artist in enumerate(_ax.lines):
+        artist.set_color('k')
         artist.set_zorder(5000)
 
     order = order if order is not None else data_grouped[cat].unique()
@@ -127,13 +132,11 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_ro
         count = d.count()
         mean = d.mean()
         median = d.median()
-        if stats_rotation == 'vertical':
-            _txt = '$\mu=%0.3f$  $\\tilde\mu=%0.3f$  $n=%d$' % (mean, median, count)
-        else:
-            _txt = '$\mu=%0.3f$\n$\\tilde\mu=%0.3f$\n$n=%d$' % (mean, median, count)
+        _txt = '%0.1f\n%0.1f\n%d' % (mean, median, count)
 
-        _ax.text(x, _max_y * 0.8, _txt, rotation=stats_rotation, ha='center', va='bottom', fontsize=fontsize)
+        _ax.text(x, _max_y * 1.2, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
         plt.xticks(_ax.get_xticks(), rotation='vertical')
+    return _ax
 
 
 def _compute_congression(cg):
@@ -673,7 +676,6 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                         painter.drawEllipse(nx - 5, ny - 5, 10, 10)
                         # painter.setPen(QPen(QBrush(QColor('white')), 2))
                         # painter.drawText(nx + 10, ny + 5, 'N%02d' % nuclei)
-
 
                 # render cell boundary
                 cellframe = dfbound.loc[dfbound['Frame'] == frame]
