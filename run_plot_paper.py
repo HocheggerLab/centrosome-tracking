@@ -457,7 +457,41 @@ def fig_2(df, dfc):
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
+        _conds = ['1_P.C.', '1_Dynei']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig.clf()
+        ax3 = fig.add_subplot(111)
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean, ax=ax3, lw=3,
+                       err_style=['unit_traces'], err_kws=_err_kws)
+            ax3.set_xlabel('time prior contact [min]')
+            ax3.set_ylabel('Distance [um]')
+            ax3.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
         _conds = ['1_P.C.', '2_CDK1_DK']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig.clf()
+        ax3 = fig.add_subplot(111)
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean, ax=ax3, lw=3,
+                       err_style=['unit_traces'], err_kws=_err_kws)
+            ax3.set_xlabel('time prior contact [min]')
+            ax3.set_ylabel('Distance [um]')
+            ax3.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_P.C.', '1_DIC']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
         fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
         fig.clf()
@@ -480,6 +514,42 @@ def fig_2(df, dfc):
         fig.clf()
         ax3 = fig.add_subplot(111)
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
+            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean, ax=ax3, lw=3,
+                       err_style=['unit_traces'], err_kws=_err_kws)
+            ax3.set_xlabel('time prior contact [min]')
+            ax3.set_ylabel('Distance [um]')
+            ax3.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig.clf()
+        ax3 = fig.add_subplot(111)
+        with sns.color_palette(
+                [sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_SKY_BLUE, sp.SUSSEX_FUSCHIA_PINK]):
+            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean, ax=ax3, lw=3,
+                       err_style=['ci_band'])
+            ax3.set_xlabel('time prior contact [min]')
+            ax3.set_ylabel('Distance [um]')
+            ax3.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig.clf()
+        ax3 = fig.add_subplot(111)
+        with sns.color_palette(
+                [sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_SKY_BLUE, sp.SUSSEX_FUSCHIA_PINK]):
             sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
                        estimator=np.nanmean, ax=ax3, lw=3,
                        err_style=['unit_traces'], err_kws=_err_kws)
@@ -517,9 +587,9 @@ def fig_2(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        _conds = ['1_P.C.', '2_Kines1', '2_CDK1_DK']
+        _conds = ['1_P.C.', '2_Kines1', '1_Dynei', '2_CDK1_DK']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(1.3, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(2.1, 1.3), dpi=_dpi)
         fig.clf()
         ax2 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
@@ -569,23 +639,6 @@ def fig_2(df, dfc):
             sp.congression(df, ax=ax, order=conds)
             ax.set_xlabel('time [min]')
             ax.set_ylabel('% congression')
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
-        # ---------------------------
-        #          NEXT PAGE
-        # ---------------------------
-        _conds = ['1_P.C.', '1_Dynei']
-        dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(1.3, 1.3), dpi=_dpi)
-        fig.clf()
-        ax5 = fig.add_subplot(111)
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
-                       estimator=np.nanmean, ax=ax5, lw=3,
-                       err_style=['unit_traces'], err_kws=_err_kws)
-            ax5.set_xlabel('time prior contact [min]')
-            ax5.set_ylabel('Distance [um]')
-            ax5.legend(title=None, loc='upper left')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
