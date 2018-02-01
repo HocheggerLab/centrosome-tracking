@@ -3,6 +3,8 @@ import os
 import sys
 
 import coloredlogs
+import matplotlib as mpl
+import matplotlib.colors
 import matplotlib.gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -352,6 +354,38 @@ def est_plots(df_matlab):
         plt.close()
 
 
+def render_image_track(df, ax, folder, point_size=5, line_width=1, palette=None):
+    iname = df['tag'].iloc[0] + '.tif'
+    logging.debug('reading %s' % iname)
+    img, res, dt = sp.find_image(iname, folder)
+    max_time = df['time'].max()
+    _, height, width = img.shape
+
+    ax.cla()
+    palgreys = sns.color_palette('Greys_r', n_colors=127)
+    ax.imshow(img[1], extent=[0, width / res, height / res, 0], cmap=mpl.colors.ListedColormap(palgreys))
+
+    if palette is None:
+        palette = sns.color_palette('cool', n_colors=df['frame'].max())
+        cmap = mpl.colors.ListedColormap(palette)
+        norm = mpl.colors.Normalize(vmin=0, vmax=max_time)
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        cb1 = plt.colorbar(sm, ax=ax,
+                           ticks=np.linspace(0, max_time, 5, endpoint=True, dtype=np.int),
+                           boundaries=np.arange(0, max_time + 1, 1), orientation='horizontal')
+        cb1.set_label('time [s]')
+
+    for _id, df in df.groupby('particle'):
+        df.plot.scatter(x='x', y='y', c=palette, ax=ax, s=point_size)
+        df.plot(x='x', y='y', c='y', legend=False, ax=ax, lw=line_width)
+
+    ax.set_xlabel('X $[\mu m]$')
+    ax.set_ylabel('Y $[\mu m]$')
+
+    return ax
+
+
 def render_image_tracks(df_total, folder='.'):
     for tag, dff in df_total.groupby('tag'):
         logging.info('rendering %s' % tag)
@@ -360,23 +394,9 @@ def render_image_tracks(df_total, folder='.'):
             fig.clf()
             fig.set_size_inches((10, 10))
             ax = fig.gca()
-
-            iname = tag + '.tif'
-            logging.debug('reading %s' % iname)
-            img, res, dt = sp.find_image(iname, folder)
-            max_frame = dff['frame'].max()
-            _, height, width = img.shape
-
-            ax.cla()
-            ax.imshow(img[1], extent=[0, width / res, height / res, 0])
-            cmap = sns.color_palette('cool', n_colors=max_frame)
-            for _id, df in dff.groupby('particle'):
-                df.plot.scatter(x='x', y='y', c=cmap, ax=ax, s=5)
-                df.plot(x='x', y='y', c='y', legend=False, ax=ax, lw=1)
-
-            ax.set_xlabel('X $[\mu m]$')
-            ax.set_ylabel('Y $[\mu m]$')
+            render_image_track(dff, ax, folder)
             fig.savefig(os.path.abspath(os.path.join(folder, 'py-renders', tag + '-render.png')))
+            return ax
         except Exception as e:
             logging.critical('couldn\'t do the plot. %s' % (e))
 

@@ -320,6 +320,7 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
     sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving less'],
                color=color, linestyle='--',
                time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+    ax.set_title(cond)
     ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
     ax.set_xticks(np.arange(0, df_msd['Time'].max(), 20.0))
     ax.legend(title=None, loc='upper left')
