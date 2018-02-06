@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 import sys
 
 import coloredlogs
@@ -113,13 +114,13 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
 
         for (id, adf), _color in zip(df_stat.groupby('tag'), palette):
             adf.plot.scatter(x='time', y='speed', color=_color, alpha=a, ax=ax5)
-            df_stat.plot.scatter(x='time', y='trk_len', color=_color, alpha=a, ax=ax6)
+            df_stat.plot.scatter(x='time', y='n_points', color=_color, alpha=a, ax=ax6)
 
             try:
                 kde_avgspd = stats.gaussian_kde(adf['speed'])
-                kde_trklen = stats.gaussian_kde(adf['trk_len'])
+                kde_trklen = stats.gaussian_kde(adf['n_points'])
                 y_avgspd = np.linspace(adf['speed'].min(), adf['speed'].max(), 100)
-                y_trklen = np.linspace(adf['trk_len'].min(), adf['trk_len'].max(), 100)
+                y_trklen = np.linspace(adf['n_points'].min(), adf['n_points'].max(), 100)
                 x_avgspd = kde_avgspd(y_avgspd) * 5.0
                 x_trklen = kde_trklen(y_trklen) * 100
                 ax5.plot(x_avgspd, y_trklen, color=_color)  # gaussian kde
@@ -134,7 +135,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
             ax.set_xlabel('Time $[s]$')
         ax5.set_ylim(0, df_stat['speed'].max())
-        ax6.set_ylim(0, df_stat['trk_len'].max())
+        ax6.set_ylim(0, df_stat['n_points'].max())
 
         pdf.savefig()
         plt.close()
@@ -156,20 +157,20 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         print df_stat['tag'].unique()
         for (id, adf), _color in zip(df_stat.groupby('tag'), palette):
             adf['speed'].plot.hist(20, color=_color, ax=ax3)
-            adf['trk_len'].plot.hist(20, color=_color, ax=ax4)
+            adf['n_points'].plot.hist(20, color=_color, ax=ax4)
 
             try:
                 kde_avgspd = stats.gaussian_kde(adf['speed'])
-                kde_trklen = stats.gaussian_kde(adf['trk_len'])
+                kde_trklen = stats.gaussian_kde(adf['n_points'])
                 x_avgspd = np.linspace(adf['speed'].min(), adf['speed'].max(), 100)
-                x_trklen = np.linspace(adf['trk_len'].min(), adf['trk_len'].max(), 100)
+                x_trklen = np.linspace(adf['n_points'].min(), adf['n_points'].max(), 100)
                 ax1.plot(x_avgspd, kde_avgspd(x_avgspd), color=_color)
                 ax2.plot(x_trklen, kde_trklen(x_trklen), color=_color)  # gaussian kde
             except:
                 pass
 
         sns.distplot(df_stat['speed'].dropna(), ax=ax5)
-        sns.distplot(df_stat['trk_len'].dropna(), ax=ax6)
+        sns.distplot(df_stat['n_points'].dropna(), ax=ax6)
 
         ax1.set_title('Avg speed per track')
         ax2.set_title('Track length')
@@ -202,7 +203,6 @@ def stats_plots(df, df_stats):
             ax1.set_ylabel('Average Eb1 speed per particle $[\mu m \cdot s^{-1}]$')
 
         pdf.savefig()
-        plt.close()
 
         # ---------------------------
         #          NEXT PAGE
@@ -241,7 +241,6 @@ def stats_plots(df, df_stats):
         pmat = st.p_values(df_stats, 'length', 'condition', filename='/Users/Fabio/data/lab/pvalues_len.xls')
 
         pdf.savefig()
-        plt.close()
 
         # ---------------------------
         #          NEXT PAGE
@@ -262,6 +261,16 @@ def stats_plots(df, df_stats):
         # plt.bar(range(4), [100] * 4, color='r', edgecolor='white', width=0.85)
         # plt.bar(range(4), spd_gt, color='#b5ffb9', edgecolor='white', width=0.85)
         # plt.xticks(range(4), ['chtog', 'control', 'mcak', 'noc'], rotation='vertical')
+        ptsize = 0.5
+        with sns.color_palette(['grey', 'grey', 'grey', 'grey', 'grey', 'grey']):
+            sp.anotated_boxplot(df_stats, 'n_points', swarm=False, point_size=ptsize, ax=ax1)
+            ax1.set_xlabel('Condition')
+            ax1.set_ylabel('N of points per particle track')
+
+            df_stats['norm_len'] = df_stats['length'] / df_stats['n_points']
+            sp.anotated_boxplot(df_stats, 'norm_len', swarm=False, point_size=ptsize, ax=ax2)
+            ax2.set_xlabel('Condition')
+            ax2.set_ylabel('Normalized Eb1 length $[\mu m]$')
 
         sns.distplot(df_stats['speed'].dropna(), ax=ax3)
         sns.distplot(df_stats['length'].dropna(), ax=ax4)
@@ -354,7 +363,8 @@ def est_plots(df_matlab):
         plt.close()
 
 
-def render_image_track(df, ax, folder, point_size=5, line_width=1, palette=None):
+def render_image_track(df, ax, folder, point_size=5, line_width=1, palette=None, colorbar=False,
+                       tracks_to_show=np.infty):
     iname = df['tag'].iloc[0] + '.tif'
     logging.debug('reading %s' % iname)
     img, res, dt = sp.find_image(iname, folder)
@@ -371,14 +381,21 @@ def render_image_track(df, ax, folder, point_size=5, line_width=1, palette=None)
         norm = mpl.colors.Normalize(vmin=0, vmax=max_time)
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
-        cb1 = plt.colorbar(sm, ax=ax,
-                           ticks=np.linspace(0, max_time, 5, endpoint=True, dtype=np.int),
-                           boundaries=np.arange(0, max_time + 1, 1), orientation='horizontal')
-        cb1.set_label('time [s]')
+        if colorbar:
+            cb1 = plt.colorbar(sm, ax=ax,
+                               ticks=np.linspace(0, max_time, 5, endpoint=True, dtype=np.int),
+                               boundaries=np.arange(0, max_time + 1, 1), orientation='horizontal')
+            cb1.set_label('time [s]')
 
-    for _id, df in df.groupby('particle'):
+    if tracks_to_show < np.infty:
+        df_flt = df[df['particle'].isin(random.sample(df['particle'].unique(), tracks_to_show))]
+    else:
+        df_flt = df
+    for _id, df in df_flt.groupby('particle'):
         df.plot.scatter(x='x', y='y', c=palette, ax=ax, s=point_size)
         df.plot(x='x', y='y', c='y', legend=False, ax=ax, lw=line_width)
+        # last_pt = df.set_index('frame').sort_index().iloc[-1]
+        # ax.text(last_pt['x'], last_pt['y'], '%0.2f' % last_pt['s'], color='white', fontsize=7)
 
     ax.set_xlabel('X $[\mu m]$')
     ax.set_ylabel('Y $[\mu m]$')
@@ -425,7 +442,7 @@ def batch_filter(df):
     dfi['speed'] = dfi['speed'].abs()
     df_avg = dfi.groupby(indiv_idx)['time', 'speed'].mean()
     df_avg.loc[:, 'time'] = dfi.groupby(indiv_idx)['time'].first()
-    df_avg.loc[:, 'trk_len'] = dfi.groupby(indiv_idx)['x'].count()
+    df_avg.loc[:, 'n_points'] = dfi.groupby(indiv_idx)['x'].count()
     df_avg.loc[:, 'length'] = dfi.groupby(indiv_idx)['s'].agg(np.sum)
     df_avg = df_avg.reset_index()
 

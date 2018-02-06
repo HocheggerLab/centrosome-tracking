@@ -52,6 +52,7 @@ names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_CENPF', 'CenpF+STLC'),
                      ('1_BICD2', 'Bicaudal+STLC'),
                      ('1_MCAK', 'MCAK+STLC'),
+                     ('1_chTOG', 'chTog+STLC'),
                      ('2_Kines1', 'Kinesin1+STLC'),
                      ('2_CDK1_DK', 'DHC+Kinesin1+STLC'),
                      ('1_No10+', 'Nocodazole 10ng+STLC'),
@@ -656,9 +657,7 @@ def fig_2(df, dfc):
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
-def fig_4(df, dfc, eb3df, eb3_stats):
-    _conds = ['1_P.C.', '1_CyDT', '1_FAKI', '1_No10+']
-
+def fig_4(df, dfc, eb3df):
     with PdfPages('/Users/Fabio/fig4.pdf') as pdf:
         # ---------------------------
         #    PAGE - time colorbar
@@ -684,72 +683,70 @@ def fig_4(df, dfc, eb3df, eb3_stats):
         #    PAGE - tracks control
         # ---------------------------
         eb3fld = '/Users/Fabio/data/lab/eb3'
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi / 4)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
         fig.clf()
         ax = fig.add_subplot(111)
         eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 +1NM on controls only.sld - Capture 4']
-        eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette)
+        eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette,
+                               tracks_to_show=300)
         ax.set_xlabel('X [um]')
         ax.set_ylabel('Y [um]')
+        ax.set_xlim([0, 70])
+        ax.set_ylim([0, 70])
+        ax.xaxis.set_major_locator(MultipleLocator(15))
+        ax.yaxis.set_major_locator(MultipleLocator(15))
         ax.set_title('Control')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
         #    PAGE - tracks MCAK
         # ---------------------------
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi / 4)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
         fig.clf()
         ax = fig.add_subplot(111)
         eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 chTOG RNAi 3days +1NM on.sld - Capture 21']
         eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette)
         ax.set_xlabel('X [um]')
         ax.set_ylabel('Y [um]')
+        ax.set_xlim([0, 70])
+        ax.set_ylim([0, 70])
+        ax.xaxis.set_major_locator(MultipleLocator(15))
+        ax.yaxis.set_major_locator(MultipleLocator(15))
         ax.set_title('MCAK')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #    PAGE - tracks chTog
+        # ---------------------------
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
+        fig.clf()
+        ax = fig.add_subplot(111)
+        eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 chTOG RNAi 3days +1NM on.sld - Capture 6']
+        eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette)
+        ax.set_xlabel('X [um]')
+        ax.set_ylabel('Y [um]')
+        ax.set_xlim([0, 70])
+        ax.set_ylim([0, 70])
+        ax.xaxis.set_major_locator(MultipleLocator(15))
+        ax.yaxis.set_major_locator(MultipleLocator(15))
+        ax.set_title('chTog')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
         #    PAGE - tracks nocodazole
         # ---------------------------
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi / 4)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
         fig.clf()
         ax = fig.add_subplot(111)
         eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 1NM on +10ng Noco.sld - Capture 1 - 2hrs post 10ng noco']
         eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette)
         ax.set_xlabel('X [um]')
         ax.set_ylabel('Y [um]')
+        ax.set_xlim([0, 70])
+        ax.set_ylim([0, 70])
+        ax.xaxis.set_major_locator(MultipleLocator(15))
+        ax.yaxis.set_major_locator(MultipleLocator(15))
         ax.set_title('Nocodazole 10ng')
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
-        # ---------------------------
-        #    PAGE - Eb3 velocity boxplots
-        # ---------------------------
-        fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
-        fig.clf()
-        ax = fig.add_subplot(111)
-        df_stats = eb3_stats[
-            (eb3_stats['condition'].isin(['eb3-control', 'eb3-g2-no-arrest', 'eb3-mcak', 'eb3-nocodazole'])) & (
-                    eb3_stats['speed'] > 1e-2)]
-        sp.anotated_boxplot(df_stats, 'speed', point_size=0.5, ax=ax)
-        ax.set_xlabel('Condition')
-        ax.set_ylabel('Average speed [um/s]')
-        pmat = st.p_values(df_stats, 'speed', 'condition', filename='/Users/Fabio/data/lab/pvalues_spd.xls')
-        pmat = st.p_values(df_stats, 'length', 'condition', filename='/Users/Fabio/data/lab/pvalues_len.xls')
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
-        # ---------------------------
-        #    PAGE - Eb3 length boxplots
-        # ---------------------------
-        fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
-        fig.clf()
-        ax = fig.add_subplot(111)
-        df_stats = eb3_stats[
-            (eb3_stats['condition'].isin(['eb3-control', 'eb3-g2-no-arrest', 'eb3-mcak', 'eb3-nocodazole'])) & (
-                    eb3_stats['speed'] > 1e-2)]
-        sp.anotated_boxplot(df_stats, 'length', point_size=0.5, ax=ax)
-        ax.set_xlabel('Condition')
-        ax.set_ylabel('Average length [um]')
-        pmat = st.p_values(df_stats, 'speed', 'condition', filename='/Users/Fabio/data/lab/pvalues_spd.xls')
-        pmat = st.p_values(df_stats, 'length', 'condition', filename='/Users/Fabio/data/lab/pvalues_len.xls')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
@@ -772,12 +769,29 @@ def fig_4(df, dfc, eb3df, eb3_stats):
         # ---------------------------
         #    PAGE
         # ---------------------------
-        _conds = ['1_CyDT']
+        _conds = ['1_MCAK']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
         fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
         fig.clf()
         ax = fig.add_subplot(111)
-        with sns.color_palette([sp.SUSSEX_COBALT_BLUE]):
+        with sns.color_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED]):
+            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean, ax=ax, lw=3,
+                       err_style=['unit_traces'], err_kws=_err_kws)
+            ax.set_xlabel('time prior contact [min]')
+            ax.set_ylabel('Distance [um]')
+            ax.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #    PAGE
+        # ---------------------------
+        _conds = ['1_chTOG']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig.clf()
+        ax = fig.add_subplot(111)
+        with sns.color_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED]):
             sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
                        estimator=np.nanmean, ax=ax, lw=3,
                        err_style=['unit_traces'], err_kws=_err_kws)
@@ -789,29 +803,51 @@ def fig_4(df, dfc, eb3df, eb3_stats):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        _conds = ['1_No10+', '1_MCAK']
+        _conds = ['1_P.C.', '1_No10+', '1_MCAK', '1_chTOG']
         dfs, conds, colors = sorted_conditions(df, _conds)
         fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
         fig.clf()
         ax = fig.gca()
-        sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
+        sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_TURQUOISE, sp.SUSSEX_SKY_BLUE])
         sp.congression(dfs, ax=ax, order=conds)
         ax.set_xlabel('time [min]')
         ax.set_ylabel('% congression')
         pdf.savefig(transparent=True, bbox_inches='tight')
 
+        pt_color = sns.light_palette(sp.SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        _conds = ['1_No10+', '1_MCAK']
+        _conds = ['1_P.C.', '1_No10+', '1_MCAK', '1_chTOG']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
         fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
         fig.clf()
         ax2 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2, fontsize='medium')
+        with sns.color_palette([pt_color, pt_color, pt_color, pt_color]):
+            # sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2,
+            #                     xlabels=['+STLC', 'Noc 10ng\n+STLC', 'MCAK\n+STLC', 'chTog\n+STLC'])
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2)
+        ax2.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         ax2.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+        pmat = st.p_values(mua, 'SpeedCentr', 'condition', filename='/Users/Fabio/pvalues_pc-noc-mcak_spd.xls')
+
+        # ---------------------------
+        # #          NEXT PAGE
+        # # ---------------------------
+        # _conds = ['1_P.C.', '1_No10+', '1_MCAK', '1_chTOG']
+        # dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        # fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        # fig.clf()
+        # ax2 = fig.add_subplot(111)
+        # mua = dfcs.set_index('Frame').sort_index().groupby(['condition', 'run', 'Nuclei']).first().reset_index()
+        # with sns.color_palette([pt_color, pt_color, pt_color, pt_color]):
+        #     sp.anotated_boxplot(mua, 'DistCentr', order=conds, point_size=2, ax=ax2,
+        #                         xlabels=['+STLC', 'Noc 10ng\n+STLC', 'MCAK\n+STLC', 'chTog\n+STLC'])
+        # ax2.set_ylabel('Initial distance [um/min]')
+        # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+        # # pmat = st.p_values(mua, 'DistCentr', 'condition', filename='/Users/Fabio/pvalues_pc-noc-mcak_idist.xls')
 
         df = df[df['Time'] <= 50]
         # ---------------------------
@@ -841,6 +877,104 @@ def fig_4(df, dfc, eb3df, eb3_stats):
         ax5.set_ylabel('MSD')
         ax5.legend(title=None, loc='upper left')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_chTOG']
+        dfs, conds, colors = sorted_conditions(df, _conds)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig.clf()
+        ax5 = fig.add_subplot(111)
+        sp.msd(dfs, ax5, ylim=[0, 120])
+        ax5.set_xlabel('time delay [min]')
+        ax5.set_ylabel('MSD')
+        ax5.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+
+def fig_4_eb3_stats(eb3_stats, filename='fig4_boxplots.pdf', title=None):
+    pt_color = sns.light_palette(sp.SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
+    with PdfPages('/Users/Fabio/%s' % filename) as pdf:
+        # ---------------------------
+        #    PAGE - Eb3 velocity boxplots
+        # ---------------------------
+        fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
+        fig.clf()
+        ax = fig.add_subplot(111)
+        df_stats = eb3_stats[
+            (eb3_stats['condition'].isin(['eb3-control', 'eb3-nocodazole', 'eb3-mcak', 'eb3-chtog'])) & (
+                    eb3_stats['speed'] > 1e-2)]
+        with sns.color_palette([pt_color, pt_color, pt_color, pt_color]):
+            sp.anotated_boxplot(df_stats, 'speed', point_size=0.5, ax=ax,
+                                order=['eb3-control', 'eb3-nocodazole', 'eb3-mcak', 'eb3-chtog'],
+                                xlabels={'eb3-control': '+STLC',
+                                         'eb3-nocodazole': 'Noc 10ng\n+STLC',
+                                         'eb3-mcak': 'MCAK\n+STLC',
+                                         'eb3-chtog': 'chTog\n+STLC'})
+            # sp.anotated_boxplot(df_stats, 'speed', point_size=0.5, ax=ax)
+        ax.set_xlabel('Condition')
+        ax.set_ylabel('Average speed [um/s]')
+        ax.set_ylim([0, 0.6])
+        ax.set_title(title)
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # # ---------------------------
+        # #    PAGE - Eb3 length boxplots
+        # # ---------------------------
+        # fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
+        # fig.clf()
+        # ax = fig.add_subplot(111)
+        # df_stats = eb3_stats[
+        #     (eb3_stats['condition'].isin(['eb3-control', 'eb3-nocodazole', 'eb3-mcak', 'eb3-chtog'])) & (
+        #             eb3_stats['speed'] > 1e-2)]
+        # with sns.color_palette([pt_color, pt_color, pt_color, pt_color]):
+        #     sp.anotated_boxplot(df_stats, 'length', point_size=0.5, ax=ax,
+        #                         xlabels=['Control', 'Noc 10ng', 'MCAK', 'chTog'])
+        # ax.set_xlabel('Condition')
+        # ax.set_ylabel('Average length [um]')
+        # ax.set_title(title)
+        # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        pmat = st.p_values(df_stats, 'speed', 'condition',
+                           filename='/Users/Fabio/data/lab/pvalues_%s_ctr-noc-mcak-chtog.xls' % filename)
+
+        # ---------------------------
+        #    PAGE - Eb3 velocity boxplots
+        # ---------------------------
+        fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
+        fig.clf()
+        ax = fig.add_subplot(111)
+        df_stats = eb3_stats[(eb3_stats['condition'].isin(['eb3-control', 'eb3-g2-no-arrest'])) & (
+                eb3_stats['speed'] > 1e-2)]
+        with sns.color_palette([pt_color, pt_color, pt_color]):
+            sp.anotated_boxplot(df_stats, 'speed', point_size=0.5, ax=ax,
+                                order=['eb3-control', 'eb3-g2-no-arrest'],
+                                xlabels={'eb3-control': '+STLC', 'eb3-g2-no-arrest': 'No arrest\n+STLC'})
+        ax.set_xlabel('Condition')
+        ax.set_ylabel('Average speed [um/s]')
+        ax.set_ylim([0, 0.6])
+        ax.set_title(title)
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # # ---------------------------
+        # #    PAGE - Eb3 length boxplots
+        # # ---------------------------
+        # fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
+        # fig.clf()
+        # ax = fig.add_subplot(111)
+        # df_stats = eb3_stats[(eb3_stats['condition'].isin(['eb3-control', 'eb3-g2-no-arrest'])) & (
+        #         eb3_stats['speed'] > 1e-2)]
+        # with sns.color_palette([pt_color, pt_color, pt_color]):
+        #     sp.anotated_boxplot(df_stats, 'length', point_size=0.5, ax=ax, xlabels=['+STLC', 'No arrest\n+STLC'])
+        # ax.set_xlabel('Condition')
+        # ax.set_ylabel('Average length [um]')
+        # ax.set_title(title)
+        # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        pmat = st.p_values(df_stats, 'speed', 'condition',
+                           filename='/Users/Fabio/data/lab/pvalues_%s_ctr-g2.xls' % filename)
+        # pmat = st.p_values(df_stats, 'length', 'condition', filename='/Users/Fabio/data/lab/pvalues_len.xls')
 
 
 def color_keys(df, dfc):
@@ -912,6 +1046,10 @@ if __name__ == '__main__':
     # fig_1_mother_daughter(df_m, df_mc)
     # fig_2(df_m, dfcentr)
 
-    df_eb3_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
-    df_eb3_avg = pd.read_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
-    fig_4(df_m, dfcentr, df_eb3_flt, df_eb3_avg)
+    # df_eb3_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+    # fig_4(df_m, dfcentr, df_eb3_flt)
+    # df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-nearest-3px/eb3stats.pandas')
+    # fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_nearest3px.pdf',
+    #                 title='Nearest velocity (3px) prediction algorithm')
+    # df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-drift-prediction/eb3stats.pandas')
+    # fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_drift.pdf', title='Drift prediction algorithm')

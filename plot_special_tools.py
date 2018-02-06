@@ -106,17 +106,15 @@ class MyAxes3D(axes3d.Axes3D):
 
 
 def anotated_boxplot(data_grouped, var, point_size=5, fontsize=7, cat='condition',
-                     swarm=True, order=None, ax=None):
+                     swarm=True, order=None, xlabels=None, ax=None):
     sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
                 zorder=100)
 
-    point_color = sns.light_palette(SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
     if swarm:
-        _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, ax=ax, zorder=10,
-                            color=point_color)
+        _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, ax=ax, zorder=10)
     else:
         _ax = sns.stripplot(data=data_grouped, y=var, x=cat, jitter=True, size=point_size, order=order, ax=ax,
-                            zorder=10, color=point_color)
+                            zorder=10)
     for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
         artist.set_edgecolor('k')
@@ -132,10 +130,16 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize=7, cat='condition
         count = d.count()
         mean = d.mean()
         median = d.median()
-        _txt = '%0.1f\n%0.1f\n%d' % (mean, median, count)
+        # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
+        _txt = '%0.2f\n%d' % (median, count)
 
-        _ax.text(x, _max_y * 1.2, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
-        plt.xticks(_ax.get_xticks(), rotation='vertical')
+        _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
+    if xlabels is not None:
+        _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
+                            rotation=45, multialignment='right')
+    else:
+        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
+
     return _ax
 
 
