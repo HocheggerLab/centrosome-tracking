@@ -57,6 +57,7 @@ names = OrderedDict([('1_N.C.', '-STLC'),
                      ('2_CDK1_DK', 'DHC+Kinesin1+STLC'),
                      ('1_No10+', 'Nocodazole 10ng+STLC'),
                      ('1_CyDT', 'Cytochalsin D+STLC'),
+                     ('1_Bleb', 'Blebbistatin+STLC'),
                      ('1_FAKI', 'FAKi+STLC'),
                      ('hset', 'Hset+STLC'),
                      ('kif25', 'Kif25+STLC'),
@@ -66,7 +67,7 @@ col_palette = ["#e74c3c", sp.SUSSEX_CORAL_RED,
                "#3498db", sns.xkcd_rgb["teal green"], "#9b59b6", "#2ecc71",
                sns.xkcd_rgb["windows blue"], sns.xkcd_rgb["medium green"],
                '#91744B', sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"],
-               '#91744B', sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"], "#3498db"]
+               '#91744B', sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"], sns.xkcd_rgb["amber"], "#3498db"]
 cond_colors = dict(zip(names.keys(), col_palette))
 _fig_size_A3 = (11.7, 16.5)
 _err_kws = {'alpha': 0.3, 'lw': 0.5}
@@ -81,9 +82,9 @@ def rename_conditions(df):
 
 
 def sorted_conditions(df, original_conds):
-    conditions = [names[c] for c in original_conds]
-    _colors = [cond_colors[c] for c in original_conds]
-    dfc = df[df['condition'].isin(conditions)]
+    conditions = [names[c] for c in original_conds] if type(original_conds) == list else names[original_conds]
+    _colors = [cond_colors[c] for c in original_conds] if type(original_conds) == list else cond_colors[original_conds]
+    dfc = df[df['condition'].isin(conditions)] if type(original_conds) == list else df[df['condition'] == conditions]
 
     # sort by condition
     sorter_index = dict(zip(conditions, range(len(conditions))))
@@ -825,9 +826,8 @@ def fig_4(df, dfc, eb3df):
         ax2 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
         with sns.color_palette([pt_color, pt_color, pt_color, pt_color]):
-            # sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2,
-            #                     xlabels=['+STLC', 'Noc 10ng\n+STLC', 'MCAK\n+STLC', 'chTog\n+STLC'])
-            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2)
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2,
+                                xlabels=['+STLC', 'Noc 10ng\n+STLC', 'MCAK\n+STLC', 'chTog\n+STLC'])
         ax2.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         ax2.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
@@ -977,6 +977,76 @@ def fig_4_eb3_stats(eb3_stats, filename='fig4_boxplots.pdf', title=None):
         # pmat = st.p_values(df_stats, 'length', 'condition', filename='/Users/Fabio/data/lab/pvalues_len.xls')
 
 
+def fig_5(df, dfc):
+    with PdfPages('/Users/Fabio/fig5.pdf') as pdf:
+        # ---------------------------
+        #    PAGES - individuals
+        # ---------------------------
+        for _cond in ['1_FAKI', '1_CyDT', '1_Bleb']:
+            dfcs, conds, colors = sorted_conditions(dfc, (_cond))
+            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+            fig.clf()
+            ax = fig.add_subplot(111)
+            with sns.color_palette([sp.SUSSEX_COBALT_BLUE]):
+                sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                           estimator=np.nanmean, ax=ax, lw=3,
+                           err_style=['unit_traces'], err_kws=_err_kws)
+                ax.set_xlabel('time prior contact [min]')
+                ax.set_ylabel('Distance [um]')
+                ax.legend(title=None, loc='upper left')
+            pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_P.C.', '1_FAKI', '1_CyDT', '1_Bleb']
+        dfs, conds, colors = sorted_conditions(df, _conds)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig.clf()
+        ax = fig.gca()
+        sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_TURQUOISE, sp.SUSSEX_SKY_BLUE])
+        sp.congression(dfs, ax=ax, order=conds)
+        ax.set_xlabel('time [min]')
+        ax.set_ylabel('% congression')
+        pdf.savefig(transparent=True, bbox_inches='tight')
+
+        pt_color = sns.light_palette(sp.SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_P.C.', '1_FAKI', '1_CyDT', '1_Bleb']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig.clf()
+        ax2 = fig.add_subplot(111)
+        mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+        with sns.color_palette([pt_color, pt_color, pt_color, pt_color]):
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2,
+                                xlabels={'+STLC': '+STLC',
+                                         'FAKi+STLC': 'FAKi\n+STLC',
+                                         'Cytochalsin D+STLC': 'Cytochalsin D\n+STLC',
+                                         'Blebbistatin+STLC': 'Blebbistatin\n+STLC'})
+        ax2.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+        ax2.set_ylabel('Average speed [um/min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+        pmat = st.p_values(mua, 'SpeedCentr', 'condition', filename='/Users/Fabio/pvalues_pc-noc-mcak_spd.xls')
+
+        df = df[df['Time'] <= 50]
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        for _conds in ['1_FAKI', '1_CyDT', '1_Bleb']:
+            dfs, conds, colors = sorted_conditions(df, _conds)
+            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+            fig.clf()
+            ax5 = fig.add_subplot(111)
+            sp.msd(dfs, ax5, ylim=[0, 120])
+            ax5.set_xlabel('time delay [min]')
+            ax5.set_ylabel('MSD')
+            ax5.legend(title=None, loc='upper left')
+            pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+
 def color_keys(df, dfc):
     cldf, conds, colors = sorted_conditions(df, names.keys())
     coldf, conds, colors = sorted_conditions(dfc, names.keys())
@@ -1039,17 +1109,19 @@ if __name__ == '__main__':
     # df_m = m.get_trk_length(df_m, x='CentX', y='CentY', time='Time', frame='Frame',
     #                         group=ImagejPandas.CENTROSOME_INDIV_INDEX)
     # print df_m['s']
-    # color_keys(df_m, dfcentr)
+    color_keys(df_m, dfcentr)
 
-    # fig_1(df_m, dfcentr)
-    # fig_1_selected_track(df_m, df_msk)
-    # fig_1_mother_daughter(df_m, df_mc)
-    # fig_2(df_m, dfcentr)
+    fig_1(df_m, dfcentr)
+    fig_1_selected_track(df_m, df_msk)
+    fig_1_mother_daughter(df_m, df_mc)
+    fig_2(df_m, dfcentr)
 
-    # df_eb3_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
-    # fig_4(df_m, dfcentr, df_eb3_flt)
-    # df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-nearest-3px/eb3stats.pandas')
-    # fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_nearest3px.pdf',
-    #                 title='Nearest velocity (3px) prediction algorithm')
-    # df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-drift-prediction/eb3stats.pandas')
-    # fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_drift.pdf', title='Drift prediction algorithm')
+    df_eb3_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+    fig_4(df_m, dfcentr, df_eb3_flt)
+    df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-nearest-3px/eb3stats.pandas')
+    fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_nearest3px.pdf',
+                    title='Nearest velocity (3px) prediction algorithm')
+    df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-drift-prediction/eb3stats.pandas')
+    fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_drift.pdf', title='Drift prediction algorithm')
+
+    fig_5(df_m, dfcentr)
