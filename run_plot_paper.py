@@ -1,3 +1,4 @@
+import itertools
 import logging
 import os
 from collections import OrderedDict
@@ -49,19 +50,22 @@ names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_P.C.', '+STLC'),
                      ('1_DIC', 'DIC+STLC'),
                      ('1_Dynei', 'DHC+STLC'),
+                     ('1_ASUND', 'Asunder+STLC'),
                      ('1_CENPF', 'CenpF+STLC'),
                      ('1_BICD2', 'Bicaudal+STLC'),
                      ('1_MCAK', 'MCAK+STLC'),
                      ('1_chTOG', 'chTog+STLC'),
                      ('2_Kines1', 'Kinesin1+STLC'),
-                     ('2_CDK1_DK', 'DHC+Kinesin1+STLC'),
+                     ('2_CDK1_DA', 'DHC&Asunder+STLC'),
+                     ('2_CDK1_DC', 'DHC&CenpF+STLC'),
+                     ('2_CDK1_DK', 'DHC&Kinesin1+STLC'),
                      ('1_No10+', 'Nocodazole 10ng+STLC'),
                      ('1_CyDT', 'Cytochalsin D+STLC'),
                      ('1_Bleb', 'Blebbistatin+STLC'),
                      ('1_FAKI', 'FAKi+STLC'),
                      ('hset', 'Hset+STLC'),
                      ('kif25', 'Kif25+STLC'),
-                     ('hset+kif25', 'Hset+Kif25+STLC'),
+                     ('hset+kif25', 'Hset&Kif25+STLC'),
                      ('mother-daughter', '+STLC mother daughter')])
 col_palette = ["#e74c3c", sp.SUSSEX_CORAL_RED,
                "#3498db", sns.xkcd_rgb["teal green"], "#9b59b6", "#2ecc71",
@@ -69,6 +73,7 @@ col_palette = ["#e74c3c", sp.SUSSEX_CORAL_RED,
                '#91744B', sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"],
                '#91744B', sns.xkcd_rgb["pale red"], sns.xkcd_rgb["amber"], sns.xkcd_rgb["amber"], "#3498db"]
 cond_colors = dict(zip(names.keys(), col_palette))
+pt_color = sns.light_palette(sp.SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
 _fig_size_A3 = (11.7, 16.5)
 _err_kws = {'alpha': 0.3, 'lw': 0.5}
 msd_ylim = [0, 420]
@@ -459,23 +464,6 @@ def fig_1_mother_daughter(df, dfc):
 def fig_2(df, dfc):
     with PdfPages('/Users/Fabio/fig2.pdf') as pdf:
         # ---------------------------
-        #          FIRST PAGE
-        # ---------------------------
-        _conds = ['1_P.C.', '1_Dynei']
-        dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
-        fig.clf()
-        ax3 = fig.add_subplot(111)
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
-                       estimator=np.nanmean, ax=ax3, lw=3,
-                       err_style=['unit_traces'], err_kws=_err_kws)
-            ax3.set_xlabel('time prior contact [min]')
-            ax3.set_ylabel('Distance [um]')
-            ax3.legend(title=None, loc='upper left')
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
-        # ---------------------------
         #          NEXT PAGE
         # ---------------------------
         _conds = ['1_P.C.', '2_CDK1_DK']
@@ -529,82 +517,58 @@ def fig_2(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
-        dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
-        fig.clf()
-        ax3 = fig.add_subplot(111)
-        with sns.color_palette(
-                [sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_SKY_BLUE, sp.SUSSEX_FUSCHIA_PINK]):
-            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
-                       estimator=np.nanmean, ax=ax3, lw=3,
-                       err_style=['ci_band'])
-            ax3.set_xlabel('time prior contact [min]')
-            ax3.set_ylabel('Distance [um]')
-            ax3.legend(title=None, loc='upper left')
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
-        # ---------------------------
-        #          NEXT PAGE
-        # ---------------------------
-        _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
-        dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
-        fig.clf()
-        ax3 = fig.add_subplot(111)
-        with sns.color_palette(
-                [sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_SKY_BLUE, sp.SUSSEX_FUSCHIA_PINK]):
-            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
-                       estimator=np.nanmean, ax=ax3, lw=3,
-                       err_style=['unit_traces'], err_kws=_err_kws)
-            ax3.set_xlabel('time prior contact [min]')
-            ax3.set_ylabel('Distance [um]')
-            ax3.legend(title=None, loc='upper left')
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
-        # ---------------------------
-        #          NEXT PAGE
-        # ---------------------------
         _conds = ['1_P.C.', '1_Dynei', '1_DIC']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
         fig = plt.figure(figsize=(1.3, 1.3), dpi=_dpi)
         fig.clf()
         ax1 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1, fontsize='medium')
+        with sns.color_palette([sp.SUSSEX_COBALT_BLUE for c in dfc['condition'].unique()]):
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1,
+                                xlabels={'+STLC': '+STLC',
+                                         'DHC+STLC': 'DHC\n+STLC',
+                                         'DIC+STLC': 'DIC\n+STLC'})
         ax1.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        _conds = ['1_P.C.', '1_CENPF', '1_BICD2']
+        _conds = ['1_P.C.', '1_ASUND', '1_CENPF', '1_BICD2']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
         fig = plt.figure(figsize=(1.3, 1.3), dpi=_dpi)
         fig.clf()
         ax1 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1, fontsize='medium')
+        with sns.color_palette([sp.SUSSEX_COBALT_BLUE for c in dfc['condition'].unique()]):
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1,
+                                xlabels={'+STLC': '+STLC',
+                                         'DHC+STLC': 'DHC\n+STLC',
+                                         'CenpF+STLC': 'CenpF\n+STLC'})
         ax1.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        _conds = ['1_P.C.', '2_Kines1', '1_Dynei', '2_CDK1_DK']
+        _conds = ['1_P.C.', '2_CDK1_DC', '2_CDK1_DA']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.1, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(1.3, 1.3), dpi=_dpi)
         fig.clf()
-        ax2 = fig.add_subplot(111)
+        ax1 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2, fontsize='medium')
-        ax2.set_ylabel('Average speed [um/min]')
+        with sns.color_palette([sp.SUSSEX_COBALT_BLUE for c in dfc['condition'].unique()]):
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax1,
+                                xlabels={'+STLC': '+STLC',
+                                         'DHC+STLC': 'DHC\n+STLC',
+                                         'Asunder+STLC': 'Asunder\n+STLC'})
+        ax1.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
+        _conds = ['1_P.C.', '1_ASUND', '1_CENPF', '1_BICD2']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
         fig = plt.figure(figsize=(2.8, 1.3), dpi=_dpi)
         fig.clf()
@@ -619,7 +583,7 @@ def fig_2(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        _conds = ['1_P.C.', '1_Dynei', '1_CENPF', '1_BICD2']
+        _conds = ['1_P.C.', '1_Dynei', '1_ASUND']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
         fig = plt.figure(figsize=(2.8, 1.3), dpi=_dpi)
         fig.clf()
@@ -657,148 +621,255 @@ def fig_2(df, dfc):
         ax5.legend(title=None, loc='upper left')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
+    mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+    pmat = st.p_values(mua, 'SpeedCentr', 'condition', filename='/Users/Fabio/pvalues_spd_fig2.xls')
+
+
+def fig_3(df, dfc):
+    with PdfPages('/Users/Fabio/fig3.pdf') as pdf:
+        # ---------------------------
+        #          FIRST PAGE
+        # ---------------------------
+        _conds = ['1_Dynei', '2_CDK1_DK']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig.clf()
+        ax3 = fig.add_subplot(111)
+        with sns.color_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED]):
+            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean, ax=ax3, lw=3,
+                       err_style=['unit_traces'], err_kws=_err_kws)
+            ax3.set_xlabel('time prior contact [min]')
+            ax3.set_ylabel('Distance [um]')
+            ax3.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig.clf()
+        ax3 = fig.add_subplot(111)
+        with sns.color_palette(
+                [sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_SKY_BLUE, sp.SUSSEX_FUSCHIA_PINK]):
+            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean, ax=ax3, lw=3,
+                       err_style=['ci_band'])
+            ax3.set_xlabel('time prior contact [min]')
+            ax3.set_ylabel('Distance [um]')
+            ax3.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig.clf()
+        ax3 = fig.add_subplot(111)
+        with sns.color_palette(
+                [sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_SKY_BLUE, sp.SUSSEX_FUSCHIA_PINK]):
+            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean, ax=ax3, lw=3,
+                       err_style=['unit_traces'], err_kws=_err_kws)
+            ax3.set_xlabel('time prior contact [min]')
+            ax3.set_ylabel('Distance [um]')
+            ax3.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_P.C.', '2_Kines1', '1_Dynei', '2_CDK1_DK']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(2.1, 1.3), dpi=_dpi)
+        fig.clf()
+        ax2 = fig.add_subplot(111)
+        mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
+        with sns.color_palette([sp.SUSSEX_COBALT_BLUE for c in dfc['condition'].unique()]):
+            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2,
+                                xlabels={'+STLC': '+STLC',
+                                         'Kinesin1+STLC': 'Kinesin1\n+STLC',
+                                         'DHC+STLC': 'DHC\n+STLC',
+                                         'DHC&Kinesin1+STLC': 'DHC & Kinesin1\n+STLC'})
+        ax2.set_ylabel('Average speed [um/min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        fig = plt.figure(figsize=(2.8, 1.3), dpi=_dpi)
+        fig.clf()
+        ax4 = fig.add_subplot(111)
+        with sns.color_palette(
+                [sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_SKY_BLUE, sp.SUSSEX_FUSCHIA_PINK]):
+            sp.congression(df, ax=ax4, order=conds)
+            ax4.set_xlabel('time [min]')
+            ax4.set_ylabel('% congression')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+
 
 def fig_4(df, dfc, eb3df):
     with PdfPages('/Users/Fabio/fig4.pdf') as pdf:
-        # ---------------------------
-        #    PAGE - time colorbar
-        # ---------------------------
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi / 4)
-        fig.clf()
-        ax = fig.add_subplot(111)
-        ax.axis('off')
-        max_time = st.baseround(eb3df[eb3df['condition'] != 'eb3-g2-no-arrest']['time'].max())
-        max_frame = eb3df['frame'].max()
-        palette = sns.color_palette('cool', n_colors=max_frame)
-        norm = mpl.colors.Normalize(vmin=0, vmax=max_time)
-        sm = plt.cm.ScalarMappable(cmap=mpl.colors.ListedColormap(palette), norm=norm)
-        sm.set_array([])
-        ticks = np.linspace(0, max_time, 5, endpoint=True, dtype=np.int)
-        logging.debug('ticks: %s' % str(ticks))
-        cb1 = plt.colorbar(sm, ax=ax, ticks=ticks, boundaries=np.arange(0, max_time + 1, 1), orientation='vertical')
-        cb1 = plt.colorbar(sm, ax=ax, ticks=ticks, boundaries=np.arange(0, max_time + 1, 1), orientation='horizontal')
-        cb1.set_label('time [s]')
-        pdf.savefig(transparent=True, bbox_inches='tight')
+        plot_eb3 = False
+        if plot_eb3:
+            # ---------------------------
+            #    PAGE - time colorbar
+            # ---------------------------
+            fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi / 4)
+            fig.clf()
+            ax = fig.add_subplot(111)
+            ax.axis('off')
+            max_time = st.baseround(eb3df[eb3df['condition'] != 'eb3-g2-no-arrest']['time'].max())
+            max_frame = eb3df['frame'].max()
+            palette = sns.color_palette('cool', n_colors=max_frame)
+            norm = mpl.colors.Normalize(vmin=0, vmax=max_time)
+            sm = plt.cm.ScalarMappable(cmap=mpl.colors.ListedColormap(palette), norm=norm)
+            sm.set_array([])
+            ticks = np.linspace(0, max_time, 5, endpoint=True, dtype=np.int)
+            logging.debug('ticks: %s' % str(ticks))
+            cb1 = plt.colorbar(sm, ax=ax, ticks=ticks, boundaries=np.arange(0, max_time + 1, 1), orientation='vertical')
+            cb1 = plt.colorbar(sm, ax=ax, ticks=ticks, boundaries=np.arange(0, max_time + 1, 1),
+                               orientation='horizontal')
+            cb1.set_label('time [s]')
+            pdf.savefig(transparent=True, bbox_inches='tight')
 
-        # ---------------------------
-        #    PAGE - tracks control
-        # ---------------------------
-        eb3fld = '/Users/Fabio/data/lab/eb3'
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
-        fig.clf()
-        ax = fig.add_subplot(111)
-        eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 +1NM on controls only.sld - Capture 4']
-        eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette,
-                               tracks_to_show=300)
-        ax.set_xlabel('X [um]')
-        ax.set_ylabel('Y [um]')
-        ax.set_xlim([0, 70])
-        ax.set_ylim([0, 70])
-        ax.xaxis.set_major_locator(MultipleLocator(15))
-        ax.yaxis.set_major_locator(MultipleLocator(15))
-        ax.set_title('Control')
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+            # ---------------------------
+            #    PAGE - tracks control
+            # ---------------------------
+            eb3fld = '/Users/Fabio/data/lab/eb3'
+            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
+            fig.clf()
+            ax = fig.add_subplot(111)
+            eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 +1NM on controls only.sld - Capture 4']
+            eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette,
+                                   tracks_to_show=300)
+            ax.set_xlabel('X [um]')
+            ax.set_ylabel('Y [um]')
+            ax.set_xlim([0, 70])
+            ax.set_ylim([0, 70])
+            ax.xaxis.set_major_locator(MultipleLocator(15))
+            ax.yaxis.set_major_locator(MultipleLocator(15))
+            ax.set_title('Control')
+            pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
-        # ---------------------------
-        #    PAGE - tracks MCAK
-        # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
-        fig.clf()
-        ax = fig.add_subplot(111)
-        eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 chTOG RNAi 3days +1NM on.sld - Capture 21']
-        eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette)
-        ax.set_xlabel('X [um]')
-        ax.set_ylabel('Y [um]')
-        ax.set_xlim([0, 70])
-        ax.set_ylim([0, 70])
-        ax.xaxis.set_major_locator(MultipleLocator(15))
-        ax.yaxis.set_major_locator(MultipleLocator(15))
-        ax.set_title('MCAK')
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+            # ---------------------------
+            #    PAGE - tracks MCAK
+            # ---------------------------
+            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
+            fig.clf()
+            ax = fig.add_subplot(111)
+            eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 chTOG RNAi 3days +1NM on.sld - Capture 21']
+            eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette)
+            ax.set_xlabel('X [um]')
+            ax.set_ylabel('Y [um]')
+            ax.set_xlim([0, 70])
+            ax.set_ylim([0, 70])
+            ax.xaxis.set_major_locator(MultipleLocator(15))
+            ax.yaxis.set_major_locator(MultipleLocator(15))
+            ax.set_title('MCAK')
+            pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
-        # ---------------------------
-        #    PAGE - tracks chTog
-        # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
-        fig.clf()
-        ax = fig.add_subplot(111)
-        eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 chTOG RNAi 3days +1NM on.sld - Capture 6']
-        eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette)
-        ax.set_xlabel('X [um]')
-        ax.set_ylabel('Y [um]')
-        ax.set_xlim([0, 70])
-        ax.set_ylim([0, 70])
-        ax.xaxis.set_major_locator(MultipleLocator(15))
-        ax.yaxis.set_major_locator(MultipleLocator(15))
-        ax.set_title('chTog')
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+            # ---------------------------
+            #    PAGE - tracks chTog
+            # ---------------------------
+            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
+            fig.clf()
+            ax = fig.add_subplot(111)
+            eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 chTOG RNAi 3days +1NM on.sld - Capture 6']
+            eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette)
+            ax.set_xlabel('X [um]')
+            ax.set_ylabel('Y [um]')
+            ax.set_xlim([0, 70])
+            ax.set_ylim([0, 70])
+            ax.xaxis.set_major_locator(MultipleLocator(15))
+            ax.yaxis.set_major_locator(MultipleLocator(15))
+            ax.set_title('chTog')
+            pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
-        # ---------------------------
-        #    PAGE - tracks nocodazole
-        # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
-        fig.clf()
-        ax = fig.add_subplot(111)
-        eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 1NM on +10ng Noco.sld - Capture 1 - 2hrs post 10ng noco']
-        eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette)
-        ax.set_xlabel('X [um]')
-        ax.set_ylabel('Y [um]')
-        ax.set_xlim([0, 70])
-        ax.set_ylim([0, 70])
-        ax.xaxis.set_major_locator(MultipleLocator(15))
-        ax.yaxis.set_major_locator(MultipleLocator(15))
-        ax.set_title('Nocodazole 10ng')
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+            # ---------------------------
+            #    PAGE - tracks nocodazole
+            # ---------------------------
+            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
+            fig.clf()
+            ax = fig.add_subplot(111)
+            eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 1NM on +10ng Noco.sld - Capture 1 - 2hrs post 10ng noco']
+            eb3.render_image_track(eb3dfs, ax, folder=eb3fld, point_size=0.1, line_width=0.05, palette=palette)
+            ax.set_xlabel('X [um]')
+            ax.set_ylabel('Y [um]')
+            ax.set_xlim([0, 70])
+            ax.set_ylim([0, 70])
+            ax.xaxis.set_major_locator(MultipleLocator(15))
+            ax.yaxis.set_major_locator(MultipleLocator(15))
+            ax.set_title('Nocodazole 10ng')
+            pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
         #    PAGE
         # ---------------------------
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig.clf()
+        ax = fig.add_subplot(111)
+        _conds = ['1_P.C.']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                   estimator=np.nanmean, ax=ax, lw=3, color=sp.SUSSEX_COBALT_BLUE,
+                   err_style=None, err_kws=_err_kws)
         _conds = ['1_No10+']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
-        fig.clf()
-        ax = fig.add_subplot(111)
-        with sns.color_palette([sp.SUSSEX_COBALT_BLUE]):
-            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
-                       estimator=np.nanmean, ax=ax, lw=3,
-                       err_style=['unit_traces'], err_kws=_err_kws)
-            ax.set_xlabel('time prior contact [min]')
-            ax.set_ylabel('Distance [um]')
-            ax.legend(title=None, loc='upper left')
+        sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                   estimator=np.nanmean, ax=ax, lw=3, color=sp.SUSSEX_CORAL_RED,
+                   err_style=['unit_traces'], err_kws=_err_kws)
+        ax.set_xlabel('time prior contact [min]')
+        ax.set_ylabel('Distance [um]')
+        ax.legend(title=None, loc='upper left')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
         #    PAGE
         # ---------------------------
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig.clf()
+        ax = fig.add_subplot(111)
+        _conds = ['1_P.C.']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                   estimator=np.nanmean, ax=ax, lw=3, color=sp.SUSSEX_COBALT_BLUE,
+                   err_style=None, err_kws=_err_kws)
         _conds = ['1_MCAK']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
-        fig.clf()
-        ax = fig.add_subplot(111)
-        with sns.color_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED]):
-            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
-                       estimator=np.nanmean, ax=ax, lw=3,
-                       err_style=['unit_traces'], err_kws=_err_kws)
-            ax.set_xlabel('time prior contact [min]')
-            ax.set_ylabel('Distance [um]')
-            ax.legend(title=None, loc='upper left')
+        sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                   estimator=np.nanmean, ax=ax, lw=3, color=sp.SUSSEX_CORAL_RED,
+                   err_style=['unit_traces'], err_kws=_err_kws)
+        ax.set_xlabel('time prior contact [min]')
+        ax.set_ylabel('Distance [um]')
+        ax.legend(title=None, loc='upper left')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
         #    PAGE
         # ---------------------------
-        _conds = ['1_chTOG']
-        dfcs, conds, colors = sorted_conditions(dfc, _conds)
         fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
         fig.clf()
         ax = fig.add_subplot(111)
-        with sns.color_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED]):
-            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
-                       estimator=np.nanmean, ax=ax, lw=3,
-                       err_style=['unit_traces'], err_kws=_err_kws)
-            ax.set_xlabel('time prior contact [min]')
-            ax.set_ylabel('Distance [um]')
-            ax.legend(title=None, loc='upper left')
+        _conds = ['1_P.C.']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                   estimator=np.nanmean, ax=ax, lw=3, color=sp.SUSSEX_COBALT_BLUE,
+                   err_style=None, err_kws=_err_kws)
+        _conds = ['1_chTOG']
+        dfcs, conds, colors = sorted_conditions(dfc, _conds)
+        sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                   estimator=np.nanmean, ax=ax, lw=3, color=sp.SUSSEX_CORAL_RED,
+                   err_style=['unit_traces'], err_kws=_err_kws)
+        ax.set_xlabel('time prior contact [min]')
+        ax.set_ylabel('Distance [um]')
+        ax.legend(title=None, loc='upper left')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
@@ -815,7 +886,6 @@ def fig_4(df, dfc, eb3df):
         ax.set_ylabel('% congression')
         pdf.savefig(transparent=True, bbox_inches='tight')
 
-        pt_color = sns.light_palette(sp.SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
@@ -825,29 +895,16 @@ def fig_4(df, dfc, eb3df):
         fig.clf()
         ax2 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-        with sns.color_palette([pt_color, pt_color, pt_color, pt_color]):
+        with sns.color_palette(list(itertools.repeat(pt_color, 4))):
             sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax2,
-                                xlabels=['+STLC', 'Noc 10ng\n+STLC', 'MCAK\n+STLC', 'chTog\n+STLC'])
+                                xlabels={'+STLC': '+STLC',
+                                         'Nocodazole 10ng+STLC': 'Noc 10ng\n+STLC',
+                                         'MCAK+STLC': 'MCAK\n+STLC',
+                                         'chTog+STLC': 'chTog\n+STLC'})
         ax2.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         ax2.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
         pmat = st.p_values(mua, 'SpeedCentr', 'condition', filename='/Users/Fabio/pvalues_pc-noc-mcak_spd.xls')
-
-        # ---------------------------
-        # #          NEXT PAGE
-        # # ---------------------------
-        # _conds = ['1_P.C.', '1_No10+', '1_MCAK', '1_chTOG']
-        # dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        # fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
-        # fig.clf()
-        # ax2 = fig.add_subplot(111)
-        # mua = dfcs.set_index('Frame').sort_index().groupby(['condition', 'run', 'Nuclei']).first().reset_index()
-        # with sns.color_palette([pt_color, pt_color, pt_color, pt_color]):
-        #     sp.anotated_boxplot(mua, 'DistCentr', order=conds, point_size=2, ax=ax2,
-        #                         xlabels=['+STLC', 'Noc 10ng\n+STLC', 'MCAK\n+STLC', 'chTog\n+STLC'])
-        # ax2.set_ylabel('Initial distance [um/min]')
-        # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-        # # pmat = st.p_values(mua, 'DistCentr', 'condition', filename='/Users/Fabio/pvalues_pc-noc-mcak_idist.xls')
 
         df = df[df['Time'] <= 50]
         # ---------------------------
@@ -1047,6 +1104,10 @@ def fig_5(df, dfc):
             pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
+def tom_plots():
+    pass
+
+
 def color_keys(df, dfc):
     cldf, conds, colors = sorted_conditions(df, names.keys())
     coldf, conds, colors = sorted_conditions(dfc, names.keys())
@@ -1115,6 +1176,7 @@ if __name__ == '__main__':
     fig_1_selected_track(df_m, df_msk)
     fig_1_mother_daughter(df_m, df_mc)
     fig_2(df_m, dfcentr)
+    fig_3(df_m, dfcentr)
 
     df_eb3_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
     fig_4(df_m, dfcentr, df_eb3_flt)
@@ -1125,3 +1187,5 @@ if __name__ == '__main__':
     fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_drift.pdf', title='Drift prediction algorithm')
 
     fig_5(df_m, dfcentr)
+
+    tom_plots()
