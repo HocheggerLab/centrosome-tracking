@@ -28,6 +28,8 @@ from imagej_pandas import ImagejPandas
 log = logging.getLogger(__name__)
 log.info(font_manager.OSXInstalledFonts())
 log.info(font_manager.OSXFontDirectories)
+coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
+pd.set_option('display.width', 320)
 
 plt.style.use('bmh')
 print matplotlib.rcParams.keys()
@@ -38,14 +40,20 @@ matplotlib.rcParams.update({'ps.fonttype': 42})
 matplotlib.rcParams.update({'font.family': 'sans-serif'})
 matplotlib.rcParams.update({'font.sans-serif': ['Arial']})
 
-matplotlib.rcParams.update({'axes.titlesize': 8})
-matplotlib.rcParams.update({'axes.labelsize': 7})
-matplotlib.rcParams.update({'xtick.labelsize': 7})
-matplotlib.rcParams.update({'ytick.labelsize': 7})
-matplotlib.rcParams.update({'legend.fontsize': 7})
+matplotlib.rcParams.update({'axes.titlesize': 18})
+matplotlib.rcParams.update({'axes.labelsize': 18})
+matplotlib.rcParams.update({'xtick.labelsize': 18})
+matplotlib.rcParams.update({'ytick.labelsize': 18})
+matplotlib.rcParams.update({'legend.fontsize': 18})
 
-pd.set_option('display.width', 320)
-coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
+matplotlib.rcParams.update({'xtick.color': sp.SUSSEX_COBALT_BLUE})
+matplotlib.rcParams.update({'ytick.color': sp.SUSSEX_COBALT_BLUE})
+matplotlib.rcParams.update({'text.color': sp.SUSSEX_COBALT_BLUE})
+matplotlib.rcParams.update({'lines.color': sp.SUSSEX_COBALT_BLUE})
+matplotlib.rcParams.update({'axes.labelcolor': sp.SUSSEX_COBALT_BLUE})
+matplotlib.rcParams.update({'axes.edgecolor': '#FFFFFF00'})
+matplotlib.rcParams.update({'grid.color': sns.light_palette(sp.SUSSEX_COBALT_BLUE, 6)[2]})
+matplotlib.rcParams.update({'lines.color': sp.SUSSEX_COBALT_BLUE})
 
 names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_P.C.', '+STLC'),
@@ -215,20 +223,13 @@ def fig_1(df, dfc):
     dfs, conds, colors = sorted_conditions(df, _conds)
     dfc, conds, colors = sorted_conditions(dfc, _conds)
 
-    sp.render_tracked_centrosomes('/Users/Fabio/centrosomes.nexus.hdf5', 'pc', 'run_114', 2)
-    img_fnames = [os.path.join('/Users/Fabio/data', 'run_114_N02_F%03d.png' % f) for f in range(20)]
-    images = [PIL.Image.open(path) for path in img_fnames]
-    pil_grid = sp.pil_grid(images, max_horiz=5)
-    pil_grid.save('/Users/Fabio/data/fig1_grid.png')
-
     with PdfPages('/Users/Fabio/fig1.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
         sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
-        fig = plt.figure(dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 9), dpi=_dpi)
         fig.clf()
-        fig.set_size_inches(1.3, 1.3)
         ax = fig.gca()
         mua = dfs[dfs['CentrLabel'] == 'A'].groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
         sp.anotated_boxplot(mua, 'SpeedCentr', order=conds, point_size=2, ax=ax)
@@ -241,9 +242,8 @@ def fig_1(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
-        fig.set_size_inches(1.3, 1.3)
         ax = fig.gca()
         sns.tsplot(data=dfc, time='Time', value='DistCentr', unit='indv', condition='condition',
                    estimator=np.nanmean, lw=3,
@@ -256,9 +256,8 @@ def fig_1(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(dpi=_dpi)
+        fig = plt.figure(figsize=(9, 4.5), dpi=_dpi)
         fig.clf()
-        fig.set_size_inches(w=2.8, h=1.3)
         ax = fig.gca()
         sp.congression(dfs, ax=ax, order=conds)
         pdf.savefig(transparent=True, bbox_inches='tight')
@@ -266,9 +265,8 @@ def fig_1(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
-        fig.set_size_inches(2.2, 2.2)
         ax = fig.gca(projection='3d')
         sp.ribbon(dfs[dfs['condition'] == '-STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax)
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
@@ -276,9 +274,8 @@ def fig_1(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
-        fig.set_size_inches(2.2, 2.2)
         ax = fig.gca(projection='3d')
         sp.ribbon(dfs[dfs['condition'] == '+STLC'].groupby('indv').filter(lambda x: len(x) > 20), ax)
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
@@ -289,7 +286,7 @@ def fig_1(df, dfc):
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax1 = fig.gca()
         sp.msd(dfs[dfs['condition'] == names['1_N.C.']], ax1, ylim=[0, 120])
@@ -300,7 +297,7 @@ def fig_1(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax2 = fig.gca(sharey=ax1)
         sp.msd(dfs[dfs['condition'] == names['1_P.C.']], ax2, ylim=[0, 120])
@@ -311,7 +308,7 @@ def fig_1(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax3 = fig.gca()
         sp.msd_indivs(dfs[dfs['condition'] == names['1_N.C.']], ax3, ylim=msd_ylim)
@@ -322,7 +319,7 @@ def fig_1(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax4 = fig.gca(sharey=ax3)
         sp.msd_indivs(dfs[dfs['condition'] == names['1_P.C.']], ax4, ylim=msd_ylim)
@@ -340,7 +337,7 @@ def fig_1(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
+        fig = plt.figure(figsize=(11, 6.8), dpi=_dpi)
         fig.clf()
         ax = fig.gca()
         sns.boxplot(data=stats, y='Dist', x='Type', order=order, width=0.5, linewidth=0.5, fliersize=0, ax=ax)
@@ -362,7 +359,7 @@ def fig_1(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
+        fig = plt.figure(figsize=(11, 6.8), dpi=_dpi)
         fig.clf()
         ax = fig.gca()
         sp.anotated_boxplot(stats, 'Dist', cat='Type', ax=ax)
@@ -373,35 +370,44 @@ def fig_1_selected_track(df, mask):
     df_selected = df[(df['condition'] == 'pc') & (df['run'] == 'run_114') & (df['Nuclei'] == 2)]
     msk_selected = mask[(mask['condition'] == 'pc') & (mask['run'] == 'run_114') & (mask['Nuclei'] == 2)]
 
+    sp.render_tracked_centrosomes('/Users/Fabio/centrosomes.nexus.hdf5', 'pc', 'run_114', 2)
+    img_fnames = [os.path.join('/Users/Fabio/data', 'run_114_N02_F%03d.png' % f) for f in range(20)]
+    images = [PIL.Image.open(path) for path in img_fnames]
+    pil_grid = sp.pil_grid(images, max_horiz=5)
+    pil_grid.save('/Users/Fabio/data/fig1_grid.png')
+
     with PdfPages('/Users/Fabio/fig1-selected.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.6, 2.6), dpi=_dpi)
+        fig = plt.figure(figsize=(11, 6.8), dpi=_dpi)
         fig.clf()
-        gs = matplotlib.gridspec.GridSpec(4, 1)
+        gs = matplotlib.gridspec.GridSpec(6, 1)
         ax1 = plt.subplot(gs[0:2, 0])
         ax2 = plt.subplot(gs[2:4, 0], sharex=ax1)
+        ax3 = plt.subplot(gs[4:6, 0], sharex=ax1)
 
         with sns.color_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED]):
             time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df_selected, ImagejPandas.DIST_THRESHOLD)
             sp.distance_to_nuclei_center(df_selected, ax1, mask=msk_selected, time_contact=time_of_c)
-            # sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c)
             sp.distance_to_cell_center(df_selected, ax2, mask=msk_selected, time_contact=time_of_c)
+            sp.distance_between_centrosomes(df_selected, ax3, mask=msk_selected, time_contact=time_of_c)
 
         # change y axis title properties for small plots
-        for _ax in [ax1, ax2]:
+        for _ax in [ax1, ax2, ax3]:
             # _ax.set_xlabel(_ax.get_xlabel(), rotation='horizontal', ha='center')
             _ax.set_ylabel(_ax.get_ylabel(), rotation='vertical', ha='center')
             _ax.set_xlim(0, _ax.get_xlim()[1])
             _ax.set_ylim(0, _ax.get_ylim()[1])
         ax1.set_ylabel('[um]')
         ax2.set_ylabel('[um]')
-        ax1.set_title('distance from nuleus centroid')
-        ax2.set_title('distance from cell centroid')
-        ax2.set_xlabel('time [min]')
-        ax2.xaxis.set_major_locator(MultipleLocator(30))
-        plt.setp(ax2.get_xticklabels(), visible=True)
+        ax3.set_ylabel('[um]')
+        ax1.set_title('DISTANCE FROM NULEUS CENTROID')
+        ax2.set_title('DISTANCE FROM CELL CENTROID')
+        ax3.set_title('DISTANCE BETWEEN CENTROSOMES')
+        ax3.set_xlabel('time [min]')
+        ax3.xaxis.set_major_locator(MultipleLocator(30))
+        plt.setp(ax3.get_xticklabels(), visible=True)
         plt.subplots_adjust(hspace=0.7)
 
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
@@ -416,7 +422,7 @@ def fig_1_mother_daughter(df, dfc):
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax1 = fig.add_subplot(111)
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
@@ -427,7 +433,7 @@ def fig_1_mother_daughter(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax2 = fig.add_subplot(111, sharey=ax1)
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
@@ -449,7 +455,7 @@ def fig_1_mother_daughter(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax3 = fig.add_subplot(111)
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
@@ -460,7 +466,7 @@ def fig_1_mother_daughter(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.4, 1.4), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax4 = fig.add_subplot(111, sharey=ax3)
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
@@ -480,7 +486,7 @@ def fig_2(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '2_CDK1_DK']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax3 = fig.add_subplot(111)
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
@@ -495,7 +501,7 @@ def fig_2(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax = fig.add_subplot(111)
         _conds = ['1_P.C.']
@@ -518,7 +524,7 @@ def fig_2(df, dfc):
         # ---------------------------
         _conds = ['2_Kines1', '2_CDK1_DK']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax3 = fig.add_subplot(111)
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
@@ -535,7 +541,7 @@ def fig_2(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '1_Dynei', '1_DIC']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(1.3, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax1 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
@@ -552,7 +558,7 @@ def fig_2(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '1_Dynei', '1_ASUND', '1_CENPF']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(1.3, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax1 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
@@ -566,7 +572,7 @@ def fig_2(df, dfc):
         # ---------------------------
         # _conds = ['1_P.C.', '1_Dynei', '1_ASUND', '1_CENPF']
         # dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.8, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax4 = fig.add_subplot(111)
         with sns.color_palette(
@@ -581,7 +587,7 @@ def fig_2(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '2_CDK1_DC', '2_CDK1_DA']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(1.3, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax1 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
@@ -595,7 +601,7 @@ def fig_2(df, dfc):
         # ---------------------------
         # _conds = ['1_P.C.', '1_Dynei', '2_CDK1_DC', '2_CDK1_DA']
         # dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.8, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(11, 6.8), dpi=_dpi)
         fig.clf()
         ax = fig.add_subplot(111)
         with sns.color_palette(
@@ -610,7 +616,7 @@ def fig_2(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '1_Dynei', '1_DIC']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.8, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(11, 6.8), dpi=_dpi)
         fig.clf()
         ax = fig.add_subplot(111)
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_SKY_BLUE]):
@@ -622,7 +628,7 @@ def fig_2(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.3, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax5 = fig.add_subplot(111)
         sp.msd(df[df['condition'] == names['1_DIC']], ax5, ylim=[0, 400])
@@ -642,7 +648,7 @@ def fig_3(df, dfc):
         # ---------------------------
         _conds = ['1_Dynei', '2_CDK1_DK']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax3 = fig.add_subplot(111)
         with sns.color_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED]):
@@ -659,7 +665,7 @@ def fig_3(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax3 = fig.add_subplot(111)
         with sns.color_palette(
@@ -677,7 +683,7 @@ def fig_3(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax3 = fig.add_subplot(111)
         with sns.color_palette(
@@ -695,7 +701,7 @@ def fig_3(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '2_Kines1', '1_Dynei', '2_CDK1_DK']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.1, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(11, 6.8), dpi=_dpi)
         fig.clf()
         ax2 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
@@ -713,7 +719,7 @@ def fig_3(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '1_Dynei', '2_Kines1', '2_CDK1_DK']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(2.8, 1.3), dpi=_dpi)
+        fig = plt.figure(figsize=(11, 6.8), dpi=_dpi)
         fig.clf()
         ax4 = fig.add_subplot(111)
         with sns.color_palette(
@@ -731,7 +737,7 @@ def fig_4(df, dfc, eb3df):
             # ---------------------------
             #    PAGE - time colorbar
             # ---------------------------
-            fig = plt.figure(figsize=(2.5, 2.5), dpi=_dpi / 4)
+            fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi / 4)
             fig.clf()
             ax = fig.add_subplot(111)
             ax.axis('off')
@@ -753,7 +759,7 @@ def fig_4(df, dfc, eb3df):
             #    PAGE - tracks control
             # ---------------------------
             eb3fld = '/Users/Fabio/data/lab/eb3'
-            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
+            fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi / 4)
             fig.clf()
             ax = fig.add_subplot(111)
             eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 +1NM on controls only.sld - Capture 4']
@@ -771,7 +777,7 @@ def fig_4(df, dfc, eb3df):
             # ---------------------------
             #    PAGE - tracks MCAK
             # ---------------------------
-            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
+            fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi / 4)
             fig.clf()
             ax = fig.add_subplot(111)
             eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 chTOG RNAi 3days +1NM on.sld - Capture 21']
@@ -788,7 +794,7 @@ def fig_4(df, dfc, eb3df):
             # ---------------------------
             #    PAGE - tracks chTog
             # ---------------------------
-            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
+            fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi / 4)
             fig.clf()
             ax = fig.add_subplot(111)
             eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 chTOG RNAi 3days +1NM on.sld - Capture 6']
@@ -805,7 +811,7 @@ def fig_4(df, dfc, eb3df):
             # ---------------------------
             #    PAGE - tracks nocodazole
             # ---------------------------
-            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
+            fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
             fig.clf()
             ax = fig.add_subplot(111)
             eb3dfs = eb3df[eb3df['tag'] == 'U2OS CDK1as EB3 1NM on +10ng Noco.sld - Capture 1 - 2hrs post 10ng noco']
@@ -822,7 +828,7 @@ def fig_4(df, dfc, eb3df):
         # ---------------------------
         #    PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax = fig.add_subplot(111)
         _conds = ['1_P.C.']
@@ -844,7 +850,7 @@ def fig_4(df, dfc, eb3df):
         # ---------------------------
         #    PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax = fig.add_subplot(111)
         _conds = ['1_P.C.']
@@ -866,7 +872,7 @@ def fig_4(df, dfc, eb3df):
         # ---------------------------
         #    PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax = fig.add_subplot(111)
         _conds = ['1_P.C.']
@@ -890,7 +896,7 @@ def fig_4(df, dfc, eb3df):
         # ---------------------------
         _conds = ['1_P.C.', '1_No10+', '1_MCAK', '1_chTOG']
         dfs, conds, colors = sorted_conditions(df, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax = fig.gca()
         sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_TURQUOISE, sp.SUSSEX_SKY_BLUE])
@@ -904,7 +910,7 @@ def fig_4(df, dfc, eb3df):
         # ---------------------------
         _conds = ['1_P.C.', '1_No10+', '1_MCAK', '1_chTOG']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax2 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
@@ -925,7 +931,7 @@ def fig_4(df, dfc, eb3df):
         # ---------------------------
         _conds = ['1_No10+']
         dfs, conds, colors = sorted_conditions(df, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax5 = fig.add_subplot(111)
         sp.msd(dfs, ax5, ylim=[0, 120])
@@ -939,7 +945,7 @@ def fig_4(df, dfc, eb3df):
         # ---------------------------
         _conds = ['1_MCAK']
         dfs, conds, colors = sorted_conditions(df, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax5 = fig.add_subplot(111)
         sp.msd(dfs, ax5, ylim=[0, 120])
@@ -952,7 +958,7 @@ def fig_4(df, dfc, eb3df):
         # ---------------------------
         # _conds = ['1_MCAK']
         # dfs, conds, colors = sorted_conditions(df, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax5 = fig.add_subplot(111)
         sp.msd_indivs(dfs, ax5, ylim=[0, 120])
@@ -966,7 +972,7 @@ def fig_4(df, dfc, eb3df):
         # ---------------------------
         _conds = ['1_chTOG']
         dfs, conds, colors = sorted_conditions(df, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax5 = fig.add_subplot(111)
         sp.msd(dfs, ax5, ylim=[0, 120])
@@ -980,7 +986,7 @@ def fig_4(df, dfc, eb3df):
         # ---------------------------
         # _conds = ['1_chTOG']
         # dfs, conds, colors = sorted_conditions(df, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax5 = fig.add_subplot(111)
         sp.msd_indivs(dfs, ax5, ylim=[0, 120])
@@ -996,7 +1002,7 @@ def fig_4_eb3_stats(eb3_stats, filename='fig4_boxplots.pdf', title=None):
         # ---------------------------
         #    PAGE - Eb3 velocity boxplots
         # ---------------------------
-        fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
+        fig = plt.figure(figsize=(11, 6.8), dpi=_dpi)
         fig.clf()
         ax = fig.add_subplot(111)
         df_stats = eb3_stats[
@@ -1016,30 +1022,13 @@ def fig_4_eb3_stats(eb3_stats, filename='fig4_boxplots.pdf', title=None):
         ax.set_title(title)
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
-        # # ---------------------------
-        # #    PAGE - Eb3 length boxplots
-        # # ---------------------------
-        # fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
-        # fig.clf()
-        # ax = fig.add_subplot(111)
-        # df_stats = eb3_stats[
-        #     (eb3_stats['condition'].isin(['eb3-control', 'eb3-nocodazole', 'eb3-mcak', 'eb3-chtog'])) & (
-        #             eb3_stats['speed'] > 1e-2)]
-        # with sns.color_palette([pt_color, pt_color, pt_color, pt_color]):
-        #     sp.anotated_boxplot(df_stats, 'length', point_size=0.5, ax=ax,
-        #                         xlabels=['Control', 'Noc 10ng', 'MCAK', 'chTog'])
-        # ax.set_xlabel('Condition')
-        # ax.set_ylabel('Average length [um]')
-        # ax.set_title(title)
-        # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
         pmat = st.p_values(df_stats, 'speed', 'condition',
                            filename='/Users/Fabio/data/lab/pvalues_%s_ctr-noc-mcak-chtog.xls' % filename)
 
         # ---------------------------
         #    PAGE - Eb3 velocity boxplots
         # ---------------------------
-        fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
+        fig = plt.figure(figsize=(11, 6.8), dpi=_dpi)
         fig.clf()
         ax = fig.add_subplot(111)
         df_stats = eb3_stats[(eb3_stats['condition'].isin(['eb3-control', 'eb3-g2-no-arrest'])) & (
@@ -1054,24 +1043,8 @@ def fig_4_eb3_stats(eb3_stats, filename='fig4_boxplots.pdf', title=None):
         ax.set_title(title)
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
-        # # ---------------------------
-        # #    PAGE - Eb3 length boxplots
-        # # ---------------------------
-        # fig = plt.figure(figsize=(2.3, 1.5), dpi=_dpi)
-        # fig.clf()
-        # ax = fig.add_subplot(111)
-        # df_stats = eb3_stats[(eb3_stats['condition'].isin(['eb3-control', 'eb3-g2-no-arrest'])) & (
-        #         eb3_stats['speed'] > 1e-2)]
-        # with sns.color_palette([pt_color, pt_color, pt_color]):
-        #     sp.anotated_boxplot(df_stats, 'length', point_size=0.5, ax=ax, xlabels=['+STLC', 'No arrest\n+STLC'])
-        # ax.set_xlabel('Condition')
-        # ax.set_ylabel('Average length [um]')
-        # ax.set_title(title)
-        # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
         pmat = st.p_values(df_stats, 'speed', 'condition',
                            filename='/Users/Fabio/data/lab/pvalues_%s_ctr-g2.xls' % filename)
-        # pmat = st.p_values(df_stats, 'length', 'condition', filename='/Users/Fabio/data/lab/pvalues_len.xls')
 
 
 def fig_5(df, dfc):
@@ -1080,17 +1053,23 @@ def fig_5(df, dfc):
         #    PAGES - individuals
         # ---------------------------
         for _cond in ['1_FAKI', '1_CyDT', '1_Bleb']:
-            dfcs, conds, colors = sorted_conditions(dfc, (_cond))
-            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+            fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
             fig.clf()
             ax = fig.add_subplot(111)
-            with sns.color_palette([sp.SUSSEX_COBALT_BLUE]):
-                sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
-                           estimator=np.nanmean, ax=ax, lw=3,
-                           err_style=['unit_traces'], err_kws=_err_kws)
-                ax.set_xlabel('time prior contact [min]')
-                ax.set_ylabel('Distance [um]')
-                ax.legend(title=None, loc='upper left')
+            _conds = ['1_P.C.']
+            dfcs, conds, colors = sorted_conditions(dfc, _conds)
+            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean, ax=ax, lw=3, color=sp.SUSSEX_COBALT_BLUE,
+                       err_style=None, err_kws=_err_kws)
+            # _conds = ['1_DIC']
+            dfcs, conds, colors = sorted_conditions(dfc, _cond)
+            sns.tsplot(data=dfcs, time='Time', value='DistCentr', unit='indv', condition='condition',
+                       estimator=np.nanmean, ax=ax, lw=3, color=sp.SUSSEX_CORAL_RED,
+                       err_style=['unit_traces'], err_kws=_err_kws)
+            ax.set_xlabel('time prior contact [min]')
+            ax.set_ylabel('Distance [um]')
+            ax.set_ylim([0, 30])
+            ax.legend(title=None, loc='upper left')
             pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
@@ -1098,11 +1077,34 @@ def fig_5(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '1_FAKI', '1_CyDT', '1_Bleb']
         dfs, conds, colors = sorted_conditions(df, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax = fig.gca()
         sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_TURQUOISE, sp.SUSSEX_SKY_BLUE])
         sp.congression(dfs, ax=ax, order=conds)
+        ax.set_xlabel('time [min]')
+        ax.set_ylabel('% congression')
+        pdf.savefig(transparent=True, bbox_inches='tight')
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        _conds = ['1_P.C.', '1_DIC', '1_Dynei', '1_No10+', '1_FAKI', '1_CyDT']
+        dfs, conds, colors = sorted_conditions(df, _conds)
+        fig = plt.figure(figsize=(16, 4.5), dpi=_dpi)
+        fig.clf()
+        ax = fig.gca()
+        sns.set_palette([sp.SUSSEX_COBALT_BLUE,
+                         sp.SUSSEX_TURQUOISE, sp.SUSSEX_TURQUOISE,
+                         sp.SUSSEX_GRAPE,
+                         sp.SUSSEX_CORAL_RED, sp.SUSSEX_CORAL_RED])
+        ls = ['-',
+              '-', '--',
+              '-',
+              '-', '--', ]
+        linestyles = dict(zip(conds, ls))
+
+        sp.congression(dfs, ax=ax, order=conds, linestyles=linestyles)
         ax.set_xlabel('time [min]')
         ax.set_ylabel('% congression')
         pdf.savefig(transparent=True, bbox_inches='tight')
@@ -1113,7 +1115,7 @@ def fig_5(df, dfc):
         # ---------------------------
         _conds = ['1_P.C.', '1_FAKI', '1_CyDT', '1_Bleb']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax2 = fig.add_subplot(111)
         mua = dfcs.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
@@ -1134,7 +1136,7 @@ def fig_5(df, dfc):
         # ---------------------------
         for _conds in ['1_FAKI', '1_CyDT', '1_Bleb']:
             dfs, conds, colors = sorted_conditions(df, _conds)
-            fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi)
+            fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
             fig.clf()
             ax5 = fig.add_subplot(111)
             sp.msd(dfs, ax5, ylim=[0, 120])
@@ -1142,10 +1144,6 @@ def fig_5(df, dfc):
             ax5.set_ylabel('MSD')
             ax5.legend(title=None, loc='upper left')
             pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
-
-def tom_plots():
-    pass
 
 
 def color_keys(df, dfc):
@@ -1206,26 +1204,24 @@ if __name__ == '__main__':
     # indivs_filter = indivs_filter[indivs_filter > 5].index.values
     # dfcentr = dfcentr[dfcentr['indv'].isin(indivs_filter)]
 
-    print df_m['indv'].unique().size
+    # print df_m['indv'].unique().size
     # df_m = m.get_trk_length(df_m, x='CentX', y='CentY', time='Time', frame='Frame',
     #                         group=ImagejPandas.CENTROSOME_INDIV_INDEX)
     # print df_m['s']
-    color_keys(df_m, dfcentr)
+    # color_keys(df_m, dfcentr)
 
-    fig_1(df_m, dfcentr)
-    fig_1_selected_track(df_m, df_msk)
-    fig_1_mother_daughter(df_m, df_mc)
-    fig_2(df_m, dfcentr)
-    fig_3(df_m, dfcentr)
-
-    df_eb3_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
-    fig_4(df_m, dfcentr, df_eb3_flt)
-    df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-nearest-3px/eb3stats.pandas')
-    fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_nearest3px.pdf',
-                    title='Nearest velocity (3px) prediction algorithm')
-    df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-drift-prediction/eb3stats.pandas')
-    fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_drift.pdf', title='Drift prediction algorithm')
-
+    # fig_1(df_m, dfcentr)
+    # fig_1_selected_track(df_m, df_msk)
+    # fig_1_mother_daughter(df_m, df_mc)
+    # fig_2(df_m, dfcentr)
+    # fig_3(df_m, dfcentr)
+    #
+    # df_eb3_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+    # fig_4(df_m, dfcentr, df_eb3_flt)
+    # df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-nearest-3px/eb3stats.pandas')
+    # fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_nearest3px.pdf',
+    #                 title='Nearest velocity (3px) prediction algorithm')
+    # df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-drift-prediction/eb3stats.pandas')
+    # fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_drift.pdf', title='Drift prediction algorithm')
+    #
     fig_5(df_m, dfcentr)
-
-    # tom_plots()

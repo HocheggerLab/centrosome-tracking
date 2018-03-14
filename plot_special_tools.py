@@ -132,8 +132,8 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize=7, cat='condition
         median = d.median()
         # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
         _txt = '%0.2f\n%d' % (median, count)
-
         _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
+    # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
     if xlabels is not None:
         _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
                             rotation=45, multialignment='right')
@@ -168,7 +168,7 @@ def _compute_congression(cg):
     return dfout
 
 
-def congression(cg, ax=None, order=None):
+def congression(cg, ax=None, order=None, linestyles=None):
     # plot centrosome congression as %
     # get congression signal
     cgs = _compute_congression(cg)
@@ -183,9 +183,10 @@ def congression(cg, ax=None, order=None):
         # PLOT centrosome congresion
         _color = matplotlib.colors.to_hex(next(palette))
         cgri = cdf.set_index('Time').sort_index()
-        cgri.plot(y='congress', drawstyle='steps-pre', color=_color, lw=1, ax=ax)
+        ls = linestyles[id] if linestyles is not None else None
+        cgri.plot(y='congress', drawstyle='steps-pre', color=_color, linestyle=ls, lw=1, ax=ax)
         dlbl = '%s' % (id)
-        dhandles.append(mlines.Line2D([], [], color=_color, marker=None, label=dlbl))
+        dhandles.append(mlines.Line2D([], [], color=_color, linestyle=ls, marker=None, label=dlbl))
         dlabels.append(dlbl)
 
     _xticks = range(0, int(cgs['Time'].max()), 20)
@@ -296,6 +297,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
         data=df_msd[df_msd['condition'] == cond], lw=3,
         err_style=['unit_traces'], err_kws=_err_kws,
         time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+    ax.set_title(cond)
     ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
     ax.legend(title=None, loc='upper left')
     if time == 'Frame':

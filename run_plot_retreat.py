@@ -1,9 +1,11 @@
 import ConfigParser
 import json
+import logging
 from collections import OrderedDict
 
 import matplotlib
 import matplotlib.axes
+import matplotlib.colors
 import matplotlib.gridspec
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -20,8 +22,9 @@ import plot_special_tools as sp
 import run_plot_report as r
 from imagej_pandas import ImagejPandas
 
-print font_manager.OSXInstalledFonts()
-print font_manager.OSXFontDirectories
+log = logging.getLogger(__name__)
+log.info(font_manager.OSXInstalledFonts())
+log.info(font_manager.OSXFontDirectories)
 
 plt.style.use('bmh')
 # plt.style.use('ggplot')
@@ -33,6 +36,7 @@ matplotlib.rcParams.update({'axes.titlesize': 20})
 matplotlib.rcParams.update({'axes.labelsize': 20})
 matplotlib.rcParams.update({'xtick.labelsize': 20})
 matplotlib.rcParams.update({'ytick.labelsize': 20})
+matplotlib.rcParams.update({'legend.fontsize': 18})
 
 matplotlib.rcParams.update({'xtick.color': sp.SUSSEX_COBALT_BLUE})
 matplotlib.rcParams.update({'ytick.color': sp.SUSSEX_COBALT_BLUE})
@@ -42,7 +46,6 @@ matplotlib.rcParams.update({'axes.labelcolor': sp.SUSSEX_COBALT_BLUE})
 matplotlib.rcParams.update({'axes.edgecolor': '#FFFFFF00'})
 matplotlib.rcParams.update({'grid.color': sns.light_palette(sp.SUSSEX_COBALT_BLUE, 6)[2]})
 matplotlib.rcParams.update({'lines.color': sp.SUSSEX_COBALT_BLUE})
-matplotlib.rcParams.update({'legend.fontsize': 18})
 
 pd.set_option('display.width', 320)
 
@@ -633,11 +636,13 @@ if __name__ == '__main__':
         ['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY', 'Speed', 'Acc'],
         axis=1, inplace=True)
 
-    df_m['indv'] = df_m['condition'] + '-' + df_m['run'] + '-' + df_m['Nuclei'].map(int).map(str) + '-' + \
-                   df_m['Centrosome'].map(int).map(str)
+    df_m.loc[:, 'indv'] = df_m['condition'] + '-' + df_m['run'] + '-' + df_m['Nuclei'].map(int).map(str) + '-' + \
+                          df_m['Centrosome'].map(int).map(str)
+    df_mc.loc[:, 'indv'] = df_mc['condition'] + '-' + df_mc['run'] + '-' + df_mc['Nuclei'].map(int).map(str) + '-' + \
+                           df_mc['Centrosome']
 
-    for id, df in df_m.groupby(['condition']):
-        print 'condition %s: %d tracks' % (id, len(df['indv'].unique()) / 2.0)
+    for id, dfc in df_m.groupby(['condition']):
+        log.info('condition %s: %d tracks' % (id, len(dfc['indv'].unique()) / 2.0))
 
     mask = rename_conditions(df_msk_disk)
     df_m = rename_conditions(df_m)
