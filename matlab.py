@@ -2,12 +2,13 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 
+import parameters
 import stats
 from imagej_pandas import ImagejPandas
 
 pd.set_option('display.width', 320)
 
-x = sio.loadmat('/Users/Fabio/data/finalData_2016_10_07.mat', squeeze_me=True)
+x = sio.loadmat(parameters.data_dir + 'finalData_2016_10_07.mat', squeeze_me=True)
 exp_names = x['namesExperiment']
 mtr_names = x['metricsName']
 metrics = x['metrics']
@@ -83,11 +84,11 @@ df_out = df_out.assign(NuclBound=np.nan, CellX=np.nan, CellY=np.nan, DistCell=np
                        SpdCell=np.nan, AccCell=np.nan, CellBound=np.nan)
 df_out = df_out[ordered_columns]
 
-df_c = pd.read_pickle('/Users/Fabio/centrosomes.pandas')
+df_c = pd.read_pickle(parameters.data_dir + 'centrosomes.pandas')
 df_c = df_c.append(df_out)
 df_c = df_c[ordered_columns]
-df_c.to_pickle('/Users/Fabio/merge.pandas')
+df_c.to_pickle(parameters.data_dir + 'merge.pandas')
 
 print 'Re-centering timeseries around time of contact...'
 df_c = stats.dataframe_centered_in_time_of_contact(df_c)
-df_c.to_pickle('/Users/Fabio/merge_centered.pandas')
+df_c.to_pickle(parameters.data_dir + 'merge_centered.pandas')

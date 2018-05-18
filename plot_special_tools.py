@@ -3,7 +3,6 @@ import logging
 import math
 import os
 
-import cv2
 import h5py
 import matplotlib.axes
 import matplotlib.colors
@@ -21,6 +20,7 @@ from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
 
+import parameters
 from imagej_pandas import ImagejPandas
 
 # sussex colors
@@ -558,23 +558,23 @@ def find_image(img_name, folder):
         for file in filenames:
             joinf = os.path.abspath(os.path.join(root, file))
             if os.path.isfile(joinf) and joinf[-4:] == '.tif' and file == img_name:
-                with tf.TiffFile(joinf, fastij=True) as tif:
+                with tf.TiffFile(joinf) as tif:
                     dt = None
                     if tif.is_imagej is not None:
-                        dt = tif.pages[0].imagej_tags.finterval
-                    res = 'n/a'
-                    if tif.pages[0].resolution_unit == 'centimeter':
-                        # asuming square pixels
-                        xr = tif.pages[0].x_resolution
-                        res = float(xr[0]) / float(xr[1])  # pixels per cm
-                        res = res / 1e4  # pixels per um
-                    elif tif.pages[0].imagej_tags.unit == 'micron':
-                        # asuming square pixels
-                        xr = tif.pages[0].x_resolution
-                        res = float(xr[0]) / float(xr[1])  # pixels per um
+                        dt = tif.imagej_metadata['finterval']
+                        res = 'n/a'
+                        if tif.imagej_metadata['unit'] == 'centimeter':
+                            # asuming square pixels
+                            xr = tif.pages[0].x_resolution
+                            res = float(xr[0]) / float(xr[1])  # pixels per cm
+                            res = res / 1e4  # pixels per um
+                        elif tif.imagej_metadata['unit'] == 'micron':
+                            # asuming square pixels
+                            xr = tif.pages[0].tags['XResolution'].value
+                            res = float(xr[0]) / float(xr[1])  # pixels per um
 
-                    if os.path.exists('/Users/Fabio/data/lab/eb3/eb3_calibration.xls'):
-                        cal = pd.read_excel('/Users/Fabio/data/lab/eb3/eb3_calibration.xls')
+                    if os.path.exists(parameters.data_dir + 'eb3/eb3_calibration.xls'):
+                        cal = pd.read_excel(parameters.data_dir + 'eb3/eb3_calibration.xls')
                         calp = cal[cal['filename'] == img_name]
                         if not calp.empty:
                             calp = calp.iloc[0]
@@ -587,7 +587,7 @@ def find_image(img_name, folder):
                     if len(tif.pages) == 1:
                         images = np.int32(tif.pages[0].asarray())
                     elif len(tif.pages) > 1:
-                        images = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width),
+                        images = np.ndarray((len(tif.pages), tif.pages[0].imagelength, tif.pages[0].imagewidth),
                                             dtype=np.int32)
                         for i, page in enumerate(tif.pages):
                             images[i] = np.int32(page.asarray())
@@ -597,6 +597,7 @@ def find_image(img_name, folder):
 
 def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
     import sys
+    import cv2
     app = QtGui.QApplication(sys.argv)
     with h5py.File(hdf5_fname, 'r') as f:
         if 'pandas_dataframe' not in f['%s/%s/measurements' % (condition, run)]:
@@ -744,7 +745,7 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                 painter.end()
                 cropped = image_pixmap.copy(rect)
 
-                cropped.save('/Users/Fabio/data/%s_N%02d_F%03d.png' % (run, nuclei, frame))
+                cropped.save(parameters.data_dir + 'crop/%s_N%02d_F%03d.png' % (run, nuclei, frame))
 
 
 def pil_grid(images, max_horiz=np.iinfo(int).max):

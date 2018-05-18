@@ -20,6 +20,7 @@ from matplotlib.ticker import MultipleLocator
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 
+import parameters
 import plot_special_tools as sp
 import run_plots_eb3 as eb3
 import stats as st
@@ -223,7 +224,7 @@ def fig_1(df, dfc):
     dfs, conds, colors = sorted_conditions(df, _conds)
     dfc, conds, colors = sorted_conditions(dfc, _conds)
 
-    with PdfPages('/Users/Fabio/fig1.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig1.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
@@ -374,9 +375,9 @@ def fig_1_selected_track(df, mask):
     img_fnames = [os.path.join('/Users/Fabio/data', 'run_114_N02_F%03d.png' % f) for f in range(20)]
     images = [PIL.Image.open(path) for path in img_fnames]
     pil_grid = sp.pil_grid(images, max_horiz=5)
-    pil_grid.save('/Users/Fabio/data/fig1_grid.png')
+    pil_grid.save(parameters.data_dir + 'out/fig1_grid.png')
 
-    with PdfPages('/Users/Fabio/fig1-selected.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig1-selected.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
@@ -416,7 +417,7 @@ def fig_1_selected_track(df, mask):
 def fig_1_mother_daughter(df, dfc):
     # MOTHER-DAUGHTER
     _conds = ['mother-daughter']
-    with PdfPages('/Users/Fabio/fig1-mother.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig1-mother.pdf') as pdf:
         dfs, conds, colors = sorted_conditions(df, _conds)
 
         # ---------------------------
@@ -475,12 +476,11 @@ def fig_1_mother_daughter(df, dfc):
         ax4.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
         ax4.set_xticks(np.arange(0, dfs['Time'].max(), 20.0))
         ax4.legend(title=None, loc='upper left')
-        ax4.set_xlabel('time delay [min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
 def fig_2(df, dfc):
-    with PdfPages('/Users/Fabio/fig2.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig2.pdf') as pdf:
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
@@ -642,7 +642,7 @@ def fig_2(df, dfc):
 
 
 def fig_3(df, dfc):
-    with PdfPages('/Users/Fabio/fig3.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig3.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
@@ -731,7 +731,7 @@ def fig_3(df, dfc):
 
 
 def fig_4(df, dfc, eb3df):
-    with PdfPages('/Users/Fabio/fig4.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig4.pdf') as pdf:
         plot_eb3 = False
         if plot_eb3:
             # ---------------------------
@@ -998,7 +998,7 @@ def fig_4(df, dfc, eb3df):
 
 def fig_4_eb3_stats(eb3_stats, filename='fig4_boxplots.pdf', title=None):
     pt_color = sns.light_palette(sp.SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
-    with PdfPages('/Users/Fabio/%s' % filename) as pdf:
+    with PdfPages(parameters.data_dir + 'out/%s' % filename) as pdf:
         # ---------------------------
         #    PAGE - Eb3 velocity boxplots
         # ---------------------------
@@ -1048,7 +1048,7 @@ def fig_4_eb3_stats(eb3_stats, filename='fig4_boxplots.pdf', title=None):
 
 
 def fig_5(df, dfc):
-    with PdfPages('/Users/Fabio/fig5.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig5.pdf') as pdf:
         # ---------------------------
         #    PAGES - individuals
         # ---------------------------
@@ -1172,9 +1172,9 @@ def color_keys(df, dfc):
 
 
 if __name__ == '__main__':
-    df_m = pd.read_pickle('/Users/Fabio/merge.pandas')
-    df_msk = pd.read_pickle('/Users/Fabio/mask.pandas')
-    df_mc = pd.read_pickle('/Users/Fabio/merge_centered.pandas')
+    df_m = pd.read_pickle(parameters.data_dir + 'merge.pandas')
+    df_msk = pd.read_pickle(parameters.data_dir + 'mask.pandas')
+    df_mc = pd.read_pickle(parameters.data_dir + 'merge_centered.pandas')
 
     df_m = df_m.loc[df_m['Time'] >= 0, :]
     df_m = df_m.loc[df_m['Time'] <= 100, :]
@@ -1199,16 +1199,7 @@ if __name__ == '__main__':
     df_mc = rename_conditions(df_mc)
     dfcentr = rename_conditions(dfcentr)
 
-    # filter starting distances greater than a threshold
-    # indivs_filter = dfcentr.set_index(['Time', 'indv']).unstack('indv')['DistCentr'].fillna(method='bfill').iloc[0]
-    # indivs_filter = indivs_filter[indivs_filter > 5].index.values
-    # dfcentr = dfcentr[dfcentr['indv'].isin(indivs_filter)]
-
-    # print df_m['indv'].unique().size
-    # df_m = m.get_trk_length(df_m, x='CentX', y='CentY', time='Time', frame='Frame',
-    #                         group=ImagejPandas.CENTROSOME_INDIV_INDEX)
-    # print df_m['s']
-    # color_keys(df_m, dfcentr)
+    print df_m['indv'].unique().size
 
     # fig_1(df_m, dfcentr)
     # fig_1_selected_track(df_m, df_msk)
@@ -1216,12 +1207,12 @@ if __name__ == '__main__':
     # fig_2(df_m, dfcentr)
     # fig_3(df_m, dfcentr)
     #
-    # df_eb3_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+    # df_eb3_flt = pd.read_pickle(parameters.data_dir+ 'eb3filter.pandas')
     # fig_4(df_m, dfcentr, df_eb3_flt)
-    # df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-nearest-3px/eb3stats.pandas')
+    # df_eb3_avg = pd.read_pickle(parameters.helfrid_lab_dir+ 'eb3-nearest-3px/eb3stats.pandas')
     # fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_nearest3px.pdf',
     #                 title='Nearest velocity (3px) prediction algorithm')
-    # df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-drift-prediction/eb3stats.pandas')
+    # df_eb3_avg = pd.read_pickle(parameters.helfrid_lab_dir+ 'eb3-drift-prediction/eb3stats.pandas')
     # fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_drift.pdf', title='Drift prediction algorithm')
     #
     fig_5(df_m, dfcentr)

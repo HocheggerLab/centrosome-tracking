@@ -9,6 +9,7 @@ from PyQt4 import QtGui
 from PyQt4.QtCore import QPoint, QRect, QSize, Qt
 from PyQt4.QtGui import QBrush, QColor, QPainter, QPen, QRubberBand
 
+import parameters
 import plot_special_tools as sp
 
 # profile decorator support when not profiling
@@ -38,8 +39,8 @@ class Eb3ImageQLabel(QtGui.QLabel):
         self.df = None
         self.ix = None
         self.selected = set()
-        self.fname = '/Users/Fabio/data/lab/eb3trk.selec.txt'
-        self.cal = pd.read_excel('/Users/Fabio/data/lab/eb3/eb3_calibration.xls')
+        self.fname = parameters.data_dir + '/eb3/eb3trk.selec.txt'
+        self.cal = pd.read_excel(parameters.data_dir + '/eb3/eb3_calibration.xls')
 
         if not os.path.isfile(self.fname):
             with open(self.fname, 'w') as configfile:
@@ -64,7 +65,6 @@ class Eb3ImageQLabel(QtGui.QLabel):
             self.measurements_pixmap.fill(QColor(0, 0, 0, 0))
             self.bkg_pixmap.fill(QColor(0, 0, 255, 0))
         self.setPixmap(self.image_pixmap)
-
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -154,7 +154,7 @@ class Eb3ImageQLabel(QtGui.QLabel):
             self.condition, self.run = condition, run
             self.dataHasChanged = True
 
-            self.df = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+            self.df = pd.read_pickle(parameters.data_dir + 'eb3filter.pandas')
             ix = (self.df['condition'] == self.condition) & (self.df['tag'] == self.run)
             self.df = self.df[ix]
             # consider 1.6X magification of optivar system

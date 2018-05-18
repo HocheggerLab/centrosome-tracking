@@ -11,12 +11,15 @@ from PyQt4.QtCore import QTimer, Qt
 from PyQt4.QtGui import QAbstractItemView
 
 import hdf5_nexus as hdf
+import parameters
 import plot_special_tools as spc
+from imagej_pandas import ImagejPandas
 
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
+pd.set_option('display.width', 320)
 
 
-class ExperimentsList(QtGui.QWidget):
+class SelectionGui(QtGui.QWidget):
     def __init__(self, path):
         QtGui.QWidget.__init__(self)
         uic.loadUi('gui_exp_selection.ui', self)
@@ -166,7 +169,9 @@ class ExperimentsList(QtGui.QWidget):
             mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
             df = df[df['Nuclei'] == nuclei]
             mask = mask[mask['Nuclei'] == nuclei]
-            spc.distance_to_nucleus(df, self.mplDistance.canvas.ax, mask=mask)
+            toc, foc, doc = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
+            print toc, foc, doc
+            spc.distance_to_nuclei_center(df, self.mplDistance.canvas.ax, mask=mask, time_contact=toc)
             self.mplDistance.canvas.draw()
 
     def populate_centrosomes(self):
@@ -254,9 +259,9 @@ class ExperimentsList(QtGui.QWidget):
     @QtCore.pyqtSlot()
     def on_export_pandas_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save centrosome file',
-                                                  directory='/Users/Fabio/centrosomes.pandas')
+                                                  directory=parameters.data_dir + 'centrosomes.pandas')
         mname = QtGui.QFileDialog.getSaveFileName(self, caption='Save mask dataframe file',
-                                                  directory='/Users/Fabio/mask.pandas')
+                                                  directory=parameters.data_dir + 'mask.pandas')
         fname = str(fname)
         mname = str(mname)
 
@@ -273,7 +278,7 @@ class ExperimentsList(QtGui.QWidget):
     @QtCore.pyqtSlot()
     def on_export_sel_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selection file',
-                                                  directory='/Users/Fabio/centrosomes_selection.txt')
+                                                  directory=parameters.data_dir + 'centrosomes_selection.txt')
         fname = str(fname)
         logging.info('saving to %s' % fname)
 
@@ -298,7 +303,7 @@ class ExperimentsList(QtGui.QWidget):
     @QtCore.pyqtSlot()
     def on_import_sel_button(self):
         fname = QtGui.QFileDialog.getOpenFileName(self, caption='Load selection file', filter='Text (*.txt)',
-                                                  directory='/Users/Fabio/centrosomes_selection.txt')
+                                                  directory=parameters.experiments_dir + 'centrosomes_selection.txt')
         if not fname: return
         fname = str(fname)
 
@@ -355,7 +360,7 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication(sys.argv)
 
-    folders = ExperimentsList('/Users/Fabio/centrosomes.nexus.hdf5')
-    folders.show()
+    gui = SelectionGui(parameters.data_dir + 'centrosomes.nexus.hdf5')
+    gui.show()
 
     sys.exit(app.exec_())

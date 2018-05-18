@@ -20,6 +20,7 @@ from matplotlib.ticker import MultipleLocator
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 
+import parameters
 import plot_special_tools as sp
 import run_plots_eb3 as eb3
 import stats as st
@@ -215,13 +216,13 @@ def fig_1(df, dfc):
     dfs, conds, colors = sorted_conditions(df, _conds)
     dfc, conds, colors = sorted_conditions(dfc, _conds)
 
-    sp.render_tracked_centrosomes('/Users/Fabio/centrosomes.nexus.hdf5', 'pc', 'run_114', 2)
-    img_fnames = [os.path.join('/Users/Fabio/data', 'run_114_N02_F%03d.png' % f) for f in range(20)]
+    sp.render_tracked_centrosomes(parameters.data_dir + 'out/centrosomes.nexus.hdf5', 'pc', 'run_114', 2)
+    img_fnames = [os.path.join(parameters.data_dir + 'out/data', 'run_114_N02_F%03d.png' % f) for f in range(20)]
     images = [PIL.Image.open(path) for path in img_fnames]
     pil_grid = sp.pil_grid(images, max_horiz=5)
-    pil_grid.save('/Users/Fabio/data/fig1_grid.png')
+    pil_grid.save(parameters.data_dir + 'out/data/fig1_grid.png')
 
-    with PdfPages('/Users/Fabio/fig1.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig1.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
@@ -356,7 +357,7 @@ def fig_1(df, dfc):
         ax.set_xlabel('')
         ax.set_ylabel('Distance [um]')
         # ax2.yaxis.set_major_locator(MultipleLocator(5))
-        pmat = st.p_values(stats, 'Dist', 'Type', filename='/Users/Fabio/fig1-pv-dist.xls')
+        pmat = st.p_values(stats, 'Dist', 'Type', filename=parameters.data_dir + 'out/fig1-pv-dist.xls')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
@@ -373,7 +374,7 @@ def fig_1_selected_track(df, mask):
     df_selected = df[(df['condition'] == 'pc') & (df['run'] == 'run_114') & (df['Nuclei'] == 2)]
     msk_selected = mask[(mask['condition'] == 'pc') & (mask['run'] == 'run_114') & (mask['Nuclei'] == 2)]
 
-    with PdfPages('/Users/Fabio/fig1-selected.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig1-selected.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
@@ -410,7 +411,7 @@ def fig_1_selected_track(df, mask):
 def fig_1_mother_daughter(df, dfc):
     # MOTHER-DAUGHTER
     _conds = ['mother-daughter']
-    with PdfPages('/Users/Fabio/fig1-mother.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig1-mother.pdf') as pdf:
         dfs, conds, colors = sorted_conditions(df, _conds)
 
         # ---------------------------
@@ -474,7 +475,7 @@ def fig_1_mother_daughter(df, dfc):
 
 
 def fig_2(df, dfc):
-    with PdfPages('/Users/Fabio/fig2.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig2.pdf') as pdf:
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
@@ -632,11 +633,11 @@ def fig_2(df, dfc):
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
     mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-    pmat = st.p_values(mua, 'SpeedCentr', 'condition', filename='/Users/Fabio/pvalues_spd_fig2.xls')
+    pmat = st.p_values(mua, 'SpeedCentr', 'condition', filename=parameters.data_dir + 'out/pvalues_spd_fig2.xls')
 
 
 def fig_3(df, dfc):
-    with PdfPages('/Users/Fabio/fig3.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig3.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
@@ -725,7 +726,7 @@ def fig_3(df, dfc):
 
 
 def fig_4(df, dfc, eb3df):
-    with PdfPages('/Users/Fabio/fig4.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig4.pdf') as pdf:
         plot_eb3 = False
         if plot_eb3:
             # ---------------------------
@@ -752,7 +753,7 @@ def fig_4(df, dfc, eb3df):
             # ---------------------------
             #    PAGE - tracks control
             # ---------------------------
-            eb3fld = '/Users/Fabio/data/lab/eb3'
+            eb3fld = parameters.data_dir + 'out/data/lab/eb3'
             fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi / 4)
             fig.clf()
             ax = fig.add_subplot(111)
@@ -917,7 +918,8 @@ def fig_4(df, dfc, eb3df):
         ax2.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         ax2.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-        pmat = st.p_values(mua, 'SpeedCentr', 'condition', filename='/Users/Fabio/pvalues_pc-noc-mcak_spd.xls')
+        pmat = st.p_values(mua, 'SpeedCentr', 'condition',
+                           filename=parameters.data_dir + 'out/pvalues_pc-noc-mcak_spd.xls')
 
         df = df[df['Time'] <= 50]
         # ---------------------------
@@ -992,7 +994,7 @@ def fig_4(df, dfc, eb3df):
 
 def fig_4_eb3_stats(eb3_stats, filename='fig4_boxplots.pdf', title=None):
     pt_color = sns.light_palette(sp.SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
-    with PdfPages('/Users/Fabio/%s' % filename) as pdf:
+    with PdfPages(parameters.data_dir + 'out/%s' % filename) as pdf:
         # ---------------------------
         #    PAGE - Eb3 velocity boxplots
         # ---------------------------
@@ -1034,7 +1036,7 @@ def fig_4_eb3_stats(eb3_stats, filename='fig4_boxplots.pdf', title=None):
         # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         pmat = st.p_values(df_stats, 'speed', 'condition',
-                           filename='/Users/Fabio/data/lab/pvalues_%s_ctr-noc-mcak-chtog.xls' % filename)
+                           filename=parameters.data_dir + 'out/data/lab/pvalues_%s_ctr-noc-mcak-chtog.xls' % filename)
 
         # ---------------------------
         #    PAGE - Eb3 velocity boxplots
@@ -1070,12 +1072,12 @@ def fig_4_eb3_stats(eb3_stats, filename='fig4_boxplots.pdf', title=None):
         # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         pmat = st.p_values(df_stats, 'speed', 'condition',
-                           filename='/Users/Fabio/data/lab/pvalues_%s_ctr-g2.xls' % filename)
-        # pmat = st.p_values(df_stats, 'length', 'condition', filename='/Users/Fabio/data/lab/pvalues_len.xls')
+                           filename=parameters.data_dir + 'out/data/lab/pvalues_%s_ctr-g2.xls' % filename)
+        # pmat = st.p_values(df_stats, 'length', 'condition', filename=parameters.data_dir+'out/data/lab/pvalues_len.xls')
 
 
 def fig_5(df, dfc):
-    with PdfPages('/Users/Fabio/fig5.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/fig5.pdf') as pdf:
         # ---------------------------
         #    PAGES - individuals
         # ---------------------------
@@ -1126,7 +1128,8 @@ def fig_5(df, dfc):
         ax2.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         ax2.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-        pmat = st.p_values(mua, 'SpeedCentr', 'condition', filename='/Users/Fabio/pvalues_pc-noc-mcak_spd.xls')
+        pmat = st.p_values(mua, 'SpeedCentr', 'condition',
+                           filename=parameters.data_dir + 'out/pvalues_pc-noc-mcak_spd.xls')
 
         df = df[df['Time'] <= 50]
         # ---------------------------
@@ -1151,7 +1154,7 @@ def tom_plots():
 def color_keys(df, dfc):
     cldf, conds, colors = sorted_conditions(df, names.keys())
     coldf, conds, colors = sorted_conditions(dfc, names.keys())
-    with PdfPages('/Users/Fabio/colors.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/colors.pdf') as pdf:
         with sns.color_palette(colors):
             # ---------------------------
             #          FIRST PAGE
@@ -1174,9 +1177,9 @@ def color_keys(df, dfc):
 
 
 if __name__ == '__main__':
-    df_m = pd.read_pickle('/Users/Fabio/merge.pandas')
-    df_msk = pd.read_pickle('/Users/Fabio/mask.pandas')
-    df_mc = pd.read_pickle('/Users/Fabio/merge_centered.pandas')
+    df_m = pd.read_pickle(parameters.data_dir + 'merge.pandas')
+    df_msk = pd.read_pickle(parameters.data_dir + 'mask.pandas')
+    df_mc = pd.read_pickle(parameters.data_dir + 'merge_centered.pandas')
 
     df_m = df_m.loc[df_m['Time'] >= 0, :]
     df_m = df_m.loc[df_m['Time'] <= 100, :]
@@ -1218,14 +1221,13 @@ if __name__ == '__main__':
     fig_2(df_m, dfcentr)
     fig_3(df_m, dfcentr)
 
-    df_eb3_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+    df_eb3_flt = pd.read_pickle(parameters.data_dir + 'eb3filter.pandas')
     fig_4(df_m, dfcentr, df_eb3_flt)
-    df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-nearest-3px/eb3stats.pandas')
+    df_eb3_avg = pd.read_pickle(parameters.helfrid_lab_dir + 'eb3-nearest-3px/eb3stats.pandas')
     fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_nearest3px.pdf',
                     title='Nearest velocity (3px) prediction algorithm')
-    df_eb3_avg = pd.read_pickle('/Users/Fabio/data/eb3-drift-prediction/eb3stats.pandas')
+    df_eb3_avg = pd.read_pickle(parameters.data_dir + 'eb3stats.pandas')
     fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_drift.pdf', title='Drift prediction algorithm')
-
     fig_5(df_m, dfcentr)
 
     # tom_plots()
