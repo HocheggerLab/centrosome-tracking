@@ -10,6 +10,7 @@ from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import QTimer
 
 import mechanics as m
+import parameters
 import plot_special_tools as sp
 
 pd.options.display.max_colwidth = 10
@@ -100,12 +101,12 @@ class ExperimentsList(QtGui.QWidget):
     def on_export_pandas_button(self):
         logging.info('exporting selected dataset...')
         # fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selected Eb3 file',
-        #                                           directory='/Users/Fabio/data/lab/eb3_selected.pandas')
+        #                                           directory=constants.data_dir+'eb3_selected.pandas')
         # fname = str(fname)
 
-        df = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
+        df = pd.read_pickle(parameters.data_dir + 'eb3filter.pandas')
         # get selection from disk
-        with open('/Users/Fabio/data/lab/eb3trk.selec.txt', 'r') as configfile:
+        with open(parameters.data_dir + 'eb3trk.selec.txt', 'r') as configfile:
             config = ConfigParser.ConfigParser()
             config.readfp(configfile)
 
@@ -116,7 +117,7 @@ class ExperimentsList(QtGui.QWidget):
                     ix_sel = (df['tag'] == tag) & (df['particle'].isin(selection))
                     sel = df[ix_sel]
                     selected = selected.append(sel)
-            selected.to_pickle('/Users/Fabio/data/lab/eb3_selected.pandas')
+            selected.to_pickle(parameters.data_dir + 'eb3_selected.pandas')
             df = selected
 
         indiv_idx = ['condition', 'tag', 'particle']
@@ -129,7 +130,7 @@ class ExperimentsList(QtGui.QWidget):
         df_avg.loc[:, 'trk_len'] = dfi.groupby(indiv_idx)['x'].count()
         df_avg.loc[:, 'length'] = dfi.groupby(indiv_idx)['s'].agg(np.sum)
         df_avg = df_avg.reset_index()
-        df_avg.to_pickle('/Users/Fabio/data/lab/eb3stats_sel.pandas')
+        df_avg.to_pickle(parameters.data_dir + 'eb3stats_sel.pandas')
 
         print 'export finished.'
 
@@ -149,7 +150,7 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication(sys.argv)
 
-    folders = ExperimentsList('/Users/Fabio/data/lab/eb3')
+    folders = ExperimentsList(parameters.experiments_dir + 'eb3/')
     folders.show()
 
     sys.exit(app.exec_())

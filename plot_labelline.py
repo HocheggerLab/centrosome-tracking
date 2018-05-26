@@ -13,7 +13,7 @@ def strictly_decreasing(L):
 
 # Label line with line2D label data
 def labelLine(line, x, label=None, align=True, **kwargs):
-    ax = line.get_axes()
+    ax = line.axes
     xdata = line.get_xdata()
     ydata = line.get_ydata()
 
@@ -61,7 +61,7 @@ def labelLine(line, x, label=None, align=True, **kwargs):
         kwargs['va'] = 'center'
 
     if 'backgroundcolor' not in kwargs:
-        kwargs['backgroundcolor'] = ax.get_axis_bgcolor()
+        kwargs['backgroundcolor'] = ax.get_facecolor()
 
     if 'clip_on' not in kwargs:
         kwargs['clip_on'] = True
@@ -73,7 +73,6 @@ def labelLine(line, x, label=None, align=True, **kwargs):
 
 
 def labelLines(lines, align=True, xvals=None, **kwargs):
-    ax = lines[0].get_axes()
     labLines = []
     labels = []
 
@@ -85,7 +84,7 @@ def labelLines(lines, align=True, xvals=None, **kwargs):
             labels.append(label)
 
     if xvals is None:
-        xmin, xmax = ax.get_xlim()
+        xmin, xmax = min(lines[0].get_xdata()), max(lines[0].get_xdata())
         xvals = np.linspace(xmin, xmax, len(labLines) + 2)[1:-1]
 
     for line, x, label in zip(labLines, xvals, labels):

@@ -1,9 +1,11 @@
 import ConfigParser
 import json
+import logging
 from collections import OrderedDict
 
 import matplotlib
 import matplotlib.axes
+import matplotlib.colors
 import matplotlib.gridspec
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -16,12 +18,14 @@ from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.mplot3d import Axes3D
 
 import elastica as e
+import parameters
 import plot_special_tools as sp
 import run_plot_report as r
 from imagej_pandas import ImagejPandas
 
-print font_manager.OSXInstalledFonts()
-print font_manager.OSXFontDirectories
+log = logging.getLogger(__name__)
+log.info(font_manager.OSXInstalledFonts())
+log.info(font_manager.OSXFontDirectories)
 
 plt.style.use('bmh')
 # plt.style.use('ggplot')
@@ -33,6 +37,7 @@ matplotlib.rcParams.update({'axes.titlesize': 20})
 matplotlib.rcParams.update({'axes.labelsize': 20})
 matplotlib.rcParams.update({'xtick.labelsize': 20})
 matplotlib.rcParams.update({'ytick.labelsize': 20})
+matplotlib.rcParams.update({'legend.fontsize': 18})
 
 matplotlib.rcParams.update({'xtick.color': sp.SUSSEX_COBALT_BLUE})
 matplotlib.rcParams.update({'ytick.color': sp.SUSSEX_COBALT_BLUE})
@@ -42,7 +47,6 @@ matplotlib.rcParams.update({'axes.labelcolor': sp.SUSSEX_COBALT_BLUE})
 matplotlib.rcParams.update({'axes.edgecolor': '#FFFFFF00'})
 matplotlib.rcParams.update({'grid.color': sns.light_palette(sp.SUSSEX_COBALT_BLUE, 6)[2]})
 matplotlib.rcParams.update({'lines.color': sp.SUSSEX_COBALT_BLUE})
-matplotlib.rcParams.update({'legend.fontsize': 18})
 
 pd.set_option('display.width', 320)
 
@@ -52,15 +56,18 @@ names = OrderedDict([('1_N.C.', '-STLC'),
                      ('2_Kines1', 'Kinesin1'),
                      ('2_CDK1_DK', 'DHC+Kinesin1'),
 
-                     ('1_DIC', 'DIC+STLC'),
-                     ('1_Dynei', 'DHC+STLC'),  # DyneinH1
+                     ('1_DIC', 'DIC'),
+                     ('1_Dynei', 'DHC'),  # DyneinH1
                      ('1_CENPF', 'CenpF'),
                      ('1_BICD2', 'Bicaudal'),
 
                      ('1_No10+', 'Nocodazole 10ng'),
+                     ('1_MCAK', 'MCAK'),
+                     ('1_chTOG', 'chTog'),
 
                      ('1_CyDT', 'Cytochalsin D'),
                      ('1_FAKI', 'FAKi'),
+                     ('1_Bleb', 'Blebbistatin'),
 
                      ('hset', 'Hset'),
                      ('kif25', 'Kif25'),
@@ -117,7 +124,7 @@ def retreat0(_df, _mask):
     run = df['run'].unique()[0]
     nuclei = df['Nuclei'].unique()[0]
 
-    with PdfPages('/Users/Fabio/retreat2017fig-0.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/retreat2017fig-0.pdf') as pdf:
         fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex='col',
                                        gridspec_kw={'height_ratios': [2, 1]}, figsize=(9.3, 9.3 / 3))
         plt.subplots_adjust(left=0.125, bottom=0.22, right=0.9, top=0.99, wspace=0.2, hspace=0.1)
@@ -125,11 +132,11 @@ def retreat0(_df, _mask):
         mask['Time'] = mask['Time'].astype('int32')
 
         between_df = df[df['CentrLabel'] == 'A']
-        mask_c = r.centr_masks(mask)
+        mask_c = r.centrosome_masks(mask)
         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_TURQUOISE]):
-            sp.distance_to_nucleus(df, ax1, mask=mask, time_contact=time_of_c, plot_interp=True)
+            sp.distance_to_nuclei_center(df, ax1, mask=mask, time_contact=time_of_c, plot_interp=True)
         with sns.color_palette([sp.SUSSEX_COBALT_BLUE]):
             sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c, )
         ax1.legend().remove()
@@ -145,7 +152,7 @@ def retreat1(df, dfc):
     _conds = ['1_N.C.', '1_P.C.']
     _df, conds, colors = sorted_conditions(df, _conds)
 
-    with PdfPages('/Users/Fabio/retreat2017fig-1.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/retreat2017fig-1.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches(9.3, 9.3)
@@ -167,7 +174,7 @@ def retreat1(df, dfc):
 
     _conds = ['mother-daughter']
     _df, conds, colors = sorted_conditions(df, _conds)
-    with PdfPages('/Users/Fabio/retreat2017fig-mother-daughter.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/retreat2017fig-mother-daughter.pdf') as pdf:
         # -----------
         # Page 1
         # -----------
@@ -214,21 +221,31 @@ def retreat1(df, dfc):
 
 
 def retreat2(df):
-    _conds = ['1_N.C.', '1_P.C.', '2_Kines1', '2_CDK1_DK', '1_DIC', '1_Dynei', '1_CENPF', '1_BICD2', '1_No10+',
-              '1_CyDT', '1_FAKI', 'hset', 'kif25', 'hset+kif25']
-    markers = ['o', 'o', 's', 's', 'v', '^', '<', '>', 'p', 'h', 'X', '*', 'P', 'X']
+    _conds = ['1_N.C.', '1_P.C.',
+              '2_Kines1', '2_CDK1_DK', '1_DIC', '1_Dynei', '1_CENPF', '1_BICD2',
+              '1_No10+', '1_MCAK', '1_chTOG',
+              '1_CyDT', '1_FAKI', '1_Bleb']
+
+    markers = ['o', 'o',
+               's', 'X', 'v', '^', '<', '>',
+               'p', 'P', 'X',
+               'p', 'P', 'X']
     df, conds, colors = sorted_conditions(df, _conds)
+    colors = [sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]
+    colors.extend([sp.SUSSEX_FLINT] * 6)
+    colors.extend([sp.SUSSEX_FUSCHIA_PINK] * 3)
+    colors.extend([sp.SUSSEX_TURQUOISE] * 3)
     colortuple = dict(zip(conds, colors))
 
-    with PdfPages('/Users/Fabio/retreat2017fig-2.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/retreat2017fig-2.pdf') as pdf:
         # -----------
         # Page 1
         # -----------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(9.3, 9.3)
+        fig.set_size_inches(12, 9.3)
         ax = plt.gca()
-        plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.2, hspace=0.2)
+        plt.subplots_adjust(left=0.125, bottom=0.1, right=0.7, top=0.9, wspace=0.2, hspace=0.2)
 
         df_ = df[df['Time'] <= 100]
         df_msd = ImagejPandas.msd_centrosomes(df_).set_index('Frame').sort_index()
@@ -246,38 +263,14 @@ def retreat2(df):
         for c, m in zip(_conds, markers):
             cnd = names[c]
             p = df_msd_final[df_msd_final['condition'] == cnd]
-            ax.scatter(p['cgr'], p['msd'], c=colortuple[cnd], s=100, label=cnd, marker=m, zorder=1000)
+            ax.scatter(p['cgr'], p['msd'], c=colortuple[cnd], s=600, label=cnd, marker=m, zorder=1000)
 
-        ax.legend(loc='upper right')
+        ax.legend(bbox_to_anchor=(1.04, 1), loc='upper left')
         ax.set_ylabel('MSD $[\mu m^2]$')
         ax.set_xlabel('Congression [%]')
 
         # fig.patch.set_alpha(0.0)
         pdf.savefig(transparent=True)
-
-        # with PdfPages('/Users/Fabio/retreat2017fig-22.pdf') as pdf:
-        #     # -----------
-        #     # Page 2
-        #     # -----------
-        #     fig = matplotlib.pyplot.gcf()
-        #     fig.clf()
-        #     fig.set_size_inches(9.3, 9.3)
-        #     ax = plt.gca()
-        #
-        #     # df_ = df[df['Time'] <= 50]
-        #     df_msd = ImagejPandas.msd_centrosomes(df_).set_index('Frame').sort_index()
-        #     for c, m in zip(_conds, markers):
-        #         cnd = names[c]
-        #         dff = df_msd[df_msd['condition'] == cnd]
-        #         sns.tsplot(data=dff, linestyle='-', time='Time', value='msd', unit='indv', condition='condition',
-        #                    color=colortuple[cnd], estimator=np.nanmean, ax=ax)
-        #
-        #     ax.legend(loc='upper left')
-        #     ax.set_ylabel('MSD $[\mu m^2]$')
-        #     ax.set_xlabel('Time $[min]$')
-        #
-        #     # fig.patch.set_alpha(0.0)
-        #     pdf.savefig(transparent=True)
 
 
 def retreat4(df):
@@ -287,7 +280,7 @@ def retreat4(df):
     df, conds, colors = sorted_conditions(df, _conds)
     colortuple = dict(zip(conds, colors))
 
-    with PdfPages('/Users/Fabio/retreat2017fig-4.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/retreat2017fig-4.pdf') as pdf:
         # -----------
         # Page 1
         # -----------
@@ -374,14 +367,14 @@ def retreat4(df):
 
 
 def retreat5(df):
-    with PdfPages('/Users/Fabio/elastica.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/elastica.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches(5.27, 5.27)
         gs = matplotlib.gridspec.GridSpec(2, 2)
         ax1 = plt.subplot(gs[0:2, 0:2])
 
-        with open('/Users/Fabio/elastica.cfg.txt', 'r') as configfile:
+        with open(parameters.data_dir + 'elastica.cfg.txt', 'r') as configfile:
             config = ConfigParser.ConfigParser()
             config.readfp(configfile)
 
@@ -454,7 +447,7 @@ def animations(_df, _mask):
     matplotlib.rcParams.update(matplotlib.rcParamsDefault)
     matplotlib.use('Agg')
 
-    _hdf5file = '/Volumes/LocalData HD/Users/fe56/centrosomes.nexus.hdf5'
+    _hdf5file = parameters.data_dir + 'centrosomes.nexus.hdf5'
     _conds = ['pc']
     df, conds, colors = sorted_conditions(_df, _conds)
     mask, condsm, colorsm = sorted_conditions(_mask, _conds)
@@ -571,11 +564,11 @@ def animations(_df, _mask):
         mask['Time'] = mask['Time'].astype('int32')
 
         between_df = df[df['CentrLabel'] == 'A']
-        mask_c = r.centr_masks(mask)
+        mask_c = r.centrosome_masks(mask)
         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_TURQUOISE]):
-            sp.distance_to_nucleus(df, ax1, mask=mask, time_contact=time_of_c, plot_interp=True)
+            sp.distance_to_nuclei_center(df, ax1, mask=mask, time_contact=time_of_c, plot_interp=True)
             sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c)
         ax1.legend().remove()
 
@@ -591,12 +584,12 @@ def animations(_df, _mask):
     for f in range(20):
         ax.cla()
         cell_movie(ax, f)
-        plt.savefig('/Volumes/LocalData HD/Users/fe56/mov/mov1_f%03d.png' % f, dpi=dpi_anim)
+        plt.savefig(parameters.data_dir + 'out/mov1_f%03d.png' % f, dpi=dpi_anim)
 
     for f in range(20):
         ax.cla()
         dist_movie(f, df)
-        plt.savefig('/Volumes/LocalData HD/Users/fe56/mov/mov2_f%03d.png' % f, dpi=dpi_anim, transparent=True)
+        plt.savefig(parameters.data_dir + 'out/mov2_f%03d.png' % f, dpi=dpi_anim, transparent=True)
 
 
 def color_keys(dfc):
@@ -608,7 +601,7 @@ def color_keys(dfc):
         mua = coldf.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
         sp.anotated_boxplot(mua, 'SpeedCentr', order=conds)
         fig.gca().set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
-        fig.savefig('/Users/Fabio/colors.pdf', format='pdf')
+        fig.savefig(parameters.data_dir + 'out/colors.pdf', format='pdf')
 
 
 if __name__ == '__main__':
@@ -617,9 +610,9 @@ if __name__ == '__main__':
     new_distcntr_name = 'Distance between centrosomes $[\mu m]$'
     new_speedcntr_name = 'Speed between centrosomes $[\mu m/min]$'
 
-    df_m = pd.read_pickle('/Users/Fabio/merge.pandas')
-    df_mc = pd.read_pickle('/Users/Fabio/merge_centered.pandas')
-    df_msk_disk = pd.read_pickle('/Users/Fabio/mask.pandas')
+    df_m = pd.read_pickle(parameters.data_dir + 'merge.pandas')
+    df_mc = pd.read_pickle(parameters.data_dir + 'merge_centered.pandas')
+    df_msk_disk = pd.read_pickle(parameters.data_dir + 'mask.pandas')
 
     df_m = df_m.loc[df_m['Time'] >= 0, :]
     df_m = df_m.loc[df_m['Time'] <= 100, :]
@@ -633,11 +626,13 @@ if __name__ == '__main__':
         ['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY', 'Speed', 'Acc'],
         axis=1, inplace=True)
 
-    df_m['indv'] = df_m['condition'] + '-' + df_m['run'] + '-' + df_m['Nuclei'].map(int).map(str) + '-' + \
-                   df_m['Centrosome'].map(int).map(str)
+    df_m.loc[:, 'indv'] = df_m['condition'] + '-' + df_m['run'] + '-' + df_m['Nuclei'].map(int).map(str) + '-' + \
+                          df_m['Centrosome'].map(int).map(str)
+    df_mc.loc[:, 'indv'] = df_mc['condition'] + '-' + df_mc['run'] + '-' + df_mc['Nuclei'].map(int).map(str) + '-' + \
+                           df_mc['Centrosome']
 
-    for id, df in df_m.groupby(['condition']):
-        print 'condition %s: %d tracks' % (id, len(df['indv'].unique()) / 2.0)
+    for id, dfc in df_m.groupby(['condition']):
+        log.info('condition %s: %d tracks' % (id, len(dfc['indv'].unique()) / 2.0))
 
     mask = rename_conditions(df_msk_disk)
     df_m = rename_conditions(df_m)
@@ -649,5 +644,5 @@ if __name__ == '__main__':
     retreat1(df_m, df_mc)
     retreat2(df_m)
     retreat4(df_m)
-    retreat5(df=pd.read_csv('/Users/Fabio/elastica.csv'))
+    retreat5(df=pd.read_csv(parameters.data_dir + 'elastica.csv'))
     animations(df_m, mask)

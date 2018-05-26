@@ -1,8 +1,8 @@
 import itertools
+import logging
 import math
 import os
 
-import cv2
 import h5py
 import matplotlib.axes
 import matplotlib.colors
@@ -15,11 +15,12 @@ import tifffile as tf
 from PIL import Image
 from PyQt4 import Qt, QtGui
 from PyQt4.QtCore import QRect
-from PyQt4.QtGui import QBrush, QColor, QPainter, QPen
+from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
 
+import parameters
 from imagej_pandas import ImagejPandas
 
 # sussex colors
@@ -104,10 +105,11 @@ class MyAxes3D(axes3d.Axes3D):
         zaxis.axes._draw_grid = draw_grid_old
 
 
-def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_rotation='horizontal', cat='condition',
-                     swarm=True, order=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.2, fliersize=point_size, order=order, ax=ax,
+def anotated_boxplot(data_grouped, var, point_size=5, fontsize=7, cat='condition',
+                     swarm=True, order=None, xlabels=None, ax=None):
+    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
                 zorder=100)
+
     if swarm:
         _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, ax=ax, zorder=10)
     else:
@@ -115,6 +117,11 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_ro
                             zorder=10)
     for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
+        artist.set_edgecolor('k')
+        artist.set_zorder(5000)
+    for i, artist in enumerate(_ax.lines):
+        artist.set_color('k')
+        artist.set_zorder(5000)
 
     order = order if order is not None else data_grouped[cat].unique()
     for x, c in enumerate(order):
@@ -123,13 +130,17 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize='small', stats_ro
         count = d.count()
         mean = d.mean()
         median = d.median()
-        if stats_rotation == 'vertical':
-            _txt = '$\mu=%0.3f$  $\\tilde\mu=%0.3f$  $n=%d$' % (mean, median, count)
-        else:
-            _txt = '$\mu=%0.3f$\n$\\tilde\mu=%0.3f$\n$n=%d$' % (mean, median, count)
+        # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
+        _txt = '%0.2f\n%d' % (median, count)
+        _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
+    # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
+    if xlabels is not None:
+        _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
+                            rotation=45, multialignment='right')
+    else:
+        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
 
-        _ax.text(x, _max_y * 0.8, _txt, rotation=stats_rotation, ha='center', va='bottom', fontsize=fontsize)
-        plt.xticks(_ax.get_xticks(), rotation='vertical')
+    return _ax
 
 
 def _compute_congression(cg):
@@ -157,7 +168,7 @@ def _compute_congression(cg):
     return dfout
 
 
-def congression(cg, ax=None, order=None):
+def congression(cg, ax=None, order=None, linestyles=None):
     # plot centrosome congression as %
     # get congression signal
     cgs = _compute_congression(cg)
@@ -172,9 +183,10 @@ def congression(cg, ax=None, order=None):
         # PLOT centrosome congresion
         _color = matplotlib.colors.to_hex(next(palette))
         cgri = cdf.set_index('Time').sort_index()
-        cgri.plot(y='congress', drawstyle='steps-pre', color=_color, lw=1, ax=ax)
+        ls = linestyles[id] if linestyles is not None else None
+        cgri.plot(y='congress', drawstyle='steps-pre', color=_color, linestyle=ls, lw=1, ax=ax)
         dlbl = '%s' % (id)
-        dhandles.append(mlines.Line2D([], [], color=_color, marker=None, label=dlbl))
+        dhandles.append(mlines.Line2D([], [], color=_color, linestyle=ls, marker=None, label=dlbl))
         dlabels.append(dlbl)
 
     _xticks = range(0, int(cgs['Time'].max()), 20)
@@ -276,7 +288,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
     if df['condition'].unique().size > 1:
         raise Exception('Need just one condition for using this plotting function.')
 
-    _err_kws = {'alpha': 0.3, 'lw': 1}
+    _err_kws = {'alpha': 0.3, 'lw': 0.5}
     cond = df['condition'].unique()[0]
     df_msd = ImagejPandas.msd_centrosomes(df)
     df_msd = _msd_tag(df_msd)
@@ -285,6 +297,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
         data=df_msd[df_msd['condition'] == cond], lw=3,
         err_style=['unit_traces'], err_kws=_err_kws,
         time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+    ax.set_title(cond)
     ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
     ax.legend(title=None, loc='upper left')
     if time == 'Frame':
@@ -313,6 +326,7 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
     sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving less'],
                color=color, linestyle='--',
                time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
+    ax.set_title(cond)
     ax.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
     ax.set_xticks(np.arange(0, df_msd['Time'].max(), 20.0))
     ax.legend(title=None, loc='upper left')
@@ -326,7 +340,7 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
         ax.set_ylim(ylim)
 
 
-def distance_to_nucleus(df, ax, mask=None, time_contact=None, plot_interp=False):
+def distance_to_nuclei_center(df, ax, mask=None, time_contact=None, plot_interp=False):
     pal = sns.color_palette()
     nucleus_id = df['Nuclei'].min()
 
@@ -340,11 +354,11 @@ def distance_to_nucleus(df, ax, mask=None, time_contact=None, plot_interp=False)
 
         if mask is not None and not mask.empty:
             tmask = mask[mask['Centrosome'] == centr_lbl].set_index('Time').sort_index()
-            orig = track['Dist'][tmask['Dist']]
-            interp = track['Dist'][~tmask['Dist']]
+            orig = track.loc[tmask.index, 'Dist'][tmask['Dist']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
             if plot_interp:
+                interp = track['Dist'][~tmask['Dist']]
                 if len(interp) > 0:
                     interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
                 track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
@@ -360,7 +374,44 @@ def distance_to_nucleus(df, ax, mask=None, time_contact=None, plot_interp=False)
         ax.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
 
     ax.legend(dhandles, dlabels, loc='upper right')
-    ax.set_ylabel('Distance to\nnuclei $[\mu m]$')
+    ax.set_ylabel('Distance to\nnuclei center $[\mu m]$')
+
+
+def distance_to_cell_center(df, ax, mask=None, time_contact=None, plot_interp=False):
+    pal = sns.color_palette()
+    nucleus_id = df['Nuclei'].min()
+
+    dhandles, dlabels = list(), list()
+    for k, [(centr_lbl), _df] in enumerate(df.groupby(['Centrosome'])):
+        track = _df.set_index('Time').sort_index()
+        color = pal[k % len(pal)]
+        dlbl = 'N%d-C%d' % (nucleus_id, centr_lbl)
+        dhandles.append(mlines.Line2D([], [], color=color, marker=None, label=dlbl))
+        dlabels.append(dlbl)
+
+        if mask is not None and not mask.empty:
+            tmask = mask[mask['Centrosome'] == centr_lbl].set_index('Time').sort_index()
+            orig = track.loc[tmask.index, 'DistCell'][tmask['DistCell']]
+            if len(orig) > 0:
+                orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
+            if plot_interp:
+                interp = track['DistCell'][~tmask['DistCell']]
+                if len(interp) > 0:
+                    interp.plot(ax=ax, label='Interpolated', marker='<', linewidth=0, c=color)
+                track['Dist'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+            else:
+                orig.plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+        else:
+            print('plotting distance to cell center with no mask.')
+            track['DistCell'].plot(ax=ax, label=dlbl, marker=None, sharex=True, c=color)
+
+    # plot time of contact
+    if time_contact is not None:
+        ax.axvline(x=time_contact, color='dimgray', linestyle='--')
+        ax.axvline(x=time_contact - ImagejPandas.TIME_BEFORE_CONTACT, color='lightgray', linestyle='--')
+
+    ax.legend(dhandles, dlabels, loc='upper right')
+    ax.set_ylabel('Distance to\ncell center $[\mu m]$')
 
 
 def distance_between_centrosomes(df, ax, mask=None, time_contact=None):
@@ -368,7 +419,7 @@ def distance_between_centrosomes(df, ax, mask=None, time_contact=None):
     track = df.set_index('Time').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask.set_index('Time').sort_index()
+        tmask = mask[mask['CentrLabel'] == 'A'].set_index('Time').sort_index()
         orig = track['DistCentr'][tmask['DistCentr']]
         interp = track['DistCentr'][~tmask['DistCentr']]
         if len(orig) > 0:
@@ -402,7 +453,7 @@ def speed_to_nucleus(df, ax, mask=None, time_contact=None):
 
         if mask is not None and not mask.empty:
             tmask = mask[mask['Centrosome'] == lbl_centr].set_index('Time').sort_index()
-            orig = track['Speed'][tmask['Speed']]
+            orig = track.loc[tmask.index, 'Speed'][tmask['Speed']]
             interp = track['Speed'][~tmask['Speed']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
@@ -426,7 +477,7 @@ def speed_between_centrosomes(df, ax, mask=None, time_contact=None):
     track = df.set_index('Time').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask.set_index('Time').sort_index()
+        tmask = mask[mask['CentrLabel'] == 'A'].set_index('Time').sort_index()
         orig = track['SpeedCentr'][tmask['SpeedCentr']]
         interp = track['SpeedCentr'][~tmask['SpeedCentr']]
         if len(orig) > 0:
@@ -459,7 +510,7 @@ def acceleration_to_nucleus(df, ax, mask=None, time_contact=None):
 
         if mask is not None and not mask.empty:
             tmask = mask[mask['Centrosome'] == lbl_centr].set_index('Time').sort_index()
-            orig = track['Acc'][tmask['Acc']]
+            orig = track.loc[tmask.index, 'Acc'][tmask['Acc']]
             interp = track['Acc'][~tmask['Acc']]
             if len(orig) > 0:
                 orig.plot(ax=ax, label='Original', marker='o', markersize=3, linewidth=0, c=color)
@@ -483,7 +534,7 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
     track = df.set_index('Time').sort_index()
 
     if mask is not None and not mask.empty:
-        tmask = mask.set_index('Time').sort_index()
+        tmask = mask[mask['CentrLabel'] == 'A'].set_index('Time').sort_index()
         orig = track['AccCentr'][tmask['AccCentr']]
         interp = track['AccCentr'][~tmask['AccCentr']]
         if len(orig) > 0:
@@ -507,27 +558,36 @@ def find_image(img_name, folder):
         for file in filenames:
             joinf = os.path.abspath(os.path.join(root, file))
             if os.path.isfile(joinf) and joinf[-4:] == '.tif' and file == img_name:
-                with tf.TiffFile(joinf, fastij=True) as tif:
+                with tf.TiffFile(joinf) as tif:
                     dt = None
                     if tif.is_imagej is not None:
-                        dt = tif.pages[0].imagej_tags.finterval
-                    res = 'n/a'
-                    if tif.pages[0].resolution_unit == 'centimeter':
-                        # asuming square pixels
-                        xr = tif.pages[0].x_resolution
-                        res = float(xr[0]) / float(xr[1])  # pixels per cm
-                        res = res / 1e4  # pixels per um
-                    elif tif.pages[0].imagej_tags.unit == 'micron':
-                        # asuming square pixels
-                        xr = tif.pages[0].x_resolution
-                        res = float(xr[0]) / float(xr[1])  # pixels per um
+                        dt = tif.imagej_metadata['finterval']
+                        res = 'n/a'
+                        if tif.imagej_metadata['unit'] == 'centimeter':
+                            # asuming square pixels
+                            xr = tif.pages[0].x_resolution
+                            res = float(xr[0]) / float(xr[1])  # pixels per cm
+                            res = res / 1e4  # pixels per um
+                        elif tif.imagej_metadata['unit'] == 'micron':
+                            # asuming square pixels
+                            xr = tif.pages[0].tags['XResolution'].value
+                            res = float(xr[0]) / float(xr[1])  # pixels per um
+
+                    if os.path.exists(parameters.data_dir + 'eb3/eb3_calibration.xls'):
+                        cal = pd.read_excel(parameters.data_dir + 'eb3/eb3_calibration.xls')
+                        calp = cal[cal['filename'] == img_name]
+                        if not calp.empty:
+                            calp = calp.iloc[0]
+                            if calp['optivar'] == 'yes':
+                                logging.info('file with optivar configuration selected!')
+                                res *= 1.6
 
                     images = None
                     # construct images array based on tif file structure:
                     if len(tif.pages) == 1:
                         images = np.int32(tif.pages[0].asarray())
                     elif len(tif.pages) > 1:
-                        images = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width),
+                        images = np.ndarray((len(tif.pages), tif.pages[0].imagelength, tif.pages[0].imagewidth),
                                             dtype=np.int32)
                         for i, page in enumerate(tif.pages):
                             images[i] = np.int32(page.asarray())
@@ -537,6 +597,7 @@ def find_image(img_name, folder):
 
 def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
     import sys
+    import cv2
     app = QtGui.QApplication(sys.argv)
     with h5py.File(hdf5_fname, 'r') as f:
         if 'pandas_dataframe' not in f['%s/%s/measurements' % (condition, run)]:
@@ -588,6 +649,8 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
             painter = QPainter()
             painter.begin(image_pixmap)
             painter.setRenderHint(QPainter.Antialiasing)
+            font = QFont('Arial', 25)
+            painter.setFont(font)
 
             nuc = nuclei_list['N%02d' % nuclei]
             nfxy = nuc['pos'].value
@@ -596,20 +659,10 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                 fidx = nuc_frames.searchsorted(frame)
                 nx = nfxy[fidx][1] * resolution
                 ny = nfxy[fidx][2] * resolution
-
-                # render nuclei centroid
-                painter.setPen(QPen(QBrush(QColor('transparent')), 2))
-                painter.setBrush(QColor('blue'))
-                painter.drawEllipse(nx - 5, ny - 5, 10, 10)
-
-                # painter.setPen(QPen(QBrush(QColor('white')), 2))
-                # painter.drawText(nx + 10, ny + 5, 'N%02d' % nuclei)
-
                 df_fr = df[df['Frame'] == frame]
                 sec = df_fr['Time'].iloc[0]
                 min = np.floor(sec / 60.0)
                 sec -= min * 60
-                # painter.drawText(10, 30, '%02d - (%03d,%03d)' % (frame, width, height))
                 painter.drawText(10, 30, '%02d:%02d' % (min, sec))
 
                 # render nuclei boundary
@@ -620,9 +673,17 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                         nucb_qpoints = [Qt.QPoint(x * resolution, y * resolution) for x, y in nucb_points]
                         nucb_poly = Qt.QPolygon(nucb_qpoints)
 
-                        painter.setPen(QPen(QBrush(QColor('yellow')), 2))
+                        painter.setPen(QPen(QBrush(QColor(SUSSEX_CORN_YELLOW)), 2))
                         painter.setBrush(QColor('transparent'))
+
                         painter.drawPolygon(nucb_poly)
+
+                        # render nuclei centroid
+                        painter.setPen(QPen(QBrush(QColor('transparent')), 2))
+                        painter.setBrush(QColor(SUSSEX_CORN_YELLOW))
+                        painter.drawEllipse(nx - 5, ny - 5, 10, 10)
+                        # painter.setPen(QPen(QBrush(QColor('white')), 2))
+                        # painter.drawText(nx + 10, ny + 5, 'N%02d' % nuclei)
 
                 # render cell boundary
                 cellframe = dfbound.loc[dfbound['Frame'] == frame]
@@ -635,19 +696,23 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                         nucb_poly = Qt.QPolygon(nucb_qpoints)
 
                         painter.setBrush(QColor('transparent'))
-                        painter.setPen(QPen(QBrush(QColor(0, 255, 0)), 2))
+                        painter.setPen(QPen(QBrush(QColor('white')), 2))
                         painter.drawPolygon(nucb_poly)
 
-                        # painter.drawText(cell_centroid[0] + 5, cell_centroid[1], 'C%02d' % (nuclei))
-
-                        painter.setBrush(QColor(0, 255, 0))
+                        # render cell centroid
+                        painter.setPen(QPen(QBrush(QColor('transparent')), 2))
+                        painter.setBrush(QColor('white'))
                         painter.drawEllipse(cell_centroid[0] - 5, cell_centroid[1] - 5, 10, 10)
+                        # painter.setPen(QPen(QBrush(QColor('white')), 2))
+                        # painter.drawText(cell_centroid[0] + 5, cell_centroid[1], 'C%02d' % (nuclei))
 
                 # draw centrosomes
                 painter.setBrush(QColor('transparent'))
                 centrosomes_of_nuclei_a = f['%s/%s/selection/%s/A' % (condition, run, 'N%02d' % nuclei)].keys()
                 centrosomes_of_nuclei_b = f['%s/%s/selection/%s/B' % (condition, run, 'N%02d' % nuclei)].keys()
-                painter.setPen(QPen(QBrush(QColor('orange')), 2))
+
+                # 1st centrosome
+                painter.setPen(QPen(QBrush(QColor(SUSSEX_SKY_BLUE)), 2))
                 for centr_str in centrosomes_of_nuclei_a:
                     cntr = centrosome_list[centr_str]
                     cfxy = cntr['pos'].value
@@ -657,8 +722,8 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                         cx = cfxy[fidx][1] * resolution
                         cy = cfxy[fidx][2] * resolution
                         painter.drawEllipse(cx - 5, cy - 5, 10, 10)
-
-                painter.setPen(QPen(QBrush(QColor('red')), 2))
+                # 2nd centrosome
+                painter.setPen(QPen(QBrush(QColor(SUSSEX_CORAL_RED)), 2))
                 for centr_str in centrosomes_of_nuclei_b:
                     cntr = centrosome_list[centr_str]
                     cfxy = cntr['pos'].value
@@ -671,16 +736,16 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
 
                 rect = QRect(cell_centroid[0] - cwidth / 2.0, cell_centroid[1] - cheight / 2.0, cwidth, cheight)
                 painter.setPen(QPen(QBrush(QColor('white')), 2))
-                painter.drawText(rect.x() + 10, rect.y() + 20, '%02d:%02d' % (min, sec))
+                painter.drawText(rect.x() + 10, rect.y() + 30, '%02d:%02d' % (min, sec))
 
                 xini, yini = rect.x() + cwidth - 70, rect.y() + cheight - 20
-                painter.drawText(xini + resolution * 10 / 8.0, yini - 5, '10um')
+                # painter.drawText(xini + resolution * 10 / 8.0, yini - 5, '10um')
                 painter.setPen(QPen(QBrush(QColor('white')), 4))
                 painter.drawLine(xini, yini, xini + resolution * 10, yini)
                 painter.end()
                 cropped = image_pixmap.copy(rect)
 
-                cropped.save('/Users/Fabio/data/%s_N%02d_F%03d.png' % (run, nuclei, frame))
+                cropped.save(parameters.data_dir + 'crop/%s_N%02d_F%03d.png' % (run, nuclei, frame))
 
 
 def pil_grid(images, max_horiz=np.iinfo(int).max):
