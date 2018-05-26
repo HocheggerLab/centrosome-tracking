@@ -114,6 +114,8 @@ class ExperimentsList(QtGui.QWidget):
                     conditem.setData(QtCore.QVariant(Qt.Unchecked), Qt.CheckStateRole)
                 conditem.setCheckable(False)
                 model.appendRow(conditem)
+        QtCore.QObject.connect(self.nucleiListView.selectionModel(),
+                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.on_nuclei_change)
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
     def on_nuclei_change(self, current, previous):
@@ -330,10 +332,10 @@ if __name__ == '__main__':
     from PyQt4.Qt import PYQT_VERSION_STR
 
     base_path = os.path.abspath('%s' % os.getcwd())
-    logging.info('Qt version:', QT_VERSION_STR)
-    logging.info('PyQt version:', PYQT_VERSION_STR)
-    logging.info('Working dir:', os.getcwd())
-    logging.info('Base dir:', base_path)
+    logging.info('Qt version:' + QT_VERSION_STR)
+    logging.info('PyQt version:' + PYQT_VERSION_STR)
+    logging.info('Working dir:' + os.getcwd())
+    logging.info('Base dir:' + base_path)
     os.chdir(base_path)
 
     app = QtGui.QApplication(sys.argv)
