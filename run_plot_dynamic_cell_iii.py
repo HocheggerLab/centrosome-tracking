@@ -257,7 +257,7 @@ def fig_1(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(9, 4.5), dpi=_dpi)
+        fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax = fig.gca()
         sp.congression(dfs, ax=ax, order=conds)
@@ -427,8 +427,13 @@ def fig_1_mother_daughter(df, dfc):
         fig.clf()
         ax1 = fig.add_subplot(111)
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            sp.msd(dfs[dfs['condition'] == names['mother-daughter']], ax1, ylim=[0, 120])
+            sp.msd(dfs[dfs['condition'] == names['mother-daughter']], ax1, color=sp.SUSSEX_COBALT_BLUE, ylim=[0, 120])
         ax1.set_xlabel('time delay [min]')
+        ax1.set_ylabel('MSD $[\mu m^2]$')
+        ax1.set_title('')
+        L = plt.legend()
+        L.get_texts()[0].set_text('+STLC displacing more')
+        L.get_texts()[1].set_text('+STLC displacing less')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
@@ -437,20 +442,20 @@ def fig_1_mother_daughter(df, dfc):
         fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax2 = fig.add_subplot(111, sharey=ax1)
-        with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            df_msd = ImagejPandas.msd_centrosomes(dfs)
-            df_msd.loc[df_msd['CentrLabel'] == 'A', 'CentrLabel'] = 'Mother'
-            df_msd.loc[df_msd['CentrLabel'] == 'B', 'CentrLabel'] = 'Daugther'
+        df_msd = ImagejPandas.msd_centrosomes(dfs)
+        df_msd.loc[df_msd['CentrLabel'] == 'A', 'CentrLabel'] = 'Mother'
+        df_msd.loc[df_msd['CentrLabel'] == 'B', 'CentrLabel'] = 'Daugther'
 
-            sns.tsplot(data=df_msd[df_msd['CentrLabel'] == 'Mother'], color='k', linestyle='-',
-                       time='Time', value='msd', unit='indv', condition='CentrLabel', estimator=np.nanmean, ax=ax2)
-            sns.tsplot(data=df_msd[df_msd['CentrLabel'] == 'Daugther'], color='k', linestyle='--',
-                       time='Time', value='msd', unit='indv', condition='CentrLabel', estimator=np.nanmean, ax=ax2)
-            ax2.set_ylim([0, 120])
-            ax2.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
-            ax2.set_xticks(np.arange(0, dfs['Time'].max(), 20.0))
-            ax2.legend(title=None, loc='upper left')
-            ax2.set_xlabel('time delay [min]')
+        sns.tsplot(data=df_msd[df_msd['CentrLabel'] == 'Mother'], color=sp.SUSSEX_COBALT_BLUE, linestyle='-',
+                   time='Time', value='msd', unit='indv', condition='CentrLabel', estimator=np.nanmean, ax=ax2)
+        sns.tsplot(data=df_msd[df_msd['CentrLabel'] == 'Daugther'], color=sp.SUSSEX_COBALT_BLUE, linestyle='--',
+                   time='Time', value='msd', unit='indv', condition='CentrLabel', estimator=np.nanmean, ax=ax2)
+        ax2.set_ylim([0, 120])
+        ax2.set_xlabel('time delay [min]')
+        ax2.set_ylabel('')
+        ax2.set_title('')
+        ax2.set_xticks(np.arange(0, dfs['Time'].max(), 20.0))
+        ax2.legend(title=None, loc='upper left')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
@@ -462,6 +467,11 @@ def fig_1_mother_daughter(df, dfc):
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
             sp.msd_indivs(dfs[dfs['condition'] == names['mother-daughter']], ax3)
         ax3.set_xlabel('time delay [min]')
+        ax3.set_ylabel('')
+        ax3.set_title('')
+        L = plt.legend()
+        L.get_texts()[0].set_text('+STLC displacing more')
+        L.get_texts()[1].set_text('+STLC displacing less')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
         # ---------------------------
@@ -475,6 +485,9 @@ def fig_1_mother_daughter(df, dfc):
                        time='Time', value='msd', unit='indv', condition='CentrLabel', estimator=np.nanmean, ax=ax4)
         ax4.set_ylabel('Mean Square Displacement (MSD) $[\mu m^2]$')
         ax4.set_xticks(np.arange(0, dfs['Time'].max(), 20.0))
+        ax4.set_xlabel('time delay [min]')
+        ax4.set_ylabel('')
+        ax4.set_title('')
         ax4.legend(title=None, loc='upper left')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
@@ -1075,7 +1088,7 @@ def fig_5(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        _conds = ['1_P.C.', '1_FAKI', '1_CyDT', '1_Bleb']
+        _conds = ['1_P.C.', '1_FAKI', '1_CyDT']
         dfs, conds, colors = sorted_conditions(df, _conds)
         fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
@@ -1113,7 +1126,7 @@ def fig_5(df, dfc):
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        _conds = ['1_P.C.', '1_FAKI', '1_CyDT', '1_Bleb']
+        _conds = ['1_P.C.', '1_FAKI', '1_CyDT']
         dfcs, conds, colors = sorted_conditions(dfc, _conds)
         fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
@@ -1143,31 +1156,6 @@ def fig_5(df, dfc):
             ax5.set_xlabel('time delay [min]')
             ax5.set_ylabel('MSD')
             ax5.legend(title=None, loc='upper left')
-            pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
-
-def color_keys(df, dfc):
-    cldf, conds, colors = sorted_conditions(df, names.keys())
-    coldf, conds, colors = sorted_conditions(dfc, names.keys())
-    with PdfPages('/Users/Fabio/colors.pdf') as pdf:
-        with sns.color_palette(colors):
-            # ---------------------------
-            #          FIRST PAGE
-            # ---------------------------
-            fig = plt.figure(figsize=(20, 12.4), dpi=_dpi)
-            fig.clf()
-            mua = coldf.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-            sp.anotated_boxplot(mua, 'SpeedCentr', order=conds)
-            fig.gca().set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
-            pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
-
-            # ---------------------------
-            #          NEXT PAGE
-            # ---------------------------
-            fig = plt.figure(figsize=(20, 12.4), dpi=_dpi)
-            fig.clf()
-            mua = cldf.groupby(ImagejPandas.CENTROSOME_INDIV_INDEX).mean().reset_index()
-            sp.anotated_boxplot(mua, 'v_s', order=conds)
             pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 

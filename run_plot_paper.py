@@ -1147,6 +1147,59 @@ def fig_5(df, dfc):
             pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
+def fig_6(df):
+    _conds = ['1_N.C.', '1_P.C.',
+              '2_Kines1', '2_CDK1_DK', '1_DIC', '1_Dynei', '1_CENPF', '1_BICD2',
+              '1_No10+', '1_MCAK', '1_chTOG',
+              '1_CyDT', '1_FAKI', '1_ASUND']
+
+    markers = ['o', 'o',
+               's', 'X', 'v', '^', '<', '>',
+               'p', 'P', 'X',
+               'p', 'P', 'X']
+    df, conds, colors = sorted_conditions(df, _conds)
+    colors = [sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]
+    colors.extend([sp.SUSSEX_FLINT] * 6)
+    colors.extend([sp.SUSSEX_FUSCHIA_PINK] * 3)
+    colors.extend([sp.SUSSEX_TURQUOISE] * 3)
+    colortuple = dict(zip(conds, colors))
+
+    with PdfPages(parameters.data_dir + 'out/fig6.pdf') as pdf:
+        # -----------
+        # Page 1
+        # -----------
+        fig = matplotlib.pyplot.gcf()
+        fig.clf()
+        fig.set_size_inches(9.3, 9.3)
+        ax = plt.gca()
+        plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.2, hspace=0.2)
+
+        df_ = df[df['Time'] <= 100]
+        df_msd = ImagejPandas.msd_centrosomes(df_).set_index('Frame').sort_index()
+        dfcg = sp._compute_congression(df).set_index('Time').sort_index()
+        df_msd_final = pd.DataFrame()
+        for _, dfmsd in df_msd.groupby(ImagejPandas.CENTROSOME_INDIV_INDEX):
+            cnd = dfmsd.iloc[0]['condition']
+            cgr = dfcg[dfcg['condition'] == cnd].iloc[-1]['congress']
+            df_it = pd.DataFrame([[dfmsd.iloc[-1]['msd'], cgr, cnd]],
+                                 columns=['msd', 'cgr', 'condition'])
+            df_msd_final = df_msd_final.append(df_it)
+
+        # inneficient as cgr is repeated for every sample
+        df_msd_final = df_msd_final.groupby('condition').mean().reset_index()
+        for c, m in zip(_conds, markers):
+            cnd = names[c]
+            p = df_msd_final[df_msd_final['condition'] == cnd]
+            ax.scatter(p['cgr'], p['msd'], c=colortuple[cnd], s=200, label=cnd, marker=m, zorder=1000)
+
+        ax.legend(loc='upper right')
+        ax.set_ylabel('MSD $[\mu m^2]$')
+        ax.set_xlabel('Congression [%]')
+
+        # fig.patch.set_alpha(0.0)
+        pdf.savefig(transparent=True)
+
+
 def tom_plots():
     pass
 
@@ -1229,5 +1282,6 @@ if __name__ == '__main__':
     df_eb3_avg = pd.read_pickle(parameters.data_dir + 'eb3stats.pandas')
     fig_4_eb3_stats(df_eb3_avg, filename='fig4_boxplots_drift.pdf', title='Drift prediction algorithm')
     fig_5(df_m, dfcentr)
+    fig_6(df_m)
 
     # tom_plots()

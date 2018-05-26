@@ -56,15 +56,18 @@ names = OrderedDict([('1_N.C.', '-STLC'),
                      ('2_Kines1', 'Kinesin1'),
                      ('2_CDK1_DK', 'DHC+Kinesin1'),
 
-                     ('1_DIC', 'DIC+STLC'),
-                     ('1_Dynei', 'DHC+STLC'),  # DyneinH1
+                     ('1_DIC', 'DIC'),
+                     ('1_Dynei', 'DHC'),  # DyneinH1
                      ('1_CENPF', 'CenpF'),
                      ('1_BICD2', 'Bicaudal'),
 
                      ('1_No10+', 'Nocodazole 10ng'),
+                     ('1_MCAK', 'MCAK'),
+                     ('1_chTOG', 'chTog'),
 
                      ('1_CyDT', 'Cytochalsin D'),
                      ('1_FAKI', 'FAKi'),
+                     ('1_Bleb', 'Blebbistatin'),
 
                      ('hset', 'Hset'),
                      ('kif25', 'Kif25'),
@@ -218,10 +221,20 @@ def retreat1(df, dfc):
 
 
 def retreat2(df):
-    _conds = ['1_N.C.', '1_P.C.', '2_Kines1', '2_CDK1_DK', '1_DIC', '1_Dynei', '1_CENPF', '1_BICD2', '1_No10+',
-              '1_CyDT', '1_FAKI', 'hset', 'kif25', 'hset+kif25']
-    markers = ['o', 'o', 's', 's', 'v', '^', '<', '>', 'p', 'h', 'X', '*', 'P', 'X']
+    _conds = ['1_N.C.', '1_P.C.',
+              '2_Kines1', '2_CDK1_DK', '1_DIC', '1_Dynei', '1_CENPF', '1_BICD2',
+              '1_No10+', '1_MCAK', '1_chTOG',
+              '1_CyDT', '1_FAKI', '1_Bleb']
+
+    markers = ['o', 'o',
+               's', 'X', 'v', '^', '<', '>',
+               'p', 'P', 'X',
+               'p', 'P', 'X']
     df, conds, colors = sorted_conditions(df, _conds)
+    colors = [sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]
+    colors.extend([sp.SUSSEX_FLINT] * 6)
+    colors.extend([sp.SUSSEX_FUSCHIA_PINK] * 3)
+    colors.extend([sp.SUSSEX_TURQUOISE] * 3)
     colortuple = dict(zip(conds, colors))
 
     with PdfPages(parameters.data_dir + 'out/retreat2017fig-2.pdf') as pdf:
@@ -230,9 +243,9 @@ def retreat2(df):
         # -----------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(9.3, 9.3)
+        fig.set_size_inches(12, 9.3)
         ax = plt.gca()
-        plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.2, hspace=0.2)
+        plt.subplots_adjust(left=0.125, bottom=0.1, right=0.7, top=0.9, wspace=0.2, hspace=0.2)
 
         df_ = df[df['Time'] <= 100]
         df_msd = ImagejPandas.msd_centrosomes(df_).set_index('Frame').sort_index()
@@ -250,38 +263,14 @@ def retreat2(df):
         for c, m in zip(_conds, markers):
             cnd = names[c]
             p = df_msd_final[df_msd_final['condition'] == cnd]
-            ax.scatter(p['cgr'], p['msd'], c=colortuple[cnd], s=100, label=cnd, marker=m, zorder=1000)
+            ax.scatter(p['cgr'], p['msd'], c=colortuple[cnd], s=600, label=cnd, marker=m, zorder=1000)
 
-        ax.legend(loc='upper right')
+        ax.legend(bbox_to_anchor=(1.04, 1), loc='upper left')
         ax.set_ylabel('MSD $[\mu m^2]$')
         ax.set_xlabel('Congression [%]')
 
         # fig.patch.set_alpha(0.0)
         pdf.savefig(transparent=True)
-
-        # with PdfPages('/Users/Fabio/retreat2017fig-22.pdf') as pdf:
-        #     # -----------
-        #     # Page 2
-        #     # -----------
-        #     fig = matplotlib.pyplot.gcf()
-        #     fig.clf()
-        #     fig.set_size_inches(9.3, 9.3)
-        #     ax = plt.gca()
-        #
-        #     # df_ = df[df['Time'] <= 50]
-        #     df_msd = ImagejPandas.msd_centrosomes(df_).set_index('Frame').sort_index()
-        #     for c, m in zip(_conds, markers):
-        #         cnd = names[c]
-        #         dff = df_msd[df_msd['condition'] == cnd]
-        #         sns.tsplot(data=dff, linestyle='-', time='Time', value='msd', unit='indv', condition='condition',
-        #                    color=colortuple[cnd], estimator=np.nanmean, ax=ax)
-        #
-        #     ax.legend(loc='upper left')
-        #     ax.set_ylabel('MSD $[\mu m^2]$')
-        #     ax.set_xlabel('Time $[min]$')
-        #
-        #     # fig.patch.set_alpha(0.0)
-        #     pdf.savefig(transparent=True)
 
 
 def retreat4(df):

@@ -21,6 +21,17 @@ sns.set_context('paper')
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 
 
+def centrosome_masks(msk):
+    if msk['Nuclei'].unique().size > 1 and msk['condition'].unique().size > 1 and msk['run'].unique().size > 1:
+        raise IndexError('Just one track per mask retrieval.')
+    msk = msk.set_index(['condition', 'run', 'Nuclei', 'Frame', 'Time']).sort_index()
+    omsk = pd.DataFrame()
+    omsk['DistCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Dist']) & (msk.loc[msk['CentrLabel'] == 'B', 'Dist'])
+    omsk['SpeedCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Speed']) & (msk.loc[msk['CentrLabel'] == 'B', 'Speed'])
+    omsk['AccCentr'] = (msk.loc[msk['CentrLabel'] == 'A', 'Acc']) & (msk.loc[msk['CentrLabel'] == 'B', 'Acc'])
+    return omsk.reset_index()
+
+
 def plots_for_individual(df, mask=None):
     if df['Nuclei'].unique().size > 1 and df['condition'].unique().size > 1 and df['run'].unique().size > 1:
         raise IndexError('Just one track per plot.')
