@@ -15,6 +15,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import hdf5_nexus as hdf
 import im_gabor
 import mechanics as m
+import parameters
 import plot_special_tools as sp
 from imagej_pandas import ImagejPandas
 
@@ -229,6 +230,7 @@ class ExperimentsList(QtGui.QWidget):
                 del f['%s/%s/processed/boundary' % (self.condition, self.run)]
 
         logging.debug('nuclei with cell boundary: %s' % df.loc[~df['CellBound'].isnull(), 'Nuclei'].unique())
+        df = df.loc[:, set(ImagejPandas.MASK_INDEX + ['CellX', 'CellY', 'CellBound'])]
         df.to_hdf(self.hdf5file, key='%s/%s/processed/boundary' % (self.condition, self.run), mode='r+')
         self.plot_tracks_of_nuclei(self.nuclei_selected)
         logging.info('animating again.')
@@ -340,7 +342,7 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication(sys.argv)
 
-    folders = ExperimentsList('/Users/Fabio/centrosomes.nexus.hdf5')
+    folders = ExperimentsList(parameters.data_dir + 'centrosomes.nexus.hdf5')
     folders.show()
 
     sys.exit(app.exec_())
