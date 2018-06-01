@@ -191,7 +191,7 @@ def retreat1(df, dfc):
         # expressed as a fraction of the average axis height
         sp.msd(_df[_df['condition'] == names['mother-daughter']], ax1, ylim=msd_ylim, color=sp.SUSSEX_COBALT_BLUE)
 
-        df_msd = ImagejPandas.msd_centrosomes(_df)
+        df_msd = ImagejPandas.msd_particles(_df)
         df_msd.loc[df_msd['CentrLabel'] == 'A', 'CentrLabel'] = 'Mother'
         df_msd.loc[df_msd['CentrLabel'] == 'B', 'CentrLabel'] = 'Daugther'
 
@@ -248,7 +248,7 @@ def retreat2(df):
         plt.subplots_adjust(left=0.125, bottom=0.1, right=0.7, top=0.9, wspace=0.2, hspace=0.2)
 
         df_ = df[df['Time'] <= 100]
-        df_msd = ImagejPandas.msd_centrosomes(df_).set_index('Frame').sort_index()
+        df_msd = ImagejPandas.msd_particles(df_).set_index('Frame').sort_index()
         dfcg = sp._compute_congression(df).set_index('Time').sort_index()
         df_msd_final = pd.DataFrame()
         for _, dfmsd in df_msd.groupby(ImagejPandas.CENTROSOME_INDIV_INDEX):

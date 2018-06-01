@@ -290,7 +290,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
 
     _err_kws = {'alpha': 0.3, 'lw': 0.5}
     cond = df['condition'].unique()[0]
-    df_msd = ImagejPandas.msd_centrosomes(df)
+    df_msd = ImagejPandas.msd_particles(df)
     df_msd = _msd_tag(df_msd)
 
     sns.tsplot(
@@ -317,7 +317,7 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
         raise Exception('Need just one condition for using this plotting function.')
 
     cond = df['condition'].unique()[0]
-    df_msd = ImagejPandas.msd_centrosomes(df)
+    df_msd = ImagejPandas.msd_particles(df)
     df_msd = _msd_tag(df_msd)
 
     sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving more'],

@@ -1,9 +1,7 @@
 import itertools
 import logging
-import os
 from collections import OrderedDict
 
-import PIL.Image
 import coloredlogs
 import matplotlib as mpl
 import matplotlib.axes
@@ -432,7 +430,7 @@ def fig_1_mother_daughter(df, dfc):
         fig.clf()
         ax2 = fig.add_subplot(111, sharey=ax1)
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE]):
-            df_msd = ImagejPandas.msd_centrosomes(dfs)
+            df_msd = ImagejPandas.msd_particles(dfs)
             df_msd.loc[df_msd['CentrLabel'] == 'A', 'CentrLabel'] = 'Mother'
             df_msd.loc[df_msd['CentrLabel'] == 'B', 'CentrLabel'] = 'Daugther'
 
@@ -1175,7 +1173,7 @@ def fig_6(df):
         plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.2, hspace=0.2)
 
         df_ = df[df['Time'] <= 100]
-        df_msd = ImagejPandas.msd_centrosomes(df_).set_index('Frame').sort_index()
+        df_msd = ImagejPandas.msd_particles(df_).set_index('Frame').sort_index()
         dfcg = sp._compute_congression(df).set_index('Time').sort_index()
         df_msd_final = pd.DataFrame()
         for _, dfmsd in df_msd.groupby(ImagejPandas.CENTROSOME_INDIV_INDEX):

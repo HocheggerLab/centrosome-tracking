@@ -72,7 +72,7 @@ def mother_daughter_msd(df, dfc):
         sp.msd(df[df['condition'] == names['mother-daughter']], ax1, ylim=msd_ylim)
         sp.msd_indivs(df[df['condition'] == names['mother-daughter']], ax3, ylim=msd_ylim)
 
-        df_msd = ImagejPandas.msd_centrosomes(df)
+        df_msd = ImagejPandas.msd_particles(df)
         df_msd.loc[df_msd['CentrLabel'] == 'A', 'CentrLabel'] = 'Mother'
         df_msd.loc[df_msd['CentrLabel'] == 'B', 'CentrLabel'] = 'Daugther'
 
@@ -118,7 +118,7 @@ def mother_daughter_msd(df, dfc):
         ax1.set_xlim(dfc['Time'].min(), 0)
         ax1.legend(title=None, loc='upper left')
 
-        dfc_msd = ImagejPandas.msd_centrosomes(dfc)
+        dfc_msd = ImagejPandas.msd_particles(dfc)
         dfc_msd.loc[dfc_msd['CentrLabel'] == 'A', 'CentrLabel'] = 'Mother'
         dfc_msd.loc[dfc_msd['CentrLabel'] == 'B', 'CentrLabel'] = 'Daugther'
 
