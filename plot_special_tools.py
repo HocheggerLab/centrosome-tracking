@@ -1,13 +1,14 @@
-import h5py
 import itertools
 import logging
 import math
+import os
+
+import h5py
 import matplotlib.axes
 import matplotlib.colors
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import pandas as pd
 import seaborn as sns
 import tifffile as tf
@@ -274,11 +275,11 @@ def _msd_tag(df):
         c_a = _df[_df['CentrLabel'] == 'A']['msd_lfit_a'].unique()[0]
         c_b = _df[_df['CentrLabel'] == 'B']['msd_lfit_a'].unique()[0]
         if c_a > c_b:
-            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' moving more'
-            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' moving less'
+            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' displacing more'
+            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' displacing less'
         else:
-            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' moving more'
-            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' moving less'
+            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' displacing more'
+            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' displacing less'
         mvtag = mvtag.append(_df)
     return mvtag
 
@@ -321,10 +322,10 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
     df_msd = ImagejPandas.msd_particles(df)
     df_msd = _msd_tag(df_msd)
 
-    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving more'],
+    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' displacing more'],
                color=color, linestyle='-',
                time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
-    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving less'],
+    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' displacing less'],
                color=color, linestyle='--',
                time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
     ax.set_title(cond)

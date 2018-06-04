@@ -344,14 +344,14 @@ def msd_stlc(df, dfc):
 
         df_msd1 = df_msd[df_msd['condition'] == names['1_P.C.']]
         df_msd1 = sp._msd_tag(df_msd1)
-        df_msd1 = df_msd1[df_msd1['msd_cat'] == '+STLC moving less']
-        df_msd1['condition'] = '+STLC moving less'
+        df_msd1 = df_msd1[df_msd1['msd_cat'] == '+STLC displacing less']
+        df_msd1['condition'] = '+STLC displacing less'
 
         dff = df[df['condition'] == 'pc']
         dff = dff[dff['Time'] <= 50]
         df_msd2 = ImagejPandas.msd_particles(dff, particle_x='NuclX', particle_y='NuclY')
         df_msd2 = sp._msd_tag(df_msd2)
-        df_msd2 = df_msd2[df_msd2['msd_cat'] == 'pc moving less']
+        df_msd2 = df_msd2[df_msd2['msd_cat'] == 'pc displacing less']
         df_msd2['condition'] = '+STLC (nucleus)'
         print(df_msd2[['Time', 'NuclX', 'NuclY', 'msd']])
 
@@ -1296,7 +1296,7 @@ if __name__ == '__main__':
     microtubule(df_m, dfcentr)
     #
     # df_eb3_flt = pd.read_pickle(parameters.data_dir + 'eb3filter.pandas')
-    # eb3_tracking(df_eb3_flt)
+    # eb3_track ing(df_eb3_flt)
     df_eb3_avg = pd.read_pickle(parameters.helfrid_lab_dir + 'eb3-nearest-3px/eb3stats.pandas')
     eb3_stats(df_eb3_avg, filename='eb3_boxplots_nearest3px.pdf',
               title='Nearest Velocity (3px)')
