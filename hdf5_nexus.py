@@ -242,7 +242,9 @@ class LabHDF5NeXusFile():
         with h5py.File(self.filename, 'r') as f:
             if 'boundary' in f['%s/%s/processed' % (experiment_tag, run)]:
                 df_cell = pd.read_hdf(self.filename, key='%s/%s/processed/boundary' % (experiment_tag, run))
-                df_cell = df_cell.loc[~df_cell['CellBound'].isnull(), :]
+                df_cell = df_cell.loc[~df_cell['CellBound'].isnull(),
+                                      set(ImagejPandas.MASK_INDEX + ['CellX', 'CellY', 'CellBound',
+                                                                     'DistCell', 'SpdCell', 'AccCell'])]
 
                 if 'CellBound' in df_merge.columns and not df_cell.empty:
                     logging.info('clearing CellBound')
