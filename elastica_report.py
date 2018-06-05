@@ -14,6 +14,7 @@ from matplotlib import font_manager
 from matplotlib.backends.backend_pdf import PdfPages
 
 import elastica as e
+import parameters
 
 print font_manager.OSXInstalledFonts()
 print font_manager.OSXFontDirectories
@@ -30,7 +31,7 @@ msd_ylim = [0, 420]
 
 
 def fig_1(df):
-    with PdfPages('/Users/Fabio/elastica.pdf') as pdf:
+    with PdfPages(parameters.data_dir + 'out/elastica.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches(_fig_size_A3)
@@ -168,6 +169,6 @@ def fig_1(df):
 
 
 if __name__ == '__main__':
-    df = pd.read_csv('/Users/Fabio/elastica.csv')
+    df = pd.read_csv(parameters.data_dir + 'elastica.csv')
 
     fig_1(df)

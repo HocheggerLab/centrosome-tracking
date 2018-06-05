@@ -442,7 +442,7 @@ def fig_1_mother_daughter(df, dfc):
         fig = plt.figure(figsize=(4.5, 4.5), dpi=_dpi)
         fig.clf()
         ax2 = fig.add_subplot(111, sharey=ax1)
-        df_msd = ImagejPandas.msd_centrosomes(dfs)
+        df_msd = ImagejPandas.msd_particles(dfs)
         df_msd.loc[df_msd['CentrLabel'] == 'A', 'CentrLabel'] = 'Mother'
         df_msd.loc[df_msd['CentrLabel'] == 'B', 'CentrLabel'] = 'Daugther'
 

@@ -105,7 +105,7 @@ class MyAxes3D(axes3d.Axes3D):
         zaxis.axes._draw_grid = draw_grid_old
 
 
-def anotated_boxplot(data_grouped, var, point_size=5, fontsize=7, cat='condition',
+def anotated_boxplot(data_grouped, var, point_size=5, fontsize=None, cat='condition',
                      swarm=True, order=None, xlabels=None, ax=None):
     sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
                 zorder=100)
@@ -124,21 +124,23 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize=7, cat='condition
         artist.set_zorder(5000)
 
     order = order if order is not None else data_grouped[cat].unique()
-    for x, c in enumerate(order):
-        d = data_grouped[data_grouped[cat] == c][var]
-        _max_y = _ax.axis()[3]
-        count = d.count()
-        mean = d.mean()
-        median = d.median()
-        # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
-        _txt = '%0.2f\n%d' % (median, count)
-        _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
+    if fontsize != None:
+        for x, c in enumerate(order):
+            d = data_grouped[data_grouped[cat] == c][var]
+            _max_y = _ax.axis()[3]
+            count = d.count()
+            mean = d.mean()
+            median = d.median()
+            # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
+            _txt = '%0.2f\n%d' % (median, count)
+            _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
     # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
     if xlabels is not None:
         _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
                             rotation=45, multialignment='right')
     else:
         _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
+    ax.set_xlabel('')
 
     return _ax
 
@@ -273,11 +275,11 @@ def _msd_tag(df):
         c_a = _df[_df['CentrLabel'] == 'A']['msd_lfit_a'].unique()[0]
         c_b = _df[_df['CentrLabel'] == 'B']['msd_lfit_a'].unique()[0]
         if c_a > c_b:
-            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' moving more'
-            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' moving less'
+            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' displacing more'
+            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' displacing less'
         else:
-            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' moving more'
-            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' moving less'
+            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' displacing more'
+            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' displacing less'
         mvtag = mvtag.append(_df)
     return mvtag
 
@@ -288,9 +290,9 @@ def msd_indivs(df, ax, time='Time', ylim=None):
     if df['condition'].unique().size > 1:
         raise Exception('Need just one condition for using this plotting function.')
 
-    _err_kws = {'alpha': 0.3, 'lw': 0.5}
+    _err_kws = {'alpha': 0.5, 'lw': 0.1}
     cond = df['condition'].unique()[0]
-    df_msd = ImagejPandas.msd_centrosomes(df)
+    df_msd = ImagejPandas.msd_particles(df)
     df_msd = _msd_tag(df_msd)
 
     sns.tsplot(
@@ -317,13 +319,13 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
         raise Exception('Need just one condition for using this plotting function.')
 
     cond = df['condition'].unique()[0]
-    df_msd = ImagejPandas.msd_centrosomes(df)
+    df_msd = ImagejPandas.msd_particles(df)
     df_msd = _msd_tag(df_msd)
 
-    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving more'],
+    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' displacing more'],
                color=color, linestyle='-',
                time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
-    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' moving less'],
+    sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' displacing less'],
                color=color, linestyle='--',
                time=time, value='msd', unit='indv', condition='msd_cat', estimator=np.nanmean, ax=ax)
     ax.set_title(cond)

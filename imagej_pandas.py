@@ -106,7 +106,7 @@ class ImagejPandas(object):
         return df.reset_index(drop=True)
 
     @staticmethod
-    def msd_centrosomes(df):
+    def msd_particles(df, particle_x='CentX', particle_y='CentY'):
         """
             Computes Mean Square Displacement as defined by:
 
@@ -115,9 +115,9 @@ class ImagejPandas(object):
         dfout = pd.DataFrame()
         for id, _df in df.groupby(ImagejPandas.CENTROSOME_INDIV_INDEX):
             _df = _df.set_index('Time').sort_index()
-            x0, y0 = _df['CentX'].iloc[0], _df['CentY'].iloc[0]
-            _msdx = _df.loc[:, 'CentX'].apply(lambda x: (x - x0) ** 2)
-            _msdy = _df.loc[:, 'CentY'].apply(lambda y: (y - y0) ** 2)
+            x0, y0 = _df[particle_x].iloc[0], _df[particle_y].iloc[0]
+            _msdx = _df.loc[:, particle_x].apply(lambda x: (x - x0) ** 2)
+            _msdy = _df.loc[:, particle_y].apply(lambda y: (y - y0) ** 2)
             _df.loc[:, 'msd'] = _msdx + _msdy
 
             # do linear regression of both tracks to see which has higher slope
