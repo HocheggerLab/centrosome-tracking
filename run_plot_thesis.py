@@ -210,38 +210,33 @@ def dist_stlc(df, dfc):
         log.debug(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique())
         log.debug(len(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique()))
 
-        stats = md.gen_dist_data(df[(df['condition'] == 'pc')])
-        order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid', 'Cell\nCentroid', 'Cell\n(manual)']
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
         fig = plt.figure(figsize=_fig_size_rect, dpi=_dpi)
         fig.clf()
         ax = fig.gca()
-        sns.boxplot(data=stats, y='Dist', x='Type', order=order, width=0.5, linewidth=0.5, fliersize=0, ax=ax)
-        for i, artist in enumerate(ax.artists):
-            artist.set_facecolor('None')
-            artist.set_edgecolor('k')
-            artist.set_zorder(5000)
-        for i, artist in enumerate(ax.lines):
-            artist.set_color('k')
-            artist.set_zorder(5000)
-        sns.swarmplot(data=stats, y='Dist', x='Type', order=order, size=3, zorder=100, color=sp.SUSSEX_CORAL_RED,
-                      ax=ax)
-        ax.set_xlabel('')
+        stats = md.gen_dist_data(df[(df['condition'] == 'pc')])
+        order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid', 'Cell\nCentroid', 'Cell\n(manual)']
+        with sns.color_palette([sp.SUSSEX_COBALT_BLUE] * 5):
+            sp.anotated_boxplot(stats, 'Dist', cat='Type', order=order, point_size=3, ax=ax)
         ax.set_ylabel('Distance [um]')
-        # ax2.yaxis.set_major_locator(MultipleLocator(5))
-        pmat = st.p_values(stats, 'Dist', 'Type', filename=parameters.data_dir + 'out/fig1-pv-dist.xls')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.05)
 
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
-        fig = plt.figure(figsize=_fig_size_rect, dpi=_dpi)
+        fig = plt.figure(dpi=_dpi)
         fig.clf()
+        fig.set_size_inches(_fig_size_square)
         ax = fig.gca()
-        sp.anotated_boxplot(stats, 'Dist', cat='Type', ax=ax)
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.05)
+        sns.tsplot(data=df[df['condition'] == 'pc'], time='Time', value='Dist', unit='indv', condition='CentrLabel',
+                   estimator=np.nanmean, lw=_indvlw,
+                   ax=ax, err_style=['unit_traces'], err_kws=_err_kws)
+        ax.set_xlabel('time prior contact [min]')
+        ax.set_ylabel('Distance [um]')
+        ax.legend(title=None, loc='upper left')
+        pdf.savefig(transparent=True, bbox_inches='tight')
 
 
 def msd_stlc(df, dfc):
@@ -382,6 +377,34 @@ def msd_stlc(df, dfc):
         sns.tsplot(data=df_msd2,
                    linestyle='-', condition='condition',
                    lw=_indvlw, err_style=['unit_traces'], err_kws=_err_kws,
+                   time=time, value='msd', unit='indv', estimator=np.nanmean, ax=ax)
+        ax.set_xticks(np.arange(0, df_msd['Time'].max(), 20.0))
+        ax.legend(title=None, loc='upper left')
+        ax.set_ylim([0, 120])
+        ax.set_ylabel('MSD [$\mu m^2$]')
+        ax.set_xlabel('time delay [min]')
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.05)
+
+        # ---------------------------
+        #          NEXT PAGE - MSD of nuclei wr to less motile centrosome & Dynein
+        # ---------------------------
+        fig = plt.figure(figsize=_fig_size_small_square, dpi=_dpi)
+        fig.clf()
+        ax = fig.gca()
+
+        dff = df[df['condition'] == names['1_DIC']]
+        dff = dff[dff['Time'] <= 50]
+        df_msd3 = ImagejPandas.msd_particles(dff)
+        df_msd3 = sp._msd_tag(df_msd3)
+        df_msd3 = df_msd3[df_msd3['msd_cat'] == 'DIC+STLC displacing less']
+        df_msd3['condition'] = 'DIC+STLC displacing less'
+        print(df_msd3[['Time', 'CentX', 'CentY', 'msd']])
+
+        sns.tsplot(data=df_msd1,
+                   linestyle='-', condition='condition', lw=_indvlw, color=sp.SUSSEX_COBALT_BLUE,
+                   time=time, value='msd', unit='indv', estimator=np.nanmean, ax=ax)
+        sns.tsplot(data=df_msd3,
+                   linestyle='-', condition='condition', lw=_indvlw, color=sp.SUSSEX_CORAL_RED,
                    time=time, value='msd', unit='indv', estimator=np.nanmean, ax=ax)
         ax.set_xticks(np.arange(0, df_msd['Time'].max(), 20.0))
         ax.legend(title=None, loc='upper left')
@@ -1303,5 +1326,3 @@ if __name__ == '__main__':
     df_eb3_avg = pd.read_pickle(parameters.helfrid_lab_dir + 'eb3-drift-prediction/eb3stats.pandas')
     eb3_stats(df_eb3_avg, filename='eb3_boxplots_drift.pdf', title='Drift prediction algorithm')
     # summary_msd_cgr(df_m)
-
-    # tom_plots()
