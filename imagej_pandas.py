@@ -48,11 +48,11 @@ class ImagejPandas(object):
             tail_analysis = False
             if dsr.size > 0:
                 zeros_df = dsr[dsr['DistCentr'] == 0]
-                if zeros_df.size > 0:
+                if zeros_df.size > 0:  # we found centrosomes actually touching
                     dsr = zeros_df.set_index('Frame').sort_index()
                     frame = dsr.index[0]
                     time = dsr.loc[dsr.index == frame, 'Time'].iloc[0]
-                    dist = dsr.loc[dsr.index == frame, 'DistCentr'].iloc[0]
+                    dist = dsr.loc[dsr.index == frame, 'Dist'].iloc[0]
                 else:
                     dsd = dsr.reset_index().set_index('DistCentr').sort_index()
                     frame = dsd.iloc[0]['Frame']
@@ -73,7 +73,7 @@ class ImagejPandas(object):
                 # check that only one centrosome (eg 'A') is present
                 if not filtered.empty and len(filtered['CentrLabel'].unique()) == 1:
                     q = filtered.iloc[0]
-                    return q['Time'], q['Frame'], 0
+                    return q['Time'], q['Frame'], q['Dist']
 
         return time, frame, dist
 
