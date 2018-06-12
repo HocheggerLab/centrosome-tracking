@@ -11,6 +11,7 @@ from skimage.filters import gaussian
 from skimage.morphology import erosion, square
 from skimage.segmentation import active_contour
 
+import parameters
 
 
 def cell_boundary(tubulin, hoechst, fig=None, threshold=80, markers=None):
@@ -142,7 +143,7 @@ def cell_boundary(tubulin, hoechst, fig=None, threshold=80, markers=None):
 
 
 if __name__ == '__main__':
-    with tf.TiffFile('/Users/Fabio/data/lab/pc-100.tif', fastij=True) as tif:
+    with tf.TiffFile(parameters.experiments_dir + 'pc/input/pc-100.tif') as tif:
         if tif.is_imagej is not None:
             sizeT, channels = tif.pages[0].imagej_tags.frames, tif.pages[0].imagej_tags.channels
             sizeZ, sizeX, sizeY = 1, tif.pages[0].image_width, tif.pages[0].image_length

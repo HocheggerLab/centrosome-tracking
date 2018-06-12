@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+import parameters as p
 import stats
 
 plt.style.use('ggplot')
@@ -22,12 +23,14 @@ new_distcntr_name = 'Distance between\ncentrosomes $[\mu m]$'
 new_speedcntr_name = 'Speed between\ncentrosomes $\\left[\\frac{\mu m}{min} \\right]$'
 
 # distribution of speed and tracks for speed filtered dataframe
-if not os.path.isfile('/Users/Fabio/filt_tracks.pandas'):
+if not os.path.isfile(p.data_dir + 'filt_tracks.pandas'):
     print 'computing'
-    dfcentr = pd.read_pickle('/Users/Fabio/merge_centered.pandas')
+    dfcentr = pd.read_pickle(p.data_dir + 'merge_centered.pandas')
     # filter original dataframe to get just data between centrosomes
-    dfcentr.loc[:, 'indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['Nuclei'].map(int).map(str)
-    dfcentr.drop(['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY'],
+    dfcentr.loc[:, 'indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['Nuclei'].map(int).map(str) + \
+                             '-' + dfcentr['CentrLabel']
+    dfcentr.drop(['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY',
+                  'CellBound', 'CellX', 'CellY', 'AccCentr', 'DistCell', 'SpdCell', 'AccCell'],
                  axis=1, inplace=True)
 
     sdf = dfcentr.replace([np.inf, -np.inf], np.nan)
@@ -43,12 +46,12 @@ if not os.path.isfile('/Users/Fabio/filt_tracks.pandas'):
         trk_df = trk_df.append(trklbldf)
 
     trk_df.drop(['Dist', 'Speed', 'Acc'], axis=1, inplace=True)
-    trk_df.to_pickle('/Users/Fabio/filt_tracks.pandas')
-    spd_df.to_pickle('/Users/Fabio/filt_speedpoints.pandas')
+    trk_df.to_pickle(p.data_dir + 'filt_tracks.pandas')
+    spd_df.to_pickle(p.data_dir + 'filt_speedpoints.pandas')
     print 'computed'
 else:
-    trk_df = pd.read_pickle('/Users/Fabio/filt_tracks.pandas')
-    spd_df = pd.read_pickle('/Users/Fabio/filt_speedpoints.pandas')
+    trk_df = pd.read_pickle(p.data_dir + 'filt_tracks.pandas')
+    spd_df = pd.read_pickle(p.data_dir + 'filt_speedpoints.pandas')
     print 'loaded'
 
 # names = ['1_N.C.', '1_P.C.', '1_DIC', '1_Dynei', '1_CENPF', '1_BICD2', '2_Kines1', '2_CDK1_DK', '2_CDK1_DC']
@@ -62,24 +65,24 @@ g = sns.FacetGrid(trk_df, row='condition', col='filter_speed', hue='timepoint_cl
 g.map(plt.plot, 'Time', 'DistCentr')
 g.map(plt.scatter, 'Time', 'DistCentr')
 g.fig.suptitle('Centrosome pair speed distribution for speeds greater than filter_speed $[\mu m/min]$')
-plt.savefig('/Users/Fabio/sfilt_cond_dist.pdf', format='pdf')
+plt.savefig(p.data_dir + 'out/sfilt_cond_dist.pdf', format='pdf')
 
 # plt.figure()
 # sns.swarmplot(x='filter_speed', y='consecutive_time_points', hue='condition', data=spd_df)
-# plt.savefig('/Users/Fabio/sfilt_cum.pdf', format='pdf')
+# plt.savefig(p.data_dir + 'out/sfilt_cum.pdf', format='pdf')
 
 plt.figure()
 sns.barplot(x='filter_speed', y='consecutive_time_points', hue='condition', data=spd_df)
-plt.savefig('/Users/Fabio/sfilt_bar.pdf', format='pdf')
+plt.savefig(p.data_dir + 'out/sfilt_bar.pdf', format='pdf')
 
 # g = sns.FacetGrid(trk_df, row='indv', col='filter_speed', hue='timepoint_cluster_id')
 # g.map(plt.plot, 'DistCentr')
 # g.map(plt.scatter, 'DistCentr')
 # g.fig.suptitle('Centrosome pair speed distribution for speeds greater than filter_speed $[\mu m/min]$')
-# plt.savefig('/Users/Fabio/sfilt_dist.pdf', format='pdf')
+# plt.savefig(p.data_dir + 'out/sfilt_dist.pdf', format='pdf')
 
 # g = sns.FacetGrid(sdf, col='condition', col_wrap=4)
 # g.map(sns.distplot, 'SpeedCentr', hist=False, rug=True)
 # g.fig.subplots_adjust(top=0.9)
 # g.fig.suptitle('Centrosome pair speed distribution for speeds greater than %0.2f $[\mu m/min]$' % spd)
-# plt.savefig('/Users/Fabio/sfilt_speed_%d.pdf' % (spd * 10), format='pdf')
+# plt.savefig(p.data_dir + 'out/sfilt_speed_%d.pdf' % (spd * 10), format='pdf')
