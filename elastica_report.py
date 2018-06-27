@@ -60,10 +60,10 @@ def fig_1(df):
         # ---------------------
         L, a1, a2, E, F, gamma, x0, y0, theta = inip
         s = np.linspace(0, L, num_points)
-        r = e.heavy_planar_bvp(s, F=F, E=E, gamma=gamma)
+        r = e.planar_elastica_bvp(s, F=F, E=E, gamma=gamma)
         pol = r.sol
         xo = pol(s)[0:2, :]
-        ys = e.eval_heavy_planar(s, pol, a1, a2)[0:2, :]
+        ys = e.eval_planar_elastica(s, pol, a1, a2)[0:2, :]
 
         # deal with rotations and translations
         sinth, costh = np.sin(theta), np.cos(theta)
@@ -85,10 +85,10 @@ def fig_1(df):
         for row in filter_df.iterrows():
             row = row[1]
             s = np.linspace(0, row['L'], num_points)
-            r = e.heavy_planar_bvp(s, F=row['F'], E=row['E'], gamma=row['gamma'])
+            r = e.planar_elastica_bvp(s, F=row['F'], E=row['E'], gamma=row['gamma'])
             pol = r.sol
             xo = pol(s)[0:2, :]
-            xs, ys = e.eval_heavy_planar(s, pol, row['a1'], row['a2'])[0:2, :]
+            xs, ys = e.eval_planar_elastica(s, pol, row['a1'], row['a2'])[0:2, :]
             ys = np.array([xs, ys])
 
             # deal with rotations and translations

@@ -27,6 +27,6 @@ logging.info('x0=[%f,%f,%f,%f,%f,%f,%f,%f,%f] ' % tuple(res.x))
 logging.info('objective function final: %f' % e.obj_minimize(res.x, yn))
 
 L, a1, a2, E, F, gamma, x0, y0, theta = res.x
-e.plot_heavyplanar(plt.gca(), L, a1, a2, E, F, gamma, x0, y0, theta)
+e.plot_planar_elastica(plt.gca(), L, a1, a2, E, F, gamma, x0, y0, theta)
 plt.savefig('/Users/Fabio/data/lab/figure.svg', format='svg')
 plt.show()

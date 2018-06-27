@@ -25,9 +25,9 @@ a2 = R.a2.value
 gamma = R.gamma.value
 
 s = np.linspace(0, L, 100)
-r = e.heavy_planar_bvp(s, F=F, E=E)
+r = e.planar_elastica_bvp(s, F=F, E=E)
 pol = r.sol
-xs, ys = e.eval_heavy_planar(s, pol, a1, a2)
+xs, ys = e.eval_planar_elastica(s, pol, a1, a2)
 
 # xs += x0[0]
 # ys += x0[1]
