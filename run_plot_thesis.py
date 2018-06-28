@@ -1,4 +1,5 @@
 import itertools
+import itertools
 import logging
 from collections import OrderedDict
 
@@ -217,10 +218,25 @@ def dist_stlc(df, dfc):
         fig.clf()
         ax = fig.gca()
         stats = md.gen_dist_data(df[(df['condition'] == 'pc')])
-        order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid', 'Cell\nCentroid', 'Cell\n(manual)']
-        with sns.color_palette([sp.SUSSEX_COBALT_BLUE] * 5):
-            sp.anotated_boxplot(stats, 'Dist', cat='Type', order=order, point_size=3, ax=ax)
+        order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid']
+        with sns.color_palette([sp.SUSSEX_CORAL_RED] * 5):
+            sp.anotated_boxplot(stats[stats['Type'].isin(order)], 'Dist', cat='Type', order=order, point_size=3, ax=ax)
         ax.set_ylabel('Distance [um]')
+        ax.set_ylim(0, 20)
+        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.05)
+
+        # ---------------------------
+        #          NEXT PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=_fig_size_rect, dpi=_dpi)
+        fig.clf()
+        ax = fig.gca()
+        stats = md.gen_dist_data(df[(df['condition'] == 'pc')])
+        order = ['Nucleus\nCentroid', 'Cell\nCentroid', 'Cell\n(manual)']
+        with sns.color_palette([sp.SUSSEX_CORAL_RED] * 5):
+            sp.anotated_boxplot(stats[stats['Type'].isin(order)], 'Dist', cat='Type', order=order, point_size=3, ax=ax)
+        ax.set_ylabel('Distance [um]')
+        ax.set_ylim(0, 20)
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.05)
 
         # ---------------------------
