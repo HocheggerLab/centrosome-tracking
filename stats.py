@@ -7,6 +7,11 @@ import pandas as pd
 from imagej_pandas import ImagejPandas
 
 
+def star_system(p_value):
+    return '****' if p_value <= 0.0001 else '***' if p_value <= 0.001 else '**' if p_value <= 0.01 else '*' if p_value <= 0.05 \
+        else 'ns(p=%0.2f)' % p_value
+
+
 def p_values(data, var, group_label, filename=None):
     from scipy.stats import ttest_ind
 
@@ -17,6 +22,7 @@ def p_values(data, var, group_label, filename=None):
         d1 = data[data[group_label] == c1][var]
         for c2 in cat:
             d2 = data[data[group_label] == c2][var]
+            # FIXME: This test assumes that the populations have identical variances by default.
             s, p = ttest_ind(d1, d2)
             df_p.loc[c1, c2] = p
 

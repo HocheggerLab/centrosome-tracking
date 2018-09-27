@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import tifffile as tf
+import skimage.external.tifffile as tf
 from PIL import Image
 from PyQt4 import Qt, QtGui
 from PyQt4.QtCore import QRect

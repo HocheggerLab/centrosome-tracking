@@ -27,9 +27,9 @@ if __name__ == '__main__':
 
         for fname in _filenames:
             ext = fname.split('.')[-1]
-            print 'file %s ' % fname
+            print('file %s ' % fname)
             if ext == 'tif':
-                print 'tif extension'
+                print('tif extension')
                 dir = os.path.basename(_root)
                 joinf = os.path.join(_root, fname)
                 groups = re.search('Capture (.+) - Position (.+).Project Maximum Z', fname).groups()
@@ -42,9 +42,9 @@ if __name__ == '__main__':
                 else:
                     new_name = 'run-%03d.tif' % (k * 100 + pos_id)
                 series[dir] += 1
-                print 'saving from %s to file: %s' % (joinf, new_name)
+                print('saving from %s to file: %s' % (joinf, new_name))
 
                 imageout_path = os.path.join(oroot, new_name)
                 copyfile(joinf, imageout_path)
 
-                print '--------------------------------------------------------------\r\n'
+                print('--------------------------------------------------------------\r\n')
