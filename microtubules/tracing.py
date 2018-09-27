@@ -1,7 +1,7 @@
 import coloredlogs
 import matplotlib.pyplot as plt
 import numpy as np
-import elastica as e
+from microtubules import elastica as e
 import logging
 
 np.set_printoptions(1)
@@ -170,7 +170,7 @@ class Aster():
         self.ax = axes
         self.fibers = []
 
-        self._whmax = None  # width height
+        self._whmax = 0.0  # width height
         self.xa = 0.0
         self.ya = 0.0
 

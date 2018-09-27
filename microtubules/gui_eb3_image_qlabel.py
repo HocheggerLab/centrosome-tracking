@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import json
 import logging
 import os
@@ -44,7 +44,7 @@ class Eb3ImageQLabel(QtGui.QLabel):
 
         if not os.path.isfile(self.fname):
             with open(self.fname, 'w') as configfile:
-                config = ConfigParser.RawConfigParser()
+                config = configparser.RawConfigParser()
                 config.add_section('General')
                 config.set('General', 'Version', 'v0.1')
                 config.set('General', 'Mode', 'Manual selection of Eb3 track data.')
@@ -108,7 +108,7 @@ class Eb3ImageQLabel(QtGui.QLabel):
 
     def save_selection(self):
         with open(self.fname, 'r') as configfile:
-            config = ConfigParser.ConfigParser()
+            config = configparser.ConfigParser()
             config.readfp(configfile)
 
         with open(self.fname, 'w') as configfile:
@@ -169,7 +169,7 @@ class Eb3ImageQLabel(QtGui.QLabel):
 
             # get selection from disk
             with open(self.fname, 'r') as configfile:
-                config = ConfigParser.ConfigParser()
+                config = configparser.ConfigParser()
                 config.readfp(configfile)
                 if config.has_section(self.run):
                     self.selected = set(json.loads(config.get(self.run, 'selected')))

@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import basinhopping
 
-import elastica as e
+from microtubules import elastica as e
 
 logging.basicConfig(level=logging.INFO)
 # np.set_printoptions(3, suppress=True)

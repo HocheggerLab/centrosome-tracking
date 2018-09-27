@@ -7,9 +7,8 @@ import numpy as np
 from matplotlib.lines import Line2D
 from matplotlib.patches import Arc
 
-import elastica as e
+from microtubules import elastica as e
 import parameters
-import plot_labelline as l
 import plot_special_tools as sp
 
 logging.basicConfig(level=logging.INFO)

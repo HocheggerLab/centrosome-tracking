@@ -176,7 +176,7 @@ if __name__ == '__main__':
     df.to_pickle('/Users/Fabio/data/lab/eb3.pandas')
 
     # process dataframe and render images
-    import run_plots_eb3
+    from microtubules import run_plots_eb3
 
     logging.info('filtering using run_plots_eb3.')
     df, df_avg = run_plots_eb3.batch_filter(df)

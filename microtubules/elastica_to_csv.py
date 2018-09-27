@@ -1,6 +1,6 @@
-import ConfigParser
 import argparse
 import ast
+import configparser
 import logging
 import os
 import re
@@ -23,8 +23,8 @@ for root, directories, filenames in os.walk(args.directory):
         joinf = os.path.abspath(os.path.join(root, file))
 
         with open(joinf, 'r') as jobfile:
-            print '\r\n--------------------------------------------------------------'
-            print 'processing file: %s' % joinf
+            print('\r\n--------------------------------------------------------------')
+            print('processing file: %s' % joinf)
             jobtxt = jobfile.read()
 
             fname = os.path.abspath(os.path.join(root, '..', 'elastica.cfg.txt'))
@@ -37,7 +37,7 @@ for root, directories, filenames in os.walk(args.directory):
                     L, a1, a2, E, F, gamma, x0, y0, theta = ast.literal_eval(params)
 
                     with open(fname, 'r') as configfile:
-                        config = ConfigParser.ConfigParser()
+                        config = configparser.ConfigParser()
                         config.readfp(configfile)
 
                     section = 'measure-%09d' % (int(jobid) - 1)
@@ -50,4 +50,4 @@ for root, directories, filenames in os.walk(args.directory):
                     with open(args.out, 'a') as f:
                         df.to_csv(f, header=False, index=False)
                 except AttributeError:
-                    print 'no enough data in file %s' % joinf
+                    print('no enough data in file %s' % joinf)
