@@ -16,8 +16,8 @@ import plot_special_tools as sp
 import stats as st
 from imagej_pandas import ImagejPandas
 
-print font_manager.OSXInstalledFonts()
-print font_manager.OSXFontDirectories
+print(font_manager.OSXInstalledFonts())
+print(font_manager.OSXFontDirectories)
 
 matplotlib.rc('pdf', fonttype=42)
 matplotlib.rc('svg', fonttype='none')
@@ -213,7 +213,7 @@ if __name__ == '__main__':
                            df_mc['Centrosome']
 
     for id, df in df_m.groupby(['condition']):
-        print 'condition %s: %d tracks' % (id, len(df['indv'].unique()) / 2.0)
+        print('condition %s: %d tracks' % (id, len(df['indv'].unique()) / 2.0))
     df_m = rename_conditions(df_m)
     dfcentr = rename_conditions(dfcentr)
     df_mc = rename_conditions(df_mc)

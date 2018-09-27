@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import json
 import logging
 from collections import OrderedDict
@@ -17,7 +17,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 
-import elastica as e
+from microtubules import elastica as e
 import parameters
 import plot_special_tools as sp
 import run_plot_report as r
@@ -32,7 +32,7 @@ plt.style.use('bmh')
 # sns.set(context='paper', style='whitegrid', font='Helvetica Neue')
 # matplotlib.rc('pdf', fonttype=42)
 # matplotlib.rc('svg', fonttype='none')
-print matplotlib.rcParams.keys()
+print(matplotlib.rcParams.keys())
 matplotlib.rcParams.update({'axes.titlesize': 20})
 matplotlib.rcParams.update({'axes.labelsize': 20})
 matplotlib.rcParams.update({'xtick.labelsize': 20})
@@ -304,7 +304,7 @@ def retreat4(df):
 
             d_thr = ImagejPandas.DIST_THRESHOLD * 3
             time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(idf, d_thr)
-            print i, id, time_of_c, frame_of_c, dist_of_c
+            print(i, id, time_of_c, frame_of_c, dist_of_c)
 
             if time_of_c is not None:
                 frame_before = frame_of_c - dt_before_contact / t_per_frame
@@ -375,10 +375,10 @@ def retreat5(df):
         ax1 = plt.subplot(gs[0:2, 0:2])
 
         with open(parameters.data_dir + 'elastica.cfg.txt', 'r') as configfile:
-            config = ConfigParser.ConfigParser()
+            config = configparser.ConfigParser()
             config.readfp(configfile)
 
-        print 'sections found in file ', config.sections()
+        print('sections found in file ', config.sections())
 
         section = config.sections()[1]
         yn = np.array(json.loads(config.get(section, 'measure')))
@@ -412,7 +412,7 @@ def retreat5(df):
         # ---------------------
         othr = 50
         filter_df = df[df['objfn'] < othr]
-        print 'filtered %d rows' % len(filter_df.index)
+        print('filtered %d rows' % len(filter_df.index))
         for row in filter_df.iterrows():
             row = row[1]
             s = np.linspace(0, row['L'], num_points)

@@ -21,7 +21,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import manual_data as md
 import parameters
 import plot_special_tools as sp
-import run_plots_eb3 as eb3
+from microtubules import run_plots_eb3 as eb3
 import stats as st
 from imagej_pandas import ImagejPandas
 
@@ -30,7 +30,7 @@ log.info(font_manager.OSXInstalledFonts())
 log.info(font_manager.OSXFontDirectories)
 
 plt.style.use('bmh')
-print matplotlib.rcParams.keys()
+print(matplotlib.rcParams.keys())
 # Type 2/TrueType fonts.
 matplotlib.rcParams.update({'pdf.fonttype': 42})
 matplotlib.rcParams.update({'ps.fonttype': 42})
@@ -1305,7 +1305,7 @@ if __name__ == '__main__':
     # indivs_filter = indivs_filter[indivs_filter > 5].index.values
     # dfcentr = dfcentr[dfcentr['indv'].isin(indivs_filter)]
 
-    print df_m['indv'].unique().size
+    print(df_m['indv'].unique().size)
     # df_m = m.get_trk_length(df_m, x='CentX', y='CentY', time='Time', frame='Frame',
     #                         group=ImagejPandas.CENTROSOME_INDIV_INDEX)
     # print df_m['s']

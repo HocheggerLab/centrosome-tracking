@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import logging
 import os
 import re
@@ -170,7 +170,7 @@ class SelectionGui(QtGui.QWidget):
             df = df[df['Nuclei'] == nuclei]
             mask = mask[mask['Nuclei'] == nuclei]
             toc, foc, doc = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
-            print toc, foc, doc
+            print(toc, foc, doc)
             spc.distance_to_nuclei_center(df, self.mplDistance.canvas.ax, mask=mask, time_contact=toc)
             self.mplDistance.canvas.draw()
 
@@ -282,7 +282,7 @@ class SelectionGui(QtGui.QWidget):
         fname = str(fname)
         logging.info('saving to %s' % fname)
 
-        config = ConfigParser.RawConfigParser()
+        config = configparser.RawConfigParser()
         with h5py.File(self.hdf5file, 'r') as f:
             for cond in f:
                 for run in f[cond]:
@@ -315,7 +315,7 @@ class SelectionGui(QtGui.QWidget):
                         del f['%s/%s/selection/%s' % (cond, run, o)]
 
         logging.info('opening %s' % fname)
-        selection = ConfigParser.ConfigParser()
+        selection = configparser.ConfigParser()
         selection.read(fname)
         for sel in selection.sections():
             logging.info(sel)
