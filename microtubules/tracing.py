@@ -1,61 +1,23 @@
+import logging
+
 import coloredlogs
 import matplotlib.pyplot as plt
 import numpy as np
+
 from microtubules import elastica as e
-import logging
 
 np.set_printoptions(1)
 
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 
 
-class PlanarElastica():
-    def __init__(self):
-        self.L = 1.0
-        self.E = 0.625
-        self.J = 1.0
-        self.N1 = 1
-        self.N2 = 1
-        self.x0 = 0.0
-        self.y0 = 0.0
-        self.phi = 0.0
-        self.endX = 0.4
-        self.endY = 0.1
-        self.m0 = 0.01
-        self.theta0 = 3 * np.pi / 2
-        self.res = None
-
-    def update_ode(self):
-        s = np.linspace(0, self.L, 4)
-        logging.debug(
-            'ode E=%0.2f, J=%0.2f, N1=%0.2f, N2=%0.2f, m0=%0.2f theta_end=%0.2f, '
-            'endX=%0.2f endY=%0.2f' % (self.E, self.J, self.N1, self.N2, self.m0, self.theta0,
-                                       self.endX, self.endY))
-        logging.debug('x0=%0.2f y0=%0.2f' % (self.x0, self.y0))
-
-        # Now we are ready to run the solver.
-        self.res = e.planar_elastica_bvp(s, E=self.E, J=self.J, N1=self.N1, N2=self.N2, m0=self.m0,
-                                         theta_end=self.theta0, endX=self.endX, endY=self.endY)
-        # fig = plt.figure(7)
-        # e.plot_planar_elastica(fig.gca(), self.L, 0.2, 0.8, self.E, self.J, self.N1, self.N2,
-        #                        self.m0, self.theta0, self.endX, self.endY)
-        # self.N1, self.N2, self.m0 = self.res.p
-
-    def plot(self, ax):
-        L, a1, a2 = self.L, 0.3, 0.8
-        E, J, N1, N2 = self.E, self.J, self.N1, self.N2
-        m0, theta_e, endX, endY = self.m0, self.theta0, self.endX, self.endY
-        x0, y0, phi = self.x0, self.y0, 0
-        logging.debug(
-            'plotting with: %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f' %
-            (L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0, y0, phi))
-        e.plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0, y0, phi)
-
-
 class PlanarElasticaDrawObject_xy(plt.Artist):
+    r = 0.1
+
     def __init__(self, axes, elasticaModel, xini=0.0, yini=0.0):
         plt.Artist.__init__(self)
-        self.picking = False
+        self.end_point_pick = False
+        self.end_angle_pick = False
         self.fiber = elasticaModel
         self.fiber_line = None
 
@@ -109,28 +71,45 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         logging.debug('y0 setter: %0.2f  yt= %0.2f+%0.2f = %0.2f' % (value, self._y0, self._Ye, self._y0 + self._Ye))
 
     def on_pick(self, event):
+        logging.debug(event.artist)
         if self.pick_end_point == event.artist:
-            self.picking = True
+            self.end_point_pick = True
             mevent = event.mouseevent
             logging.debug('fiber pick: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
                           (mevent.xdata, mevent.ydata, self.x0, self.y0))
             self._Ye = mevent.ydata
 
+        if self.angle_circle == event.artist:
+            self.end_angle_pick = True
+            mevent = event.mouseevent
+            logging.debug('angle pick: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
+                          (mevent.xdata, mevent.ydata, self.x0, self.y0))
+
     def on_motion(self, event):
-        if not self.picking: return
-        # logging.debug('fiber motion: event.xdata=%f, event.ydata=%f' % (event.xdata, event.ydata))
-        self.dx = event.xdata-self.x0
-        self.dy = event.ydata-self.y0
+        if self.end_point_pick:
+            # logging.debug('fiber motion: event.xdata=%f, event.ydata=%f' % (event.xdata, event.ydata))
+            self.dx = event.xdata - self.x0
+            self.dy = event.ydata - self.y0
+
+        if self.end_angle_pick:
+            dax = event.xdata - self.Xe
+            day = event.ydata - self.Ye
+            self._Theta_e = np.arctan2(day, dax)
 
         self.update_picker_point()
+        return
 
     def on_release(self, event):
-        if not self.picking: return
+        if not (self.end_point_pick or self.end_angle_pick): return
         logging.debug('fiber release: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
                       (event.xdata, event.ydata, self.x0, self.y0))
-        self.picking = False
+        self.end_point_pick = False
+        self.end_angle_pick = False
         self._Xe = event.xdata - self.x0
         self._Ye = event.ydata - self.y0
+        dax = event.xdata - self.Xe
+        day = event.ydata - self.Ye
+        self._Theta_e = np.arctan2(day, dax)
 
         self.update_picker_point()
         self.update_plot()
@@ -141,16 +120,32 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         self.fiber.theta0 = self._Theta_e
         self.fiber.update_ode()
         self.fiber.plot(self.ax)
+        self.ax.figure.canvas.draw()
 
     def update_picker_point(self):
         # update picker point
+        thetae = np.arctan2(-np.tan(self._Theta_e), 1)
+        drx = np.cos(thetae) * self.r
+        dry = np.sin(thetae) * self.r
         self.pick_end_point.center = (self.Xe, self.Ye)
+        self.angle_circle.center = (self.Xe, self.Ye)
+        self.angle_point.center = (self.Xe + drx, self.Ye - dry)
+        self.angle_line.set_data((self.Xe, self.Xe + drx), (self.Ye, self.Ye - dry))
         self.ax.draw_artist(self.pick_end_point)
         self.ax.figure.canvas.draw()
 
     def _initial_plot(self):
+        drx = np.cos(self._Theta_e) * self.r
+        dry = np.sin(self._Theta_e) * self.r
         self.pick_end_point = plt.Circle((self.Xe, self.Ye), radius=0.05, fc='r', picker=5)
+        self.angle_circle = plt.Circle((self.Xe, self.Ye), radius=self.r, fc='none', ec='k', lw=1, linestyle='--',
+                                       picker=5)
+        self.angle_point = plt.Circle((self.Xe + drx, self.Ye - dry), radius=0.01, fc='k', picker=5)
+        self.angle_line = plt.Line2D((self.Xe, self.Xe + drx), (self.Ye, self.Ye - dry), color='k')
         self.ax.add_artist(self.pick_end_point)
+        self.ax.add_artist(self.angle_circle)
+        self.ax.add_artist(self.angle_point)
+        self.ax.add_artist(self.angle_line)
         self.update_plot()
 
     def _connect(self):
@@ -276,7 +271,7 @@ class Aster():
 
 
 if __name__ == '__main__':
-    fiber = PlanarElastica()
+    fiber = e.PlanarElastica()
     fig = plt.figure()
     ax = fig.gca()
 

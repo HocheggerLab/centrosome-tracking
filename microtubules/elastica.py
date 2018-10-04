@@ -154,3 +154,42 @@ def obj_minimize(p, yn, Np=100):
     else:
         logging.debug('No solution for objective function.')
         return np.finfo('float64').max
+
+
+class PlanarElastica():
+    def __init__(self):
+        self.L = 1.0
+        self.E = 0.625
+        self.J = 1.0
+        self.N1 = 1
+        self.N2 = 1
+        self.x0 = 0.0
+        self.y0 = 0.0
+        self.phi = 0.0
+        self.endX = 0.4
+        self.endY = 0.1
+        self.m0 = 0.01
+        self.theta0 = 3 * np.pi / 2
+        self.res = None
+
+    def update_ode(self):
+        s = np.linspace(0, self.L, 4)
+        logging.debug(
+            'ode E=%0.2f, J=%0.2f, N1=%0.2f, N2=%0.2f, m0=%0.2f theta_end=%0.2f, '
+            'endX=%0.2f endY=%0.2f' % (self.E, self.J, self.N1, self.N2, self.m0, self.theta0,
+                                       self.endX, self.endY))
+        logging.debug('x0=%0.2f y0=%0.2f' % (self.x0, self.y0))
+
+        # Now we are ready to run the solver.
+        self.res = planar_elastica_bvp(s, E=self.E, J=self.J, N1=self.N1, N2=self.N2, m0=self.m0,
+                                       theta_end=self.theta0, endX=self.endX, endY=self.endY)
+
+    def plot(self, ax):
+        L, a1, a2 = self.L, 0.3, 0.8
+        E, J, N1, N2 = self.E, self.J, self.N1, self.N2
+        m0, theta_e, endX, endY = self.m0, self.theta0, self.endX, self.endY
+        x0, y0, phi = self.x0, self.y0, 0
+        logging.debug(
+            'plotting with: %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f' %
+            (L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0, y0, phi))
+        plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0, y0, phi)
