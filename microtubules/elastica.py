@@ -172,6 +172,19 @@ class PlanarElastica():
         self.theta0 = 3 * np.pi / 2
         self.res = None
 
+    def __str__(self):
+        # return "Fiber: L=%0.2f J=%0.2f E=%0.2f x0=%0.2f y0=%0.2f xe=%0.2f ye=%0.2f N1=%0.2f N2=%0.2f m0=%0.2f theta0=%0.2f " % (
+        return "Fiber: %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f %0.2f %0.2f (L J E | x0 y0 xe ye | N1 N2 m0 phi theta0)" % (
+            self.L, self.J, self.E,
+            self.x0, self.y0, self.endX, self.endY,
+            self.N1, self.N2, self.m0, self.phi, self.theta0)
+
+    def asdict(self):
+        return {'L': self.L, 'E': self.E, 'J': self.J,
+                'N1': self.N1, 'N2': self.N2, 'x0': self.x0, 'y0': self.y0,
+                'xe': self.endX, 'ye': self.endY, 'm0': self.m0,
+                'phi': self.phi, 'theta0': self.theta0}
+
     def update_ode(self):
         s = np.linspace(0, self.L, 4)
         logging.debug(
@@ -190,6 +203,10 @@ class PlanarElastica():
         m0, theta_e, endX, endY = self.m0, self.theta0, self.endX, self.endY
         x0, y0, phi = self.x0, self.y0, 0
         logging.debug(
-            'plotting with: %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f | %0.2f %0.2f %0.2f' %
-            (L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0, y0, phi))
+            'plotting with:\r\n'
+            '{:4} {:4} {:4} | {:4} {:4} {:4} {:4} {:4} | {:6} {:4} {:4} | {:4} {:4} {:4}\r\n'
+            .format('L', 'a1', 'a2', 'E', 'J', 'N1', 'N2', 'm0', 'theta_e', 'endX', 'endY', 'x0', 'y0', 'phi') +
+            '{:0.2f} {:0.2f} {:0.2f} | {:0.2f} {:0.2f} {:0.2f} {:0.2f} {:0.2f} | '
+            '{:0.2f}   {: .2f} {:0.2f} | {:0.2f} {:0.2f} {:0.2f}'
+            .format(L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0, y0, phi))
         plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0, y0, phi)

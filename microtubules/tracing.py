@@ -34,6 +34,10 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         self._initial_plot()
         self._connect()
 
+    def __str__(self):
+        return "PlanarElastica draw object: xe=%0.2f ye=%0.2f dx=%0.2f dy=%0.2f theta_end=%0.2f \r\n" \
+               "%s" % (self.Xe, self.Ye, self.dx, self.dy, self._Theta_e, str(self.fiber))
+
     @property
     def Xe(self):
         out = self._x0 + self.dx
@@ -60,7 +64,7 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         # self.fiber.endX -= value
         self.fiber.x0 = value
         self._x0 = value
-        logging.debug('x0 setter: %0.2f  xt= %0.2f+%0.2f = %0.2f' % (value, self._x0, self._Xe, self._x0 + self._Xe))
+        logging.debug('x0 setter: %0.2f  xt= %0.2f+%0.2f = %0.2f' % (value, self._x0, self.dx, self.Xe))
 
     @y0.setter
     def y0(self, value):
@@ -68,7 +72,7 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         # self.fiber.endY  -= value
         self.fiber.y0 = value
         self._y0 = value
-        logging.debug('y0 setter: %0.2f  yt= %0.2f+%0.2f = %0.2f' % (value, self._y0, self._Ye, self._y0 + self._Ye))
+        logging.debug('y0 setter: %0.2f  yt= %0.2f+%0.2f = %0.2f' % (value, self._y0, self.dy, self.Ye))
 
     def on_pick(self, event):
         logging.debug(event.artist)
@@ -229,6 +233,23 @@ class Aster():
             self.ax.set_xlim(xlim)
             self.ax.set_ylim(ylim)
             self.ax.figure.canvas.draw()
+        elif event.key == 'w':
+            for f in self.fibers:
+                print(f)
+        elif event.key == 'y':
+            logging.debug('creating pymc model')
+            import pymc3 as pm
+            f = self.fibers[0]
+            with pm.Model() as model:
+                theta_e = pm.Normal(name="theta_end", mu=f.fiber.theta0, sd=np.pi / 20)
+                trace = pm.sample(10, tune=1000, )
+            print(trace)
+            print(trace.get_values('theta_end'))
+            for te in trace.get_values('theta_end'):
+                f.fiber.theta0 = te
+                f.fiber.update_ode()
+                f.fiber.plot(self.ax)
+                f.ax.figure.canvas.draw()
 
     def on_pick(self, event):
         if self.pick_ini_point == event.artist:
