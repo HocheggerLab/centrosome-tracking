@@ -154,7 +154,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         ax5 = plt.subplot(gs[2, 0])
         ax6 = plt.subplot(gs[2, 1])
 
-        print df_stat['tag'].unique()
+        print(df_stat['tag'].unique())
         for (id, adf), _color in zip(df_stat.groupby('tag'), palette):
             adf['speed'].plot.hist(20, color=_color, ax=ax3)
             adf['n_points'].plot.hist(20, color=_color, ax=ax4)

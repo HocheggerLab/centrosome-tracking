@@ -14,19 +14,19 @@ mtr_names = x['metricsName']
 metrics = x['metrics']
 tracks = x['tracks']
 
-print len(exp_names), len(mtr_names), len(metrics), len(tracks)
+print(len(exp_names), len(mtr_names), len(metrics), len(tracks))
 df_matlab = pd.DataFrame()
 
 for set_i in range(2):
-    print tracks[set_i].shape, ',', 'conditions in the set.'
+    print(tracks[set_i].shape, ',', 'conditions in the set.')
     for cond_i in range(len(tracks[set_i])):
         exp_name_cond_i = '%d_%s' % (set_i + 1, exp_names[set_i][cond_i].strip())
-        print exp_name_cond_i, set_i + 1, cond_i + 1, tracks[set_i][cond_i].shape, ',',
+        print(exp_name_cond_i, set_i + 1, cond_i + 1, tracks[set_i][cond_i].shape, ',', )
         for run_j in range(len(tracks[set_i][cond_i])):
-            print tracks[set_i][cond_i][run_j].shape, ',',
+            print(tracks[set_i][cond_i][run_j].shape, ',', )
             for ind_k in range(len(tracks[set_i][cond_i][run_j])):
                 track_ind_k = tracks[set_i][cond_i][run_j][ind_k]
-                print track_ind_k.shape,
+                print(track_ind_k.shape, )
 
                 if len(track_ind_k.shape) > 1:
                     c_a = {'Nuclei': ind_k,
@@ -54,14 +54,12 @@ for set_i in range(2):
                     _df = pd.DataFrame(c_a).append(pd.DataFrame(c_b))
                     df_matlab = df_matlab.append(_df)
 
-        print
-
-print df_matlab['condition'].unique(), len(df_matlab['condition'].unique())
+print(df_matlab['condition'].unique(), len(df_matlab['condition'].unique()))
 
 # add time for every track
 df_matlab.loc[:, 'Time'] = df_matlab.loc[:, 'Frame'] * 5.0
 
-print 'Computing speed and acceleration for the dataset'
+print('Computing speed and acceleration for the dataset')
 df_matlab = ImagejPandas.vel_acc_nuclei(df_matlab)
 df_out = pd.DataFrame()
 for _, _df in df_matlab.groupby(['condition', 'run', 'Nuclei']):
@@ -89,6 +87,6 @@ df_c = df_c.append(df_out)
 df_c = df_c[ordered_columns]
 df_c.to_pickle(parameters.data_dir + 'merge.pandas')
 
-print 'Re-centering timeseries around time of contact...'
+print('Re-centering timeseries around time of contact...')
 df_c = stats.dataframe_centered_in_time_of_contact(df_c)
 df_c.to_pickle(parameters.data_dir + 'merge_centered.pandas')

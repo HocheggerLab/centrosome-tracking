@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import tifffile as tf
+import skimage.external.tifffile as tf
 from PIL import Image
 from PyQt4 import Qt, QtGui
 from PyQt4.QtCore import QRect
@@ -748,7 +748,7 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                 painter.end()
                 cropped = image_pixmap.copy(rect)
 
-                cropped.save(parameters.data_dir + 'crop/%s_N%02d_F%03d.png' % (run, nuclei, frame))
+                cropped.save(parameters.data_dir + 'out/%s_N%02d_F%03d.png' % (run, nuclei, frame))
 
 
 def pil_grid(images, max_horiz=np.iinfo(int).max):

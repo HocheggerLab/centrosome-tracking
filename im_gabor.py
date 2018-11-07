@@ -2,6 +2,7 @@ import cv2
 import matplotlib.gridspec
 import matplotlib.pyplot as plt
 import numpy as np
+import parameters
 import skimage.morphology
 import skimage.segmentation
 import tifffile as tf
@@ -10,8 +11,6 @@ from skimage import exposure
 from skimage.filters import gaussian
 from skimage.morphology import erosion, square
 from skimage.segmentation import active_contour
-
-import parameters
 
 
 def cell_boundary(tubulin, hoechst, fig=None, threshold=80, markers=None):
@@ -147,8 +146,8 @@ if __name__ == '__main__':
         if tif.is_imagej is not None:
             sizeT, channels = tif.pages[0].imagej_tags.frames, tif.pages[0].imagej_tags.channels
             sizeZ, sizeX, sizeY = 1, tif.pages[0].image_width, tif.pages[0].image_length
-            print 'N of frames=%d channels=%d, sizeZ=%d, sizeX=%d, sizeY=%d' % \
-                  (sizeT, channels, sizeZ, sizeX, sizeY)
+            print('N of frames=%d channels=%d, sizeZ=%d, sizeX=%d, sizeY=%d' % \
+                  (sizeT, channels, sizeZ, sizeX, sizeY))
 
             res = 'n/a'
             if tif.pages[0].resolution_unit == 'centimeter':

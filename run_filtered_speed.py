@@ -24,7 +24,7 @@ new_speedcntr_name = 'Speed between\ncentrosomes $\\left[\\frac{\mu m}{min} \\ri
 
 # distribution of speed and tracks for speed filtered dataframe
 if not os.path.isfile(p.data_dir + 'filt_tracks.pandas'):
-    print 'computing'
+    print('computing')
     dfcentr = pd.read_pickle(p.data_dir + 'merge_centered.pandas')
     # filter original dataframe to get just data between centrosomes
     dfcentr.loc[:, 'indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['Nuclei'].map(int).map(str) + \
@@ -48,11 +48,11 @@ if not os.path.isfile(p.data_dir + 'filt_tracks.pandas'):
     trk_df.drop(['Dist', 'Speed', 'Acc'], axis=1, inplace=True)
     trk_df.to_pickle(p.data_dir + 'filt_tracks.pandas')
     spd_df.to_pickle(p.data_dir + 'filt_speedpoints.pandas')
-    print 'computed'
+    print('computed')
 else:
     trk_df = pd.read_pickle(p.data_dir + 'filt_tracks.pandas')
     spd_df = pd.read_pickle(p.data_dir + 'filt_speedpoints.pandas')
-    print 'loaded'
+    print('loaded')
 
 # names = ['1_N.C.', '1_P.C.', '1_DIC', '1_Dynei', '1_CENPF', '1_BICD2', '2_Kines1', '2_CDK1_DK', '2_CDK1_DC']
 # names = ['1_P.C.', '1_DIC', '1_Dynei', '1_CENPF']
