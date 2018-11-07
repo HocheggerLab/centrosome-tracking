@@ -25,7 +25,7 @@ import parameters
 import plot_special_tools as sp
 import stats as st
 from imagej_pandas import ImagejPandas
-from microtubules import run_plots_eb3 as eb3
+import run_plots_eb3 as eb3
 
 log = logging.getLogger(__name__)
 log.info(font_manager.OSXInstalledFonts())
