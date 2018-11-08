@@ -179,10 +179,10 @@ class LabHDF5NeXusFile():
                         df = pd.read_hdf(self.filename, key=selection_key, mode='r')
                         df['condition'] = experiment_tag
                         df['run'] = run
-                        df_out = df_out.append(df)
+                        df_out = df_out.append(df, sort=True)
         df_out = stats.reconstruct_time(df_out)
-        df_out[['Frame', 'Centrosome', 'Nuclei']] = df_out[['Frame', 'Centrosome', 'Nuclei']].astype('int32')
-        df_out[['Time']] = df_out[['Time']].astype('float64')
+        df_out.loc[:, ['Frame', 'Centrosome', 'Nuclei']] = df_out[['Frame', 'Centrosome', 'Nuclei']].astype('int32')
+        df_out.loc[:, 'Time'] = df_out['Time'].astype('float64')
 
         return df_out
 
@@ -195,14 +195,14 @@ class LabHDF5NeXusFile():
                     if 'pandas_masks' in f['%s/%s/processed' % (experiment_tag, run)]:
                         selection_key = '%s/%s/processed/pandas_masks' % (experiment_tag, run)
                         msk = pd.read_hdf(self.filename, key=selection_key, mode='r')
-                        msk['condition'] = experiment_tag
-                        msk['run'] = run
-                        df_msk = df_msk.append(msk)
+                        msk.loc[':,condition'] = experiment_tag
+                        msk.loc[:, 'run'] = run
+                        df_msk = df_msk.append(msk, sort=True)
         return stats.reconstruct_time(df_msk)
 
     def process_selection_for_run(self, experiment_tag, run):
         with h5py.File(self.filename, 'r') as f:
-            nuclei_list = f['%s/%s/selection' % (experiment_tag, run)].keys()
+            nuclei_list = list(f['%s/%s/selection' % (experiment_tag, run)].keys())
             logging.debug(
                 'for %s %s there are %d nuclei: %s' % (experiment_tag, run, len(nuclei_list), str(nuclei_list)))
             # don't keep processing if there's nothing to do
@@ -368,8 +368,8 @@ class LabHDF5NeXusFile():
 def move_images(filefrom, fileto):
     src = h5py.File(filefrom, 'a')
     dst = h5py.File(fileto, 'a')
-    for cond in src.iterkeys():
-        for run in src[cond].iterkeys():
+    for cond in src.keys():
+        for run in src[cond].keys():
             _grp = '%s/%s/raw' % (cond, run)
             if isinstance(src[_grp], h5py.SoftLink):
                 logging.debug(_grp, 'group already a soft link')
