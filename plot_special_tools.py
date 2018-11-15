@@ -105,6 +105,18 @@ class MyAxes3D(axes3d.Axes3D):
         zaxis.axes._draw_grid = draw_grid_old
 
 
+def set_axis_size(w, h, ax=None):
+    """ w, h: width, height in inches """
+    if not ax: ax = plt.gca()
+    l = ax.figure.subplotpars.left
+    r = ax.figure.subplotpars.right
+    t = ax.figure.subplotpars.top
+    b = ax.figure.subplotpars.bottom
+    figw = float(w) / (r - l)
+    figh = float(h) / (t - b)
+    ax.figure.set_size_inches(figw, figh)
+
+
 def anotated_boxplot(data_grouped, var, point_size=5, fontsize=None, cat='condition',
                      swarm=True, swarm_subcat=None, order=None, xlabels=None, ax=None):
     sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
@@ -141,7 +153,7 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize=None, cat='condit
                             rotation=45, multialignment='right')
     else:
         _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
-    ax.set_xlabel('')
+    # ax.set_xlabel('')
 
     return _ax
 
@@ -152,7 +164,7 @@ def _compute_congression(cg):
     _cg = pd.DataFrame()
     for id, idf in cg.groupby(ImagejPandas.NUCLEI_INDIV_INDEX):
         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(idf, ImagejPandas.DIST_THRESHOLD)
-        if frame_of_c > 0:
+        if frame_of_c is not None and frame_of_c > 0:
             idf.loc[idf['Frame'] >= frame_of_c, 'cgr'] = 1
         _cg = _cg.append(idf)
     cg = _cg
@@ -161,9 +173,9 @@ def _compute_congression(cg):
 
     dfout = pd.DataFrame()
     for id, cdf in cg.groupby('condition'):
-        total_centrosome_pairs = float(len(cdf['indv'].unique()))
-        cdf = cdf.set_index(['indv', 'Time']).sort_index()
-        cgr1_p = cdf['cgr'].unstack('indv').fillna(method='ffill').sum(axis=1) / total_centrosome_pairs * 100.0
+        total_centrosome_pairs = float(len(cdf['indiv'].unique()))
+        cdf = cdf.set_index(['indiv', 'Time']).sort_index()
+        cgr1_p = cdf['cgr'].unstack('indiv').fillna(method='ffill').sum(axis=1) / total_centrosome_pairs * 100.0
         cgr1_p = cgr1_p.reset_index().rename(index=str, columns={0: 'congress'})
         cgr1_p['condition'] = id
         dfout = dfout.append(cgr1_p)
@@ -268,21 +280,6 @@ def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8), z_max=None
     ax.set_zticks(zticks)
     ax.set_zticklabels(['%d' % t for t in zticks])
 
-
-def _msd_tag(df):
-    mvtag = pd.DataFrame()
-    for id, _df in df.groupby(ImagejPandas.NUCLEI_INDIV_INDEX):
-        cond = id[0]
-        c_a = _df[_df['CentrLabel'] == 'A']['msd_lfit_a'].unique()[0]
-        c_b = _df[_df['CentrLabel'] == 'B']['msd_lfit_a'].unique()[0]
-        if c_a > c_b:
-            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' displacing more'
-            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' displacing less'
-        else:
-            _df.loc[_df['CentrLabel'] == 'B', 'msd_cat'] = cond + ' displacing more'
-            _df.loc[_df['CentrLabel'] == 'A', 'msd_cat'] = cond + ' displacing less'
-        mvtag = mvtag.append(_df)
-    return mvtag
 
 
 def msd_indivs(df, ax, time='Time', ylim=None):

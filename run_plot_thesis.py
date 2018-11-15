@@ -1,5 +1,4 @@
 import itertools
-import itertools
 import logging
 from collections import OrderedDict
 
@@ -19,11 +18,10 @@ from matplotlib.ticker import MultipleLocator
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 
-import manual_data as md
 import parameters
 import plot_special_tools as sp
 from microtubules import run_plots_eb3 as eb3
-import stats as st
+from tools import stats as st, manual_data as md
 from imagej_pandas import ImagejPandas
 
 log = logging.getLogger(__name__)

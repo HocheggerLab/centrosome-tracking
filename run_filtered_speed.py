@@ -6,7 +6,7 @@ import pandas as pd
 import seaborn as sns
 
 import parameters as p
-import stats
+from tools import stats
 
 plt.style.use('ggplot')
 sns.set(font_scale=0.9, context='paper', style='whitegrid')
