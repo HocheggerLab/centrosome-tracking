@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import json
 import logging
 import os
@@ -107,7 +107,7 @@ class ExperimentsList(QtGui.QWidget):
         df = pd.read_pickle(parameters.data_dir + 'eb3filter.pandas')
         # get selection from disk
         with open(parameters.data_dir + 'eb3trk.selec.txt', 'r') as configfile:
-            config = ConfigParser.ConfigParser()
+            config = configparser.ConfigParser()
             config.readfp(configfile)
 
             selected = pd.DataFrame()
@@ -132,7 +132,7 @@ class ExperimentsList(QtGui.QWidget):
         df_avg = df_avg.reset_index()
         df_avg.to_pickle(parameters.data_dir + 'eb3stats_sel.pandas')
 
-        print 'export finished.'
+        print('export finished.')
 
 
 if __name__ == '__main__':
