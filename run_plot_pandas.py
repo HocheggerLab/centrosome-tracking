@@ -4,7 +4,7 @@ import pandas as pd
 import seaborn as sns
 
 import plot_special_tools as sp
-import stats as st
+from tools import stats as st
 
 plt.style.use('ggplot')
 sns.set(font_scale=0.9, context='paper', style='whitegrid')

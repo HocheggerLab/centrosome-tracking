@@ -13,7 +13,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.mplot3d import Axes3D
 
 import plot_special_tools as sp
-import stats as st
+from tools import stats as st
 from imagej_pandas import ImagejPandas
 
 print(font_manager.OSXInstalledFonts())

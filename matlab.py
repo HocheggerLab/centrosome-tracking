@@ -3,7 +3,7 @@ import pandas as pd
 import scipy.io as sio
 
 import parameters
-import stats
+from tools import stats
 from imagej_pandas import ImagejPandas
 
 pd.set_option('display.width', 320)

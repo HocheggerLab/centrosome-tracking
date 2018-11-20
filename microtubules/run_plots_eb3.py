@@ -16,7 +16,7 @@ from scipy import stats
 
 import mechanics as m
 import plot_special_tools as sp
-import stats as st
+from tools import stats as st
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 coloredlogs.install()

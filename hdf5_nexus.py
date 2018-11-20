@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import tifffile as tf
 
-import stats
+from tools import stats
 from imagej_pandas import ImagejPandas
 
 
