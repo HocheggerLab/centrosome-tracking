@@ -118,8 +118,8 @@ def plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x
     ys *= L
     xo *= L
 
-    ax.plot(xo[0], xo[1], lw=1, c='y', alpha=alpha, label='%0.1e' % E, zorder=4)
-    ax.plot(ys[0], ys[1], lw=3, c='y', alpha=alpha, zorder=4)
+    ax.plot(xo[0], xo[1], lw=1, c='r', alpha=alpha, label='%0.1e' % E, zorder=4)
+    ax.plot(ys[0], ys[1], lw=3, c='r', alpha=alpha, zorder=4)
     # ax.scatter(ys[0], ys[1], c='k', marker='+', alpha=alpha, zorder=5)
     L = np.sqrt((np.diff(xo) ** 2).sum(axis=0)).sum()
     print(r.p)
@@ -194,10 +194,10 @@ class PlanarElastica():
 
     def __str__(self):
         str = 'Fiber:\r\n' \
-              '{:5} {:4} {:4} | {:5} {:5} {:5} {:5} | {:5} {:5} {:4} | {:4} {:7} {:4}\r\n' \
+              '{:8} {:8} {:8} | {:8} {:8} {:8} {:8} | {:8} {:8} {:8} | {:8} {:8} {:8}\r\n' \
             .format('L', 'J', 'E', 'x0', 'y0', 'endX', 'endY', 'N1', 'N2', 'm0', 'phi', 'theta_e', 'lambda')
-        str += '{:05.2f} {:0.2f} {:0.2f} | {:05.2f} {:05.2f} {:05.2f} {:05.2f} | {:05.2f} {: 5.2f} {:04.2f} | ' \
-               '{:04.2f} {: 05.2f}   {: 04.2f}' \
+        str += '{:0.2e} {:0.2e} {:0.2e} | {:0.2e} {:0.2e} {:0.2e} {:0.2e} | {:0.2e} {:0.2e} {:0.2e} | ' \
+               '{:0.2e} {:0.2e} {:0.2e}' \
             .format(self.L, self.J, self.E,
                     self.x0, self.y0, self.endX, self.endY,
                     self.N1, self.N2, self.m0,
@@ -249,10 +249,10 @@ class PlanarElastica():
         return {'L': self.L, 'E': self.E, 'J': self.J,
                 'N1': self.N1, 'N2': self.N2, 'x0': self.x0, 'y0': self.y0,
                 'xe': self.endX, 'ye': self.endY, 'm0': self.m0,
-                'phi': self.phi, 'theta0': self.theta_e}
+                'phi': self.phi, 'theta0': self.theta0}
 
     def update_ode(self):
-        s = np.linspace(0, self.L, 4)
+        s = np.linspace(0, 1, 4)
         logging.debug(
             'E={:04.2f}, J={:04.2f}, N1={:04.2f}, N2={:04.2f}, m0={:04.2f} theta_end={:04.2f}, '
             'x0={:04.2f} y0={:04.2f} endX={:04.2f} endY={:04.2f}'
@@ -262,11 +262,17 @@ class PlanarElastica():
         self.res = planar_elastica_bvp_numeric(s, E=self.E, J=self.J, N1=self.N1, N2=self.N2, m0=self.m0,
                                                theta_end=self.theta0, endX=self.endX, endY=self.endY)
 
+    def normalized_variables(self):
+        return (self.x0 / self.L,
+                self.y0 / self.L,
+                self.endX / self.L,
+                self.endY / self.L)
+
     def plot(self, ax):
         L, a1, a2 = self.L, 0.3, 0.8
         E, J, N1, N2 = self.E, self.J, self.N1, self.N2
-        m0, theta0, endX, endY = self.m0, self.theta0, self.endX / L, self.endY / L
-        x0, y0, phi = self.x0 / L, self.y0 / L, 0
+        m0, theta0, phi = self.m0, self.theta0, 0
+        x0, y0, endX, endY = self.normalized_variables()
         F_est = np.pi ** 2 * E * J / (self.L * 1.3) ** 2
         # N1 = N2 = F_est ** 2 / 2
 
@@ -274,7 +280,6 @@ class PlanarElastica():
 
         plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta0, endX, endY, x0, y0, phi,
                              num_points=1000)
-
         logging.debug(
             'plotting with:\r\n'
             '{:6} {:4} {:4} | '

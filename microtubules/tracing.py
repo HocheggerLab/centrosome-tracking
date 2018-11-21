@@ -9,7 +9,7 @@ from microtubules import elastica as e
 
 np.set_printoptions(1)
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
-# logger= logging.getLogger('elastica')
+logger = logging.getLogger('elastica')
 logging.getLogger('matplotlib').setLevel(level=logging.INFO)
 
 
@@ -20,19 +20,22 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         self.end_point_pick = False
         self.end_angle_pick = False
         self.fiber = elasticaModel
-        self.fiber_line = None
 
-        self.dx = 1
-        self.dy = 0
+        self.dx = self.fiber.endX
+        self.dy = self.fiber.endY
         self.x0 = xini
         self.y0 = -yini
 
+        self.fiber.x0 = xini
+        self.fiber.y0 = -yini
+        logger.debug('creating PlanarElasticaDrawObject_xy with fiber model {:s}'.format(str(elasticaModel)))
+
         self.r = radius
 
-        self._Xe = -self.x0
-        self._Ye = -self.y0
-        self.dax = -self.Xe
-        self.day = -self.Ye
+        self._Xe = self.x0
+        self._Ye = self.y0
+        self.dax = np.cos(np.pi / 4)
+        self.day = -np.sin(np.pi / 4)
         self._Theta_e = np.arctan2(self.day, self.dax)
         self.ax = axes
 
@@ -40,6 +43,7 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         self.ax.set_ylabel('$y [\mu m]$')
 
         self._initial_plot()
+        self.update_picker_point()
         self._connect()
 
     def __str__(self):
@@ -74,8 +78,6 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
 
     @y0.setter
     def y0(self, value):
-        # self._Ye += value
-        # self.fiber.endY  -= value
         self.fiber.y0 = value
         self._y0 = value
         logging.debug('y0 setter: %0.2f  yt= %0.2f+%0.2f = %0.2f' % (value, self._y0, self.dy, self.Ye))
@@ -217,8 +219,8 @@ class Aster():
         for fib in self.fibers:
             maxx = np.sqrt(fib.Xe ** 2) if np.sqrt(fib.Xe ** 2) > maxx else maxx
             maxy = np.sqrt(fib.Ye ** 2) if np.sqrt(fib.Ye ** 2) > maxy else maxy
-        maxx *= 1.2
-        maxy *= 1.2
+        maxx *= 1.5
+        maxy *= 1.5
 
         self._whmax = np.max([maxx, maxy, self._whmax])
         xi, xe = -self._whmax + self.xa, self._whmax + self.xa
