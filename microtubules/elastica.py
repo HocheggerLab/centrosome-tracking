@@ -100,37 +100,6 @@ def gen_test_data(L, a1, a2, E, J, N1, N2, m0, theta_e, x0=0, y0=0, phi=0, num_p
     return yn
 
 
-def plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0=0.0, y0=0.0, phi=0.0, num_points=100,
-                         alpha=0.5):
-    s = np.linspace(0, 1, num_points)
-    r = planar_elastica_bvp_numeric(s, E=E, J=J, N1=N1, N2=N2, m0=m0, theta_end=theta_e, endX=endX, endY=endY)
-    logger.debug('found parameters {}'.format(r.p))
-    pol = r.sol
-    xo = pol(s)[0:2, :]
-    xs, ys = eval_planar_elastica(s, pol, a1, a2)[0:2, :]
-    ys = np.array([xs, ys])
-
-    # deal with rotations and translations
-    sinphi, cosphi = np.sin(phi), np.cos(phi)
-    M = np.array([[cosphi, -sinphi], [sinphi, cosphi]])
-    ys = np.matmul(M, ys) + np.array([x0, y0]).reshape((2, 1))
-    xo = np.matmul(M, xo) + np.array([x0, y0]).reshape((2, 1))
-    ys *= L
-    xo *= L
-
-    ax.plot(xo[0], xo[1], lw=1, c='r', alpha=alpha, label='%0.1e' % E, zorder=4)
-    ax.plot(ys[0], ys[1], lw=3, c='r', alpha=alpha, zorder=4)
-    # ax.scatter(ys[0], ys[1], c='k', marker='+', alpha=alpha, zorder=5)
-    L = np.sqrt((np.diff(xo) ** 2).sum(axis=0)).sum()
-    print(r.p)
-
-    logger.debug(
-        'first ({:04.2f},{:04.2f}) last ({:04.2f},{:04.2f}) length {:04.2f}'.format(xo[0][0], xo[1][0], xo[0][-1],
-                                                                                    xo[1][-1], L))
-
-    return L
-
-
 def model_planar_elastica(p, num_points=100):
     L, a1, a2, E, J, N1, N2, m0, theta_e, x0, y0, phi = p
     if 0 < a1 < 1 and 0 < a2 < 1:
@@ -251,16 +220,17 @@ class PlanarElastica():
                 'xe': self.endX, 'ye': self.endY, 'm0': self.m0,
                 'phi': self.phi, 'theta0': self.theta0}
 
-    def update_ode(self):
-        s = np.linspace(0, 1, 4)
+    def update_ode(self, num_points=1000):
+        s = np.linspace(0, 1, num_points)
+        x0, y0, endX, endY = self.normalized_variables()
         logging.debug(
             'E={:04.2f}, J={:04.2f}, N1={:04.2f}, N2={:04.2f}, m0={:04.2f} theta_end={:04.2f}, '
             'x0={:04.2f} y0={:04.2f} endX={:04.2f} endY={:04.2f}'
-                .format(self.E, self.J, self.N1, self.N2, self.m0, self.theta0, self.x0, self.y0, self.endX, self.endY))
+                .format(self.E, self.J, self._N1, self._N2, self.m0, self.theta0, x0, y0, endX, endY))
 
         # Now we are ready to run the solver.
-        self.res = planar_elastica_bvp_numeric(s, E=self.E, J=self.J, N1=self.N1, N2=self.N2, m0=self.m0,
-                                               theta_end=self.theta0, endX=self.endX, endY=self.endY)
+        self.res = planar_elastica_bvp_numeric(s, E=self.E, J=self.J, N1=self._N1, N2=self._N2, m0=self.m0,
+                                               theta_end=self.theta0, endX=endX, endY=endY)
 
     def normalized_variables(self):
         return (self.x0 / self.L,
@@ -268,27 +238,55 @@ class PlanarElastica():
                 self.endX / self.L,
                 self.endY / self.L)
 
-    def plot(self, ax):
-        L, a1, a2 = self.L, 0.3, 0.8
-        E, J, N1, N2 = self.E, self.J, self.N1, self.N2
-        m0, theta0, phi = self.m0, self.theta0, 0
-        x0, y0, endX, endY = self.normalized_variables()
-        F_est = np.pi ** 2 * E * J / (self.L * 1.3) ** 2
-        # N1 = N2 = F_est ** 2 / 2
-
-        logger.debug('F={:.2e} N1={:.2e} N2={:.2e} EJ={:.2e}'.format(F_est, N1, N2, E * J))
-
-        plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta0, endX, endY, x0, y0, phi,
-                             num_points=1000)
+    def _eval(self, num_points=1000):
+        a1 = 0.3
+        a2 = 0.8
         logging.debug(
-            'plotting with:\r\n'
+            'evaluating elastica with:\r\n'
             '{:6} {:4} {:4} | '
             '{:8} {:8} {:8} {:8} {:4} | '
             '{:6} {:4} {:4} | '
             '{:5} {:5} {:4}\r\n'
-            .format('L', 'a1', 'a2', 'E', 'J', 'N1', 'N2', 'm0', 'theta0', 'endX', 'endY', 'x0', 'y0', 'phi') +
-            '{: 6.2f} {:04.2f} {:04.2f} | '
+            .format('L', 'a1', 'a2', 'E', 'J', 'N1', 'N2', 'm0', 'theta_e', 'endX', 'endY', 'x0', 'y0', 'phi') +
+            '{:< 6.2f} {:04.2f} {:04.2f} | '
             '{:04.2e} {:04.2e} {:04.2e} {:04.2e} {:04.2f} | '
             '{: 6.2f} {: 05.2f} {:04.2f} | '
             '{: 5.2f} {: 5.2f} {:04.2f}'
-            .format(L, a1, a2, E, J, N1, N2, m0, theta0, endX, endY, x0, y0, phi))
+            .format(self.L, a1, a2,
+                    self.E, self.J, self.N1, self.N2, self.m0,
+                    self.theta0, self.endX, self.endY,
+                    self.x0, self.y0, self.phi))
+
+        self.update_ode(num_points=num_points)
+        s = np.linspace(0, 1, num_points)
+        r = self.res
+        pol = r.sol
+
+        xo = pol(s)[0:2, :]
+        xs, ys = eval_planar_elastica(s, pol, a1, a2)[0:2, :]
+        ys = np.array([xs, ys])
+
+        # deal with rotations and translations
+        sinphi, cosphi = np.sin(self.phi), np.cos(self.phi)
+        M = np.array([[cosphi, -sinphi], [sinphi, cosphi]])
+        ys = np.matmul(M, ys) + np.array([self.x0, self.y0]).reshape((2, 1))
+        xo = np.matmul(M, xo) + np.array([self.x0, self.y0]).reshape((2, 1))
+
+        self.curve_x = xo[0] * self.L
+        self.curve_y = xo[1] * self.L
+        self.curve_subset_x = ys[0] * self.L
+        self.curve_subset_y = ys[1] * self.L
+
+    def plot(self, ax, alpha=0.5):
+        self._eval()
+        ax.plot(self.curve_x, self.curve_y, lw=1, c='r', alpha=alpha, label='%0.1e' % (self.E * self.J), zorder=4)
+        ax.plot(self.curve_subset_x, self.curve_subset_y, lw=3, c='r', alpha=alpha, zorder=4)
+        # ax.scatter(self.curve_subset_x, self.curve_subset_y, c='k', marker='+', alpha=alpha, zorder=5)
+        L = np.sqrt((np.diff(self.curve_x) ** 2 + np.diff(self.curve_y) ** 2).sum(axis=0)).sum()
+
+        logger.debug(
+            'first ({:04.2f},{:04.2f}) '
+            'last ({:04.2f},{:04.2f}) '
+            'length {:04.2f}'.format(self.curve_x[0], self.curve_y[0],
+                                     self.curve_x[-1], self.curve_y[-1],
+                                     L))

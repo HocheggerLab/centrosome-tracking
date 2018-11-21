@@ -344,13 +344,8 @@ if __name__ == '__main__':
             #     res = float(xr[0]) / float(xr[1])  # pixels per um
             res = 4.5
 
-            sequence = tif.asarray().reshape([sizeT, channels, sizeX, sizeY])
-            # print(sequence.shape)
-            img = tif.pages[0].asarray()
-
-            # plt.hist(img.ravel(), bins=256, fc='k', ec='k')
-
-    fiber = e.PlanarElastica(L=10.0, E=1e9 * 1e-12, J=1e-8, N1=2.5e-22, N2=2.5e-22)
+    fiber = e.PlanarElastica(L=1.2, E=1e9 * 1e-12, J=1e-8, N1=2.5e-22, N2=2.5e-22,
+                             dx=0.98, dy=0.21, theta=1.01)
     # centrosome = Aster(ax, x0=56, y0=60)
     centrosome = Aster(ax)
     centrosome.add_fiber(fiber)
