@@ -88,7 +88,7 @@ def sampled_elastica_figure():
     Np = 100
     s = np.linspace(0.0, L, Np)
 
-    r = e.planar_elastica_bvp(s, E=E, theta_end=thetaL, endX=end_x, endY=end_y)
+    r = e.planar_elastica_bvp_numeric(s, E=E, theta_end=thetaL, endX=end_x, endY=end_y)
     pol = r.sol
     xo = pol(s)[0:2, :]
     ys = e.eval_planar_elastica(s, pol, a1, a2)[0:2, :]

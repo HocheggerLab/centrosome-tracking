@@ -8,8 +8,8 @@ np.set_printoptions(1)
 logger = logging.getLogger(__name__)
 
 
-def planar_elastica_bvp(s, E=1.0, J=1.0, N1=1.0, N2=1.0, m0=0.1,
-                        theta_end=np.pi / 2, endX=0.0, endY=0.0):
+def planar_elastica_bvp_numeric(s, E=1.0, J=1.0, N1=1.0, N2=1.0, m0=0.1,
+                                theta_end=np.pi / 2, endX=0.0, endY=0.0):
     """
 
         | x0' |   |  x'    |   |     cos(theta)     |
@@ -55,13 +55,12 @@ def planar_elastica_bvp(s, E=1.0, J=1.0, N1=1.0, N2=1.0, m0=0.1,
         return dFdy, dFdp
 
     y_a = np.array([sin(s), cos(s), s ** 2])
-    # logger.debug('planar_elastica_bvp called with params\r\n'
-    #              'E=%0.2f, J=%0.2f, N1=%0.2f, N2=%0.2f, m0=%0.2f\r\n'
-    #              'theta_end=%0.2f, endX=%0.2f, endY=%0.2f' % (E, J, N1, N2, m0, theta_end, endX, endY))
+    logger.debug('planar_elastica_bvp_numeric called with params\r\n'
+                 'E=%0.2e, J=%0.2e, N1=%0.2e, N2=%0.2e, m0=%0.2e\r\n'
+                 'theta_end=%0.2e, endX=%0.2e, endY=%0.2e' % (E, J, N1, N2, m0, theta_end, endX, endY))
 
     # Now we are ready to run the solver.
     res = solve_bvp(f, bc, s, y_a, p=[N1, N2, m0], fun_jac=fn_jac, verbose=1)
-    # res = solve_bvp(f, bc, s, y_a, p=[N1, N2, m0], verbose=1)
     logger.debug(res.p)
     return res
 
@@ -78,7 +77,7 @@ def eval_planar_elastica(s, pol, a1, a2):
 
 def gen_test_data(L, a1, a2, E, J, N1, N2, m0, theta_e, x0=0, y0=0, phi=0, num_points=100, sigma=0.1, ax=None):
     s = np.linspace(0, L, num_points)
-    r = planar_elastica_bvp(s, E=E, J=J, N1=N1, N2=N2, m0=m0, theta_end=theta_e)
+    r = planar_elastica_bvp_numeric(s, E=E, J=J, N1=N1, N2=N2, m0=m0, theta_end=theta_e)
     pol = r.sol
     xo = pol(s)[0:2, :]
     ys = eval_planar_elastica(s, pol, a1, a2)[0:2, :]
@@ -103,8 +102,8 @@ def gen_test_data(L, a1, a2, E, J, N1, N2, m0, theta_e, x0=0, y0=0, phi=0, num_p
 
 def plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0=0.0, y0=0.0, phi=0.0, num_points=100,
                          alpha=0.5):
-    s = np.linspace(0, L, num_points)
-    r = planar_elastica_bvp(s, E=E, J=J, N1=N1, N2=N2, m0=m0, theta_end=theta_e, endX=endX, endY=endY)
+    s = np.linspace(0, 1, num_points)
+    r = planar_elastica_bvp_numeric(s, E=E, J=J, N1=N1, N2=N2, m0=m0, theta_end=theta_e, endX=endX, endY=endY)
     logger.debug('found parameters {}'.format(r.p))
     pol = r.sol
     xo = pol(s)[0:2, :]
@@ -116,8 +115,10 @@ def plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x
     M = np.array([[cosphi, -sinphi], [sinphi, cosphi]])
     ys = np.matmul(M, ys) + np.array([x0, y0]).reshape((2, 1))
     xo = np.matmul(M, xo) + np.array([x0, y0]).reshape((2, 1))
+    ys *= L
+    xo *= L
 
-    ax.plot(xo[0], xo[1], lw=1, c='y', alpha=alpha, label='%0.1f' % E, zorder=4)
+    ax.plot(xo[0], xo[1], lw=1, c='y', alpha=alpha, label='%0.1e' % E, zorder=4)
     ax.plot(ys[0], ys[1], lw=3, c='y', alpha=alpha, zorder=4)
     # ax.scatter(ys[0], ys[1], c='k', marker='+', alpha=alpha, zorder=5)
     L = np.sqrt((np.diff(xo) ** 2).sum(axis=0)).sum()
@@ -138,7 +139,7 @@ def model_planar_elastica(p, num_points=100):
         s1 = int(a1 * num_points)
         s2 = int(a2 * num_points)
         s = np.linspace(0, L, num_points)
-        r = planar_elastica_bvp(s, E=E, J=J, N1=N1, N2=N2, m0=m0, theta_end=theta_e)
+        r = planar_elastica_bvp_numeric(s, E=E, J=J, N1=N1, N2=N2, m0=m0, theta_end=theta_e)
         pol = r.sol
         ys = pol(s)[0:2, :]
 
@@ -166,19 +167,29 @@ def obj_minimize(p, yn, Np=100):
 
 
 class PlanarElastica():
-    def __init__(self):
-        self.L = 1.0
-        self.E = 0.625
-        self.J = 1.0
-        self.N1 = 1
-        self.N2 = 1
-        self.x0 = 0.0
-        self.y0 = 0.0
-        self.phi = 0.0
-        self.endX = 0.4
-        self.endY = 0.1
+    def __init__(self, L=1.0, E=0.625, J=1.0, N1=1.0, N2=1.0, x0=0.0, y0=0.0, phi=0.0, theta=3 * np.pi / 2,
+                 dx=0.5, dy=0.5):
+        self.L = L
+        self.E = E
+        self.J = J
+        self.B = E * J
+
+        self._N1 = None
+        self._N2 = None
+        self.N1 = N1
+        self.N2 = N2
+
+        self.x0 = x0
+        self.y0 = y0
+        self.phi = phi
+
+        self._endX = 0.0
+        self._endY = 0.0
+        self.endX = dx
+        self.endY = dy
+
         self.m0 = 0.01
-        self.theta0 = 3 * np.pi / 2
+        self.theta0 = theta
         self.res = None
 
     def __str__(self):
@@ -205,7 +216,6 @@ class PlanarElastica():
     @endX.setter
     def endX(self, value):
         self._endX = value
-        # self.L = np.sqrt((self.endX - self.x0) ** 2 + (self.endY - self.y0) ** 2)
         self.L = np.sqrt(self.endX ** 2 + self.endY ** 2)
         # logging.debug('setting endX: endX={:02.2f} endY={:02.2f} L={:02.2f}'.format(self._endX, self._endY, self.L))
 
@@ -216,15 +226,30 @@ class PlanarElastica():
     @endY.setter
     def endY(self, value):
         self._endY = value
-        # self.L = np.sqrt((self.endX - self.x0) ** 2 + (self.endY - self.y0) ** 2)
         self.L = np.sqrt(self.endX ** 2 + self.endY ** 2)
         logging.debug('setting endY: endX={:02.2f} endY={:02.2f} L={:02.2f}'.format(self._endX, self._endY, self.L))
+
+    @property
+    def N1(self):
+        return self._N1 * self.B / self.L ** 2
+
+    @N1.setter
+    def N1(self, value):
+        self._N1 = value / self.B * self.L ** 2
+
+    @property
+    def N2(self):
+        return self._N2 * self.B / self.L ** 2
+
+    @N2.setter
+    def N2(self, value):
+        self._N2 = value / self.B * self.L ** 2
 
     def asdict(self):
         return {'L': self.L, 'E': self.E, 'J': self.J,
                 'N1': self.N1, 'N2': self.N2, 'x0': self.x0, 'y0': self.y0,
                 'xe': self.endX, 'ye': self.endY, 'm0': self.m0,
-                'phi': self.phi, 'theta0': self.theta0}
+                'phi': self.phi, 'theta0': self.theta_e}
 
     def update_ode(self):
         s = np.linspace(0, self.L, 4)
@@ -234,34 +259,31 @@ class PlanarElastica():
                 .format(self.E, self.J, self.N1, self.N2, self.m0, self.theta0, self.x0, self.y0, self.endX, self.endY))
 
         # Now we are ready to run the solver.
-        self.res = planar_elastica_bvp(s, E=self.E, J=self.J, N1=self.N1, N2=self.N2, m0=self.m0,
-                                       theta_end=self.theta0, endX=self.endX, endY=self.endY)
+        self.res = planar_elastica_bvp_numeric(s, E=self.E, J=self.J, N1=self.N1, N2=self.N2, m0=self.m0,
+                                               theta_end=self.theta0, endX=self.endX, endY=self.endY)
 
     def plot(self, ax):
-        L, a1, a2 = self.L * 1.3, 0.3, 0.8
+        L, a1, a2 = self.L, 0.3, 0.8
         E, J, N1, N2 = self.E, self.J, self.N1, self.N2
-        m0, theta_e, endX, endY = self.m0, self.theta0, self.endX, self.endY
-        x0, y0, phi = self.x0, self.y0, 0
+        m0, theta0, endX, endY = self.m0, self.theta0, self.endX / L, self.endY / L
+        x0, y0, phi = self.x0 / L, self.y0 / L, 0
         F_est = np.pi ** 2 * E * J / (self.L * 1.3) ** 2
-        # N1 = N2 = F_est ** 2 / 2/2
-        # N1 = N2 = F_est / 2
+        # N1 = N2 = F_est ** 2 / 2
 
         logger.debug('F={:.2e} N1={:.2e} N2={:.2e} EJ={:.2e}'.format(F_est, N1, N2, E * J))
 
-        plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0, y0, phi,
+        plot_planar_elastica(ax, L, a1, a2, E, J, N1, N2, m0, theta0, endX, endY, x0, y0, phi,
                              num_points=1000)
-        # self.N1=N1
-        # self.N2=N2
-        # self.m0=m0
+
         logging.debug(
             'plotting with:\r\n'
             '{:6} {:4} {:4} | '
             '{:8} {:8} {:8} {:8} {:4} | '
             '{:6} {:4} {:4} | '
             '{:5} {:5} {:4}\r\n'
-            .format('L', 'a1', 'a2', 'E', 'J', 'N1', 'N2', 'm0', 'theta_e', 'endX', 'endY', 'x0', 'y0', 'phi') +
+            .format('L', 'a1', 'a2', 'E', 'J', 'N1', 'N2', 'm0', 'theta0', 'endX', 'endY', 'x0', 'y0', 'phi') +
             '{: 6.2f} {:04.2f} {:04.2f} | '
             '{:04.2e} {:04.2e} {:04.2e} {:04.2e} {:04.2f} | '
             '{: 6.2f} {: 05.2f} {:04.2f} | '
             '{: 5.2f} {: 5.2f} {:04.2f}'
-            .format(L, a1, a2, E, J, N1, N2, m0, theta_e, endX, endY, x0, y0, phi))
+            .format(L, a1, a2, E, J, N1, N2, m0, theta0, endX, endY, x0, y0, phi))

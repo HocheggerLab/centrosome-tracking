@@ -116,8 +116,8 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
 
     def on_release(self, event):
         if not (self.end_point_pick or self.end_angle_pick): return
-        logging.debug('fiber release: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
-                      (event.xdata, event.ydata, self.x0, self.y0))
+        # logging.debug('fiber release: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
+        #               (event.xdata, event.ydata, self.x0, self.y0))
         self.end_point_pick = False
         self.end_angle_pick = False
         self._Xe = event.xdata - self.x0
@@ -348,14 +348,9 @@ if __name__ == '__main__':
 
             # plt.hist(img.ravel(), bins=256, fc='k', ec='k')
 
-            ax.imshow(img, extent=(0, sizeX / res, 0, sizeY / res))
-            ax.set_xlim([0, sizeX / res])
-            ax.set_ylim([0, sizeY / res])
-    ax.set_xlim([40, 70])
-    ax.set_ylim([40, 70])
-
-    fiber = e.PlanarElastica()
-    centrosome = Aster(ax, x0=56, y0=60)
+    fiber = e.PlanarElastica(L=10.0, E=1e9 * 1e-12, J=1e-8, N1=2.5e-22, N2=2.5e-22)
+    # centrosome = Aster(ax, x0=56, y0=60)
+    centrosome = Aster(ax)
     centrosome.add_fiber(fiber)
 
     plt.show()
