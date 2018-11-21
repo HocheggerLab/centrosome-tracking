@@ -17,6 +17,7 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
 
     def __init__(self, axes, elasticaModel, xini=0.0, yini=0.0, radius=1.0):
         plt.Artist.__init__(self)
+        self.ini_angle_pick = False
         self.end_point_pick = False
         self.end_angle_pick = False
         self.fiber = elasticaModel
@@ -34,9 +35,14 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
 
         self._Xe = self.x0
         self._Ye = self.y0
-        self.dax = np.cos(np.pi / 4)
+
+        self.iax = 1.0  # x coordinate for the angle picker point at the initial point
+        self.iay = 0.0
+        self._theta_i = np.arctan2(self.iay, self.iax)
+
+        self.dax = np.cos(np.pi / 4)  # x coordinate for the angle picker point at the end point
         self.day = -np.sin(np.pi / 4)
-        self._Theta_e = np.arctan2(self.day, self.dax)
+        self._theta_e = np.arctan2(self.day, self.dax)
         self.ax = axes
 
         self.ax.set_xlabel('$x [\mu m]$')
@@ -48,7 +54,7 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
 
     def __str__(self):
         return "PlanarElastica draw object: xe=%0.2f ye=%0.2f dx=%0.2f dy=%0.2f theta_end=%0.2f \r\n" \
-               "%s" % (self.Xe, self.Ye, self.dx, self.dy, self._Theta_e, str(self.fiber))
+               "%s" % (self.Xe, self.Ye, self.dx, self.dy, self._theta_e, str(self.fiber))
 
     @property
     def Xe(self):
@@ -91,10 +97,16 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
                           (mevent.xdata, mevent.ydata, self.x0, self.y0))
             self._Ye = mevent.ydata
 
-        if self.angle_circle == event.artist and not self.end_point_pick:
+        if self.ini_angle_circle == event.artist and not self.ini_angle_pick:
+            self.ini_angle_pick = True
+            mevent = event.mouseevent
+            logging.debug('initial angle pick: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
+                          (mevent.xdata, mevent.ydata, self.x0, self.y0))
+
+        if self.end_angle_circle == event.artist and not self.end_point_pick:
             self.end_angle_pick = True
             mevent = event.mouseevent
-            logging.debug('angle pick: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
+            logging.debug('final angle pick: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
                           (mevent.xdata, mevent.ydata, self.x0, self.y0))
 
     def on_motion(self, event):
@@ -104,72 +116,119 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
             # logging.debug('fiber motion: event.xdata=%f, event.ydata=%f' % (event.xdata, event.ydata))
             self.dx = event.xdata - self.x0
             self.dy = event.ydata - self.y0
-            # logging.debug(
-            #     'end_point_pick dx={: .2f} dy={: .2f} theta={: .2f}'.format(self.dax, self.day, self._Theta_e))
+
+        if self.ini_angle_pick:
+            self.iax = event.xdata - self.x0
+            self.iay = event.ydata - self.y0
 
         if self.end_angle_pick:
-            self.dax = event.xdata - self.Xe
-            self.day = event.ydata - self.Ye
-            # logging.debug(
-            #     'end_angle_pick dx={: .2f} dy={: .2f} theta={: .2f}'.format(self.dax, self.day, self._Theta_e))
+            # deal with rotations and translations
+            sinth, costh = -np.sin(self._theta_i), np.cos(self._theta_i)
+            M = np.array([[costh, -sinth], [sinth, costh]])
+            p = np.matmul(M, [self.Xe, self.Ye]).reshape((2, 1))
+
+            self.dax = event.xdata - p[0][0]
+            self.day = event.ydata - p[1][0]
 
         self.update_picker_point()
         return
 
     def on_release(self, event):
-        if not (self.end_point_pick or self.end_angle_pick): return
-        # logging.debug('fiber release: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
-        #               (event.xdata, event.ydata, self.x0, self.y0))
+        if not (self.end_point_pick or self.ini_angle_pick or self.end_angle_pick): return
+
         self.end_point_pick = False
+        self.ini_angle_pick = False
         self.end_angle_pick = False
         self._Xe = event.xdata - self.x0
         self._Ye = event.ydata - self.y0
 
-        if self.end_angle_pick:
-            self.dax = event.xdata - self.Xe
-            self.day = event.ydata - self.Ye
+        if self.ini_angle_pick:
+            self.iax = event.xdata - self.x0
+            self.iay = event.ydata - self.x0
             logging.debug(
-                'end_angle_pick dx={: .2f} dy={: .2f} theta={: .2f}'.format(self.dax, self.day, self._Theta_e))
+                'ini_angle_pick dx={: .2f} dy={: .2f} theta={: .2f}'.format(self.iax, self.iay, self._theta_i))
+
+        if self.end_angle_pick:
+            # deal with rotations and translations
+            sinth, costh = -np.sin(self._theta_i), np.cos(self._theta_i)
+            M = np.array([[costh, -sinth], [sinth, costh]])
+            p = np.matmul(M, [self.Xe, self.Ye]).reshape((2, 1))
+
+            self.dax = event.xdata - p[0][0]
+            self.day = event.ydata - p[1][0]
+
+            logging.debug(
+                'end_angle_pick dx={: .2f} dy={: .2f} theta={: .2f}'.format(self.dax, self.day, self._theta_e))
 
         self.update_picker_point()
         self.update_plot()
-        logging.debug('dx={: .2f} dy={: .2f} theta={: .2f}'.format(self.dax, self.day, self._Theta_e))
+        logging.debug('dx={: .2f} dy={: .2f} theta={: .2f}'.format(self.dax, self.day, self._theta_e))
 
     def update_plot(self):
         self.fiber.endX = self.dx
         self.fiber.endY = self.dy
-        self.fiber.theta0 = self._Theta_e
+        self.fiber.theta0 = self._theta_e
+        self.fiber.phi = -self._theta_i
         self.fiber.update_ode()
         self.fiber.plot(self.ax)
         self.ax.figure.canvas.draw()
 
     def update_picker_point(self):
-        # update picker point
-        self._Theta_e = np.arctan2(self.day, self.dax)
-        thetae = np.arctan2(-np.tan(self._Theta_e), 1)
+        # update initial picker point
+        self._theta_i = np.arctan2(self.iay, self.iax)
+        self._theta_i = np.arctan2(-np.tan(self._theta_i), 1)
+        if self.iax < 0:
+            self._theta_i += np.pi
+        irx = np.cos(self._theta_i) * self.r
+        iry = np.sin(self._theta_i) * self.r
+        self.ini_angle_circle.center = (self.x0, self.y0)
+        self.ini_angle_point.center = (self.x0 + irx, self.y0 - iry)
+        self.ini_angle_line.set_data((self.x0, self.x0 + irx), (self.y0, self.y0 - iry))
+
+        # update final picker point
+        self._theta_e = np.arctan2(self.day, self.dax)
+        self._theta_e = np.arctan2(-np.tan(self._theta_e), 1)
         if self.dax < 0:
-            thetae += np.pi
-        drx = np.cos(thetae) * self.r
-        dry = np.sin(thetae) * self.r
-        self.pick_end_point.center = (self.Xe, self.Ye)
-        self.angle_circle.center = (self.Xe, self.Ye)
-        self.angle_point.center = (self.Xe + drx, self.Ye - dry)
-        self.angle_line.set_data((self.Xe, self.Xe + drx), (self.Ye, self.Ye - dry))
-        # self.ax.draw_artist(self.pick_end_point)
+            self._theta_e += np.pi
+        drx = np.cos(self._theta_e) * self.r
+        dry = np.sin(self._theta_e) * self.r
+
+        # deal with rotations and translations
+        sinth, costh = -np.sin(self._theta_i), np.cos(self._theta_i)
+        M = np.array([[costh, -sinth], [sinth, costh]])
+        endp = np.matmul(M, [self.Xe, self.Ye]).reshape((2, 1))
+        enda = np.matmul(M, [self.Xe + drx, self.Ye - dry]).reshape((2, 1))
+
+        self.pick_end_point.center = (endp[0], endp[1])
+        self.end_angle_circle.center = (endp[0], endp[1])
+        self.end_angle_point.center = (enda[0], enda[1])
+        self.end_angle_line.set_data((endp[0], enda[0]), (endp[1], enda[1]))
+
         self.ax.figure.canvas.draw()
 
     def _initial_plot(self):
-        drx = np.cos(self._Theta_e) * self.r
-        dry = np.sin(self._Theta_e) * self.r
+        drx = np.cos(self._theta_e) * self.r
+        dry = np.sin(self._theta_e) * self.r
         self.pick_end_point = plt.Circle((self.Xe, self.Ye), radius=self.r / 5.0, fc='y', picker=5)
-        self.angle_circle = plt.Circle((self.Xe, self.Ye), radius=self.r, fc='none', ec='k', lw=1, linestyle='--',
-                                       picker=5)
-        self.angle_point = plt.Circle((self.Xe + drx, self.Ye - dry), radius=self.r / 5.0, fc='w', picker=5)
-        self.angle_line = plt.Line2D((self.Xe, self.Xe + drx), (self.Ye, self.Ye - dry), color='k')
+        self.end_angle_circle = plt.Circle((self.Xe, self.Ye), radius=self.r, fc='none', ec='k', lw=1, linestyle='--',
+                                           picker=5)
+        self.end_angle_point = plt.Circle((self.Xe + drx, self.Ye - dry), radius=self.r / 5.0, fc='w', picker=5)
+        self.end_angle_line = plt.Line2D((self.Xe, self.Xe + drx), (self.Ye, self.Ye - dry), color='k')
+
+        irx = np.cos(self._theta_i) * self.r
+        iry = np.sin(self._theta_i) * self.r
+        self.ini_angle_point = plt.Circle((self.x0 + irx, self.y0 - iry), radius=self.r / 5.0, fc='w', picker=5)
+        self.ini_angle_line = plt.Line2D((self.x0, self.x0 + irx), (self.y0, self.y0 - iry), color='k')
+        self.ini_angle_circle = plt.Circle((self.x0, self.y0), radius=self.r, fc='none', ec='k', lw=1, linestyle='--',
+                                           picker=5)
+
         self.ax.add_artist(self.pick_end_point)
-        self.ax.add_artist(self.angle_circle)
-        self.ax.add_artist(self.angle_point)
-        self.ax.add_artist(self.angle_line)
+        self.ax.add_artist(self.end_angle_circle)
+        self.ax.add_artist(self.end_angle_point)
+        self.ax.add_artist(self.end_angle_line)
+        self.ax.add_artist(self.ini_angle_circle)
+        self.ax.add_artist(self.ini_angle_point)
+        self.ax.add_artist(self.ini_angle_line)
         self.update_plot()
 
     def _connect(self):
@@ -345,7 +404,7 @@ if __name__ == '__main__':
             res = 4.5
 
     fiber = e.PlanarElastica(L=1.2, E=1e9 * 1e-12, J=1e-8, N1=2.5e-22, N2=2.5e-22,
-                             dx=0.98, dy=0.21, theta=1.01)
+                             dx=10.0, dy=0.0, theta=1.01)
     # centrosome = Aster(ax, x0=56, y0=60)
     centrosome = Aster(ax)
     centrosome.add_fiber(fiber)
