@@ -33,9 +33,6 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
 
         self.r = radius
 
-        self._Xe = self.x0
-        self._Ye = self.y0
-
         self.iax = 1.0  # x coordinate for the angle picker point at the initial point
         self.iay = 0.0
         self._theta_i = np.arctan2(self.iay, self.iax)
@@ -53,19 +50,17 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         self._connect()
 
     def __str__(self):
-        return "PlanarElastica draw object: xe=%0.2f ye=%0.2f dx=%0.2f dy=%0.2f theta_end=%0.2f \r\n" \
-               "%s" % (self.Xe, self.Ye, self.dx, self.dy, self._theta_e, str(self.fiber))
+        return "PlanarElastica draw object: x0=%0.2e y0=%0.2e  xe=%0.2e ye=%0.2e dx=%0.2f dy=%0.2f theta_end=%0.2f \r\n" \
+               "%s" % (self.x0, self.y0, self.Xe, self.Ye, self.dx, self.dy, self._theta_e, str(self.fiber))
 
     @property
     def Xe(self):
         out = self._x0 + self.dx
-        # logging.debug('Xe getter: %0.2f = -(%0.2f) + %0.2f' % (out, self._Xe, self.Xoffset))
         return out
 
     @property
     def Ye(self):
         out = self._y0 + self.dy
-        # logging.debug('Ye getter: %0.2f = -(%0.2f) + %0.2f' % (out, self._Ye, self.Yoffset))
         return out
 
     @property
@@ -78,15 +73,15 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
 
     @x0.setter
     def x0(self, value):
-        self.fiber.x0 = value
         self._x0 = value
-        logging.debug('x0 setter: %0.2f  xt= %0.2f+%0.2f = %0.2f' % (value, self._x0, self.dx, self.Xe))
+        logging.debug('x0 setter: %0.2f  xt= %0.2f+%0.2f = %0.2f fib.L = %0.2f' % (
+            value, self._x0, self.dx, self.Xe, self.fiber.L))
 
     @y0.setter
     def y0(self, value):
-        self.fiber.y0 = value
         self._y0 = value
-        logging.debug('y0 setter: %0.2f  yt= %0.2f+%0.2f = %0.2f' % (value, self._y0, self.dy, self.Ye))
+        logging.debug('y0 setter: %0.2f  yt= %0.2f+%0.2f = %0.2f fib.L = %0.2f' % (
+            value, self._y0, self.dy, self.Ye, self.fiber.L))
 
     def on_pick(self, event):
         logging.debug(event.artist)
@@ -113,9 +108,13 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         if event.xdata is None: return
 
         if self.end_point_pick:
-            # logging.debug('fiber motion: event.xdata=%f, event.ydata=%f' % (event.xdata, event.ydata))
-            self.dx = event.xdata - self.x0
-            self.dy = event.ydata - self.y0
+            # deal with rotations and translations
+            sinth, costh = np.sin(self._theta_i), np.cos(self._theta_i)
+            M = np.array([[costh, -sinth], [sinth, costh]])
+            p = np.matmul(M, [event.xdata - self.x0, event.ydata - self.y0])
+
+            self.dx = p[0]
+            self.dy = p[1]
 
         if self.ini_angle_pick:
             self.iax = event.xdata - self.x0
@@ -123,17 +122,18 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
 
         if self.end_angle_pick:
             # deal with rotations and translations
-            sinth, costh = -np.sin(self._theta_i), np.cos(self._theta_i)
+            sinth, costh = np.sin(self._theta_i), np.cos(self._theta_i)
             M = np.array([[costh, -sinth], [sinth, costh]])
-            p = np.matmul(M, [self.Xe, self.Ye]).reshape((2, 1))
+            p = np.matmul(M, [event.xdata - self.x0, event.ydata - self.y0])
 
-            self.dax = event.xdata - p[0][0]
-            self.day = event.ydata - p[1][0]
+            self.dax = p[0]
+            self.day = p[1]
 
         self.update_picker_point()
         return
 
     def on_release(self, event):
+        logging.info('on_release {} {} {}'.format(self.end_point_pick, self.ini_angle_pick, self.end_angle_pick))
         if not (self.end_point_pick or self.ini_angle_pick or self.end_angle_pick): return
 
         self.end_point_pick = False
@@ -141,6 +141,8 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         self.end_angle_pick = False
         self._Xe = event.xdata - self.x0
         self._Ye = event.ydata - self.y0
+
+        logging.debug('x0={: .2f} y0={: .2f} xe={: .2f} ye={: .2f}'.format(self.x0, self.y0, self.Xe, self.Ye))
 
         if self.ini_angle_pick:
             self.iax = event.xdata - self.x0
@@ -160,16 +162,17 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
             logging.debug(
                 'end_angle_pick dx={: .2f} dy={: .2f} theta={: .2f}'.format(self.dax, self.day, self._theta_e))
 
-        self.update_picker_point()
         self.update_plot()
+        self.update_picker_point()
         logging.debug('dx={: .2f} dy={: .2f} theta={: .2f}'.format(self.dax, self.day, self._theta_e))
 
     def update_plot(self):
+        self.fiber.x0 = self.x0
+        self.fiber.y0 = self.y0
         self.fiber.endX = self.dx
         self.fiber.endY = self.dy
         self.fiber.theta0 = self._theta_e
         self.fiber.phi = -self._theta_i
-        self.fiber.update_ode()
         self.fiber.plot(self.ax)
         self.ax.figure.canvas.draw()
 
@@ -196,8 +199,8 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         # deal with rotations and translations
         sinth, costh = -np.sin(self._theta_i), np.cos(self._theta_i)
         M = np.array([[costh, -sinth], [sinth, costh]])
-        endp = np.matmul(M, [self.Xe, self.Ye]).reshape((2, 1))
-        enda = np.matmul(M, [self.Xe + drx, self.Ye - dry]).reshape((2, 1))
+        endp = np.matmul(M, [self.dx, self.dy]) + np.array([self.x0, self.y0])
+        enda = np.matmul(M, [self.dx + drx, self.dy - dry]) + np.array([self.x0, self.y0])
 
         self.pick_end_point.center = (endp[0], endp[1])
         self.end_angle_circle.center = (endp[0], endp[1])
@@ -305,12 +308,6 @@ class Aster():
     def on_key(self, event):
         print('press', event.key)
         if event.key == 'r':
-            # print(self.ax.artists)
-            # for a in self.ax.artists:
-            #     print(a)
-            # print('-----lines')
-            # for l in self.ax.lines:
-            #     print(l)
             self.ax.lines = []
             self.ax.collections = []
             for f in self.fibers:
@@ -330,33 +327,21 @@ class Aster():
                 f.plot(self.ax)
                 self.ax.figure.canvas.draw()
 
-                # logging.debug(
-                #     'sensitivity got:\r\n'
-                #     '{:6} {:4} {:4} {:4}\r\n'
-                #     .format('L', 'N1', 'N2', 'm0') +
-                #     '{: 6.2f} {:04.2f} {:04.2f} {:04.2f}'.format(L, N1, N2, m0))
-
     def on_pick(self, event):
         if self.pick_ini_point == event.artist:
             self.picking = True
             mevent = event.mouseevent
             logging.debug('aster pick: xdata=%f, ydata=%f' % (mevent.xdata, mevent.ydata))
-            for fib in self.fibers:
-                fib.x0 = event.xdata
-                fib.y0 = event.ydata
-                fib.dx = fib.Xe - event.xdata
-                fib.dy = fib.Ye - event.ydata
-                fib.update_picker_point()
             self.xa = mevent.xdata
             self.ya = mevent.ydata
 
     def on_motion(self, event):
         if not self.picking: return
         # logging.debug('aster motion: xdata=%f, ydata=%f' % (event.xdata, event.ydata))
-        for fib in self.fibers:
-            fib.x0 = event.xdata
-            fib.y0 = event.ydata
-            fib.update_picker_point()
+        # for fib in self.fibers:
+        #     fib.x0 = event.xdata
+        #     fib.y0 = event.ydata
+        #     fib.update_picker_point()
         self.xa = event.xdata
         self.ya = event.ydata
         self._update_picker_point()
@@ -366,11 +351,12 @@ class Aster():
         if not self.picking: return
         logging.debug('aster release: xdata=%f, ydata=%f' % (event.xdata, event.ydata))
         self.picking = False
-        for fib in self.fibers:
+        for i, fib in enumerate(self.fibers):
             fib.x0 = event.xdata
             fib.y0 = event.ydata
-            fib.update_plot()
-            fib.update_picker_point()
+            logging.debug(
+                'fiber {}: x0={: .2f} y0={: .2f} xe={: .2f} ye={: .2f}'.format(i, fib.x0, fib.y0, fib.Xe, fib.Ye))
+
         self.xa = event.xdata
         self.ya = event.ydata
         self._update_picker_point()
