@@ -3,6 +3,7 @@ import logging
 import numpy as np
 from numpy import cos, sin
 from scipy.integrate import solve_bvp
+from lmfit import Parameters
 
 np.set_printoptions(1)
 logger = logging.getLogger(__name__)
@@ -60,8 +61,7 @@ def planar_elastica_bvp_numeric(s, E=1.0, J=1.0, N1=1.0, N2=1.0, m0=0.1,
                  'theta_end=%0.2e, endX=%0.2e, endY=%0.2e' % (s[-1], E, J, N1, N2, m0, theta_end, endX, endY))
 
     # Now we are ready to run the solver.
-    res = solve_bvp(f, bc, s, y_a, p=[N1, N2, m0], fun_jac=fn_jac, verbose=1)
-    logger.debug(res.p)
+    res = solve_bvp(f, bc, s, y_a, p=[N1, N2, m0], fun_jac=fn_jac, verbose=2)
     return res
 
 
@@ -136,12 +136,13 @@ def obj_minimize(p, yn, Np=100):
 
 
 class PlanarElastica():
-    def __init__(self, L=1.0, E=0.625, J=1.0, N1=1.0, N2=1.0, x0=0.0, y0=0.0, phi=0.0, theta=3 * np.pi / 2,
-                 dx=0.5, dy=0.5):
+    def __init__(self, L=1.0, E=0.625, J=1.0, N1=1.0, N2=1.0,
+                 x0=0.0, y0=0.0, dx=0.4, dy=0.1,
+                 phi=0.0, theta=3 * np.pi / 2):
         self.L = L
         self.E = E
         self.J = J
-        self.B = E * J
+        self.B = E * J  # flexural rigidity
 
         self._N1 = None
         self._N2 = None
@@ -174,9 +175,8 @@ class PlanarElastica():
         return str
 
     def lambda_const(self):
-        flexural_rigidity = self.E * self.J
         F = np.sqrt(self.N1 ** 2 + self.N2 ** 2)
-        return F / flexural_rigidity
+        return F / self.B
 
     @property
     def endX(self):
@@ -220,13 +220,52 @@ class PlanarElastica():
                 'xe': self.endX, 'ye': self.endY, 'm0': self.m0,
                 'phi': self.phi, 'theta0': self.theta0}
 
-    def update_ode(self, num_points=1000):
-        s = np.linspace(0, 1, num_points)
+    @property
+    def parameters(self):
+        params = Parameters()
+        params.add('L', value=self.L)
+        params.add('E', value=self.E)
+        params.add('J', value=self.J, vary=False)
+        params.add('N1', value=self.N1)
+        params.add('N2', value=self.N2)
+        params.add('x0', value=self.x0)
+        params.add('y0', value=self.y0)
+        params.add('xe', value=self.endX)
+        params.add('ye', value=self.endY)
+        params.add('m0', value=self.m0)
+        params.add('phi', value=self.phi)
+        params.add('theta', value=self.theta0)
+
+        return params
+
+    @parameters.setter
+    def parameters(self, value):
+        if type(value) != Parameters:
+            raise Exception('value is not a lmfit parameters object.')
+        vals = value.valuesdict()
+
+        self.L = vals['L']
+        self.E = vals['E']
+        self.J = vals['J']
+        self.B = self.E * self.J
+
+        self.N1 = vals['N1']
+        self.N2 = vals['N2']
+
+        self.x0 = vals['x0']
+        self.y0 = vals['y0']
+        self.phi = vals['phi']
+
+        self.endX = vals['xe']
+        self.endY = vals['ye']
+
+        self.m0 = vals['m0']
+        self.theta0 = vals['theta']
+        self.phi = vals['phi']
+
+    def update_ode(self):
+        s = np.linspace(0, 1, 1000)
         x0, y0, endX, endY = self.normalized_variables()
-        logging.debug(
-            'E={:04.2f}, J={:04.2f}, N1={:04.2f}, N2={:04.2f}, m0={:04.2f} theta_end={:04.2f}, '
-            'x0={:04.2f} y0={:04.2f} endX={:04.2f} endY={:04.2f}'
-                .format(self.E, self.J, self._N1, self._N2, self.m0, self.theta0, x0, y0, endX, endY))
 
         # Now we are ready to run the solver.
         self.res = planar_elastica_bvp_numeric(s, E=self.E, J=self.J, N1=self._N1, N2=self._N2, m0=self.m0,
@@ -257,7 +296,8 @@ class PlanarElastica():
                     self.theta0, self.endX, self.endY,
                     self.x0, self.y0, self.phi))
 
-        self.update_ode(num_points=num_points)
+        self.update_ode()
+        # if not self.res.success: raise Exception('numerical solution did not converge.')
         s = np.linspace(0, 1, num_points)
         r = self.res
         pol = r.sol
@@ -278,11 +318,16 @@ class PlanarElastica():
         self.curve_subset_x = ys[0] * self.L
         self.curve_subset_y = ys[1] * self.L
 
+        # if np.pi < self.theta0 <= 2 * np.pi:  # TODO: check if this transformation is correct
+        #     self.curve_y *= -1
+        #     self.curve_subset_y *= -1
+
     def plot(self, ax, alpha=0.5):
-        self._eval(num_points=1e4)
+        self._eval(num_points=1000)
         ax.plot(self.curve_x, self.curve_y, lw=1, c='r', alpha=alpha, label='%0.1e' % (self.E * self.J), zorder=4)
         ax.plot(self.curve_subset_x, self.curve_subset_y, lw=3, c='r', alpha=alpha, zorder=4)
         # ax.scatter(self.curve_subset_x, self.curve_subset_y, c='k', marker='+', alpha=alpha, zorder=5)
+
         L = np.sqrt(np.diff(self.curve_x) ** 2 + np.diff(self.curve_y) ** 2).sum()
 
         logger.debug(

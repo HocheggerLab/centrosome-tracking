@@ -37,9 +37,9 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         self.iay = 0.0
         self._theta_i = np.arctan2(self.iay, self.iax)
 
-        self.dax = np.cos(np.pi / 4)  # x coordinate for the angle picker point at the end point
-        self.day = -np.sin(np.pi / 4)
-        self._theta_e = np.arctan2(self.day, self.dax)
+        self.dax = np.cos(self.fiber.theta0)  # x coordinate for the angle picker point at the end point
+        self.day = np.sin(self.fiber.theta0)
+        self._theta_e = self.fiber.theta0
         self.ax = axes
 
         self.ax.set_xlabel('$x [\mu m]$')
@@ -159,6 +159,8 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
             self.dax = event.xdata - p[0][0]
             self.day = event.ydata - p[1][0]
 
+            self.fiber.L = np.sqrt(self.fiber.endX ** 2 + self.fiber.endY ** 2)
+
             logging.debug(
                 'end_angle_pick dx={: .2f} dy={: .2f} theta={: .2f}'.format(self.dax, self.day, self._theta_e))
 
@@ -179,32 +181,37 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
     def update_picker_point(self):
         # update initial picker point
         self._theta_i = np.arctan2(self.iay, self.iax)
-        self._theta_i = np.arctan2(-np.tan(self._theta_i), 1)
+        thi = np.arctan2(-np.tan(self._theta_i), 1)
         if self.iax < 0:
-            self._theta_i += np.pi
-        irx = np.cos(self._theta_i) * self.r
-        iry = np.sin(self._theta_i) * self.r
+            thi += np.pi
+        irx = np.cos(thi) * self.r
+        iry = np.sin(thi) * self.r
         self.ini_angle_circle.center = (self.x0, self.y0)
+        self.ini_angle_circle.radius = self.r
         self.ini_angle_point.center = (self.x0 + irx, self.y0 - iry)
+        self.ini_angle_point.radius = self.r / 5.0
         self.ini_angle_line.set_data((self.x0, self.x0 + irx), (self.y0, self.y0 - iry))
 
         # update final picker point
         self._theta_e = np.arctan2(self.day, self.dax)
-        self._theta_e = np.arctan2(-np.tan(self._theta_e), 1)
+        the = np.arctan2(-np.tan(self._theta_e), 1)
         if self.dax < 0:
-            self._theta_e += np.pi
-        drx = np.cos(self._theta_e) * self.r
-        dry = np.sin(self._theta_e) * self.r
+            the += np.pi
+        drx = np.cos(the) * self.r
+        dry = np.sin(the) * self.r
 
         # deal with rotations and translations
-        sinth, costh = -np.sin(self._theta_i), np.cos(self._theta_i)
+        sinth, costh = -np.sin(thi), np.cos(thi)
         M = np.array([[costh, -sinth], [sinth, costh]])
         endp = np.matmul(M, [self.dx, self.dy]) + np.array([self.x0, self.y0])
         enda = np.matmul(M, [self.dx + drx, self.dy - dry]) + np.array([self.x0, self.y0])
 
         self.pick_end_point.center = (endp[0], endp[1])
+        self.pick_end_point.radius = self.r / 5.0
         self.end_angle_circle.center = (endp[0], endp[1])
+        self.end_angle_circle.radius = self.r
         self.end_angle_point.center = (enda[0], enda[1])
+        self.end_angle_point.radius = self.r / 5.0
         self.end_angle_line.set_data((endp[0], enda[0]), (endp[1], enda[1]))
 
         self.ax.figure.canvas.draw()
@@ -245,17 +252,21 @@ class PlanarElasticaDrawObject_xy(plt.Artist):
         self.ax.figure.canvas.mpl_disconnect(self.cidmotion)
 
 
-class Aster():
-    r = 1.0
-
-    def __init__(self, axes, x0=0, y0=0):
+class Aster:
+    def __init__(self, axes, x0=0.0, y0=0.0):
         self.picking = False
         self.ax = axes
+        # self.fig = axes.get_figure()
         self.fibers = []
 
         self._whmax = 0.0  # width height
         self.xa = x0
         self.ya = y0
+
+        # fig_size = self.fig.get_size_inches()
+        # self.r = min(fig_size) / 2.5
+        ax_size_x = np.diff(self.ax.get_xticks())[0]
+        self.r = ax_size_x
 
         self._init_graph()
         self._connect()
@@ -272,7 +283,10 @@ class Aster():
 
     def _update_picker_point(self):
         self.pick_ini_point.center = (self.xa, self.ya)
-        # self.ax.draw_artist(self.pick_ini_point)
+        self.pick_ini_point.radius = (self.r / 5.0)
+        for f in self.fibers:
+            f.r = self.r
+            f.update_picker_point()
         self.ax.figure.canvas.draw()
 
     def _reframe(self):
@@ -291,6 +305,17 @@ class Aster():
         self.ax.set_xlim([xi, xe])
         self.ax.set_ylim([yi, ye])
         self.ax.set_aspect('equal')
+
+        # computing radius for picker elements
+        print(self.ax.get_xticks())
+        ax_size_x = np.diff(self.ax.get_xticks())[0]
+        self.r = ax_size_x / 2.0
+        for f in self.fibers:
+            f.r = ax_size_x
+            f.update_picker_point()
+
+        self._update_picker_point()
+
         self.ax.figure.canvas.draw()
 
     def _connect(self):
@@ -317,7 +342,7 @@ class Aster():
             for f in self.fibers:
                 print(f)
         elif event.key == 'y':
-            logging.debug('creating pymc model')
+            logging.debug('varying length parameter')
             f = self.fibers[0].fiber
             # plotting interval
             dmin = np.sqrt((f.endX - f.x0) ** 2 + (f.endY - f.y0) ** 2)
@@ -326,6 +351,20 @@ class Aster():
                 f.update_ode()
                 f.plot(self.ax)
                 self.ax.figure.canvas.draw()
+        elif event.key == 'd':
+            f = self.fibers[0].fiber
+            logger.debug(f.get_line_integral_over_image())
+            f.paint_line_integral_over_image(self.ax)
+            self.ax.figure.canvas.draw()
+        elif event.key == 'f':
+            f = self.fibers[0].fiber
+            # logger.debug(f.get_line_integral_over_image())
+            result = f.fit()
+            logger.debug(result.params)
+            f.parameters = result.params
+            f.update_ode()
+            f.plot(self.ax)
+            self.ax.figure.canvas.draw()
 
     def on_pick(self, event):
         if self.pick_ini_point == event.artist:
@@ -370,29 +409,32 @@ if __name__ == '__main__':
     ax.set_facecolor('b')
 
     with tf.TiffFile(
-            '/Users/Fabio/data/lab/mt-bending/srrf/Stream to disk_XY0_Z0_T000_C0-2.tiff - SRRF 100 frames.tif') as tif:
+            '/Users/Fabio/data/mt-bending/srrf/Stream to disk_XY0_Z0_T000_C0-2.tiff - SRRF 50 frames.tif') as tif:
         if tif.is_imagej is not None:
             sizeT, channels = tif.imagej_metadata['images'], tif.pages[0].imagedepth
             sizeZ, sizeX, sizeY = 1, tif.pages[0].imagewidth, tif.pages[0].imagelength
             print('N of frames=%d channels=%d, sizeZ=%d, sizeX=%d, sizeY=%d' % \
                   (sizeT, channels, sizeZ, sizeX, sizeY))
-
-            # res = 'n/a'
-            # if tif.pages[0].resolution_unit == 'centimeter':
-            #     # asuming square pixels
-            #     xr = tif.pages[0].x_resolution
-            #     res = float(xr[0]) / float(xr[1])  # pixels per cm
-            #     res = res / 1e4  # pixels per um
-            # elif tif.pages[0].imagej_tags.unit == 'micron':
-            #     # asuming square pixels
-            #     xr = tif.pages[0].x_resolution
-            #     res = float(xr[0]) / float(xr[1])  # pixels per um
             res = 4.5
 
-    fiber = e.PlanarElastica(L=1.2, E=1e9 * 1e-12, J=1e-8, N1=2.5e-22, N2=2.5e-22,
-                             dx=10.0, dy=0.0, theta=1.01)
-    # centrosome = Aster(ax, x0=56, y0=60)
-    centrosome = Aster(ax)
+            sequence = tif.asarray().reshape([sizeT, channels, sizeX, sizeY])
+            # print(sequence.shape)
+            img = tif.pages[10].asarray()
+
+            ax.imshow(img, extent=(0, sizeX / res, 0, sizeY / res))
+            # ax.set_xlim([0, sizeX / res])
+            # ax.set_ylim([0, sizeY / res])
+    ax.set_xlim([40, 70])
+    ax.set_ylim([40, 70])
+
+    F = 30 / 2.0 * np.sqrt(2) * 1e-12
+    fiber = e.PlanarImageMinimizer(L=1.2, E=1e9, J=1e-20, N1=2.5e-22, N2=2.5e-22,
+                                   dx=10.0, dy=0.0, theta=2 * np.pi / 3, image=tif.pages[10])
+    # fiber = e.PlanarElastica(L=1.2, E=1e9, J=1e-20, N1=2.5e-22, N2=2.5e-22,
+    #                          dx=10.0, dy=0.0, theta=1.01)
+    # fiber = e.PlanarElastica()
+    centrosome = Aster(ax, x0=56.5, y0=60)
+    # centrosome = Aster(ax)
     centrosome.add_fiber(fiber)
 
     plt.show()
