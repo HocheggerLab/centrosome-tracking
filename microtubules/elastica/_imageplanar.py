@@ -5,12 +5,14 @@ from ._planar_ivp import PlanarElasticaIVPArtist
 
 
 class ImagePlanarElastica(PlanarElasticaIVPArtist):
-    def __init__(self, axes, L=1.0, E=0.625, J=1.0, F=1.0, x0=0.0, y0=0.0, m0=0.01, theta=3 * np.pi / 2,
+    def __init__(self, axes,
+                 w=1.0, k0=1.0, alpha=np.pi / 2,
+                 L=1.0, E=0.625, J=1.0, F=1.0, x0=0.0, y0=0.0, m0=0.01, theta=3 * np.pi / 2,
                  image=None):
         if image is None or type(image) != tf.tifffile.TiffPage:
             raise Exception('No point in creating this class without an image.')
 
-        super().__init__(axes, L=L, E=E, J=J, F=F, x0=x0, y0=y0, m0=m0, theta=theta)
+        super().__init__(axes, w=w, k0=k0, alpha=alpha, L=L, E=E, J=J, F=F, x0=x0, y0=y0, m0=m0, theta=theta)
         self.tiffimage = image
 
     def get_line_integral_over_image(self, res=4.5):

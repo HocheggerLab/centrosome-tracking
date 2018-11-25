@@ -191,7 +191,8 @@ if __name__ == '__main__':
 
     F = 30 * np.sqrt(2) * 1e-12
     x0, y0 = 56.5, 60
-    fiber = e.PlanarImageMinimizerIVP(ax, L=10.2, E=1e9, J=1e-8, F=F, m0=0.01, x0=x0, y0=y0,
+    fiber = e.PlanarImageMinimizerIVP(ax, w=1.0, k0=-1.0, alpha=np.pi / 6,
+                                      m0=0.0, x0=x0, y0=y0, L=10.0,
                                       theta=2 * np.pi / 3, image=tif.pages[10])
     # fiber = e.PlanarElasticaIVPArtist(ax, L=10.2, E=1e9, J=1e-8, F=5e-1, theta=np.pi / 3)
     centrosome = Aster(ax, x0=x0, y0=y0)
