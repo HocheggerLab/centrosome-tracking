@@ -81,12 +81,12 @@ class PlanarElasticaIVP(PlanarElastica):
         self.w_was_calculated = False
         self.k0_was_calculated = False
 
-    def eval(self, num_points=1000, log=True):
-        super().eval(num_points=num_points, log=False)
+    def eval(self, num_points=1000):
+        super().eval(num_points=num_points)
 
         # create params for solving the ODE
         s = np.linspace(0, 1, num_points)
-        logger.debug('w={:04.2e} k0={:04.2e}'.format(self.w, self.k0))
+        # logger.debug('w={:04.2e} k0={:04.2e}'.format(self.w, self.k0))
 
         # Now we are ready to run the solver.
         r = planar_elastica_ivp_numeric(s, w=self.w, g=self.theta0, k0=self.k0, alpha=self.alpha)
@@ -136,7 +136,7 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
         self._connect()
 
     def __str__(self):
-        return "PlanarElastica draw object: %s" % (str(PlanarElasticaIVP))
+        return "PlanarElastica draw object: %s" % (super().__str__())
 
     def on_pick(self, event):
         logging.debug(event.artist)

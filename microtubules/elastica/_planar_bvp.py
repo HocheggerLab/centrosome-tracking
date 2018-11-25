@@ -184,10 +184,11 @@ class PlanarElastica():
         #     self.curve_y *= -1
         #     self.curve_subset_y *= -1
 
-    def plot(self, ax, alpha=0.5):
+    def plot(self, ax, alpha=0.5, lw_curve=1, lw_curve_interval=3):
         self._eval(num_points=1000)
-        ax.plot(self.curve_x, self.curve_y, lw=1, c='r', alpha=alpha, label='%0.1e' % (self.E * self.J), zorder=4)
-        ax.plot(self.curve_subset_x, self.curve_subset_y, lw=3, c='r', alpha=alpha, zorder=4)
+        ax.plot(self.curve_x, self.curve_y, lw=lw_curve, c='r', alpha=alpha, label='%0.1e' % (self.E * self.J),
+                zorder=4)
+        ax.plot(self.curve_subset_x, self.curve_subset_y, lw=lw_curve_interval, c='r', alpha=alpha, zorder=4)
         # ax.scatter(self.curve_subset_x, self.curve_subset_y, c='k', marker='+', alpha=alpha, zorder=5)
 
         L = np.sqrt(np.diff(self.curve_x) ** 2 + np.diff(self.curve_y) ** 2).sum()

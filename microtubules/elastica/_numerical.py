@@ -167,7 +167,7 @@ def planar_elastica_ivp_numeric(s, w=1.0, g=0.0, k0=1.0, alpha=np.pi / 2):
         x, y, phi, k = x
         return np.array([np.cos(phi), np.sin(phi), k, -w ** 2 * np.sin(phi + g)])
 
-    logger.debug('solving ivp elastica: w={:04.2e} g={:04.2e} k1={:04.2e}'.format(w, g, k0))
+    logger.debug('solving ivp elastica: w={:04.2e} g={:04.2e} k1={:04.2e} alpha={:04.2e}'.format(w, g, k0, alpha))
 
     # calculation of k1 by solving the first ODE
     sol0 = solve_ivp(fun1, (0, 1), (alpha, k0))

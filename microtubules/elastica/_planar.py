@@ -75,6 +75,14 @@ class PlanarElastica():
         self._F = value / self.B * self.L ** 2
 
     @property
+    def N1(self):
+        return self.F * np.cos(self.theta0)
+
+    @property
+    def N2(self):
+        return self.F * np.sin(self.theta0)
+
+    @property
     def L(self):
         return self._L
 
@@ -126,9 +134,9 @@ class PlanarElastica():
                 self.endX / self.L,
                 self.endY / self.L)
 
-    def eval(self, num_points=1000, log=True):
+    def eval(self, num_points=1000):
         # raise NotImplementedError("base class doesn't implement solvers")
-        if log: logging.debug(
+        logging.debug(
             'evaluating base elastica with:\r\n'
             '{:6} {:8} {:8} {:8} {:8} {:5} | '
             '{:6} {:5} {:5} | '
@@ -147,11 +155,12 @@ class PlanarElastica():
             self.F *= -1
             self.theta0 += 2 * np.pi
 
-    def plot(self, ax, alpha=0.5):
+    def plot(self, ax, alpha=0.5, lw_curve=1):
         if np.isnan(self.curve_x).any() or np.isnan(self.curve_y).any():
             raise Exception("NaNs in computed curves, can't plot")
 
-        ax.plot(self.curve_x, self.curve_y, lw=1, c='r', alpha=alpha, label='%0.1e' % (self.E * self.J), zorder=4)
+        ax.plot(self.curve_x, self.curve_y, lw=lw_curve, c='r', alpha=alpha,
+                label='%0.1e' % (self.E * self.J), zorder=4)
 
         L = np.sqrt(np.diff(self.curve_x) ** 2 + np.diff(self.curve_y) ** 2).sum()
 

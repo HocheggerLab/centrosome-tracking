@@ -18,20 +18,19 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
             lineintegral, number_of_pixels = self.get_line_integral_over_image()
             max_intensity = self.tiffimage.asarray().max()
             obj = max_intensity * number_of_pixels - lineintegral
+            # obj = 1 / lineintegral
 
-            par = {'w': self._w, 'k0': self._k0, 'alpha': self.alpha, 'f_obj': obj}
-            self._param_exploration.append(par)
+            params.add('f_obj', value=obj)
+            self._param_exploration.append(params.copy())
 
             logger.debug('objective function = {:06.4e}'.format(obj))
             return obj
 
-        inip = self.parameters.copy()
+        inip = self.parameters
         inip['x0'].min = inip['x0'].value - 5
         inip['x0'].max = inip['x0'].value + 5
-        inip['theta'].min = 0
-        inip['theta'].max = 2 * np.pi
-        # inip['L'].min = 4
-        # inip['L'].max = 20
+        inip['theta'].min = inip['x0'].value * 0.9
+        inip['theta'].max = inip['x0'].value * 1.1
 
         inip['L'].vary = False
         inip['F'].vary = False
@@ -53,20 +52,33 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         fitter = Minimizer(objective, inip)
         # result = fitter.minimize(method='bgfs', params=self.parameters)
         result = fitter.minimize(method='basinhopping', params=self.parameters,
-                                 niter=10 ** 4, niter_success=2 * 10 ** 2)
+                                 niter=10 ** 4, niter_success=10 ** 2)
 
-        df = pd.DataFrame(self._param_exploration)
+        df = pd.DataFrame([p.valuesdict() for p in self._param_exploration])
         df = df.set_index('f_obj').sort_index(ascending=False).reset_index()
         print(df)
+        print(df.set_index('f_obj').sort_index().iloc[0])
 
         import matplotlib.pyplot as plt
+        import matplotlib as mpl
+        from matplotlib import cm
         # noinspection PyUnresolvedReferences
         from mpl_toolkits.mplot3d import Axes3D
 
         fig = plt.figure()
         ax = fig.gca(projection='3d')
         ax.scatter(df["w"], df["k0"], df["alpha"], c=df["f_obj"], cmap='viridis')
-        # plt.colorbar()
+
+        fig = plt.figure()
+        ax = fig.gca()
+        norm = mpl.colors.Normalize(vmin=df["f_obj"].min(), vmax=df["f_obj"].max())
+        color = cm.ScalarMappable(norm=norm, cmap='viridis')
+        for p in self._param_exploration:
+            self.parameters = p
+            self.eval()
+            ax.plot(self.curve_x, self.curve_y, lw=1, c=color.to_rgba(p["f_obj"]))
+        # fig.colorbar(color)
+
         plt.show(block=False)
 
         return result

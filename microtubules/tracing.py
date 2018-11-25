@@ -96,23 +96,14 @@ class Aster:
             self.ax.lines = []
             self.ax.collections = []
             for f in self.fibers:
-                f.plot(self.ax)
+                f.plot(self.ax, alpha=1, lw_curve=1)
                 f._show_picker()
             self._show_picker()
             self.ax.figure.canvas.draw()
         elif event.key == 'w':
             for f in self.fibers:
-                print(f)
-        elif event.key == 'y':
-            logging.debug('varying length parameter')
-            f = self.fibers[0].fiber
-            # plotting interval
-            dmin = np.sqrt((f.endX - f.x0) ** 2 + (f.endY - f.y0) ** 2)
-            for l in np.linspace(dmin, dmin * 2.0, num=7):
-                f.L = l
-                f.eval()
-                f.plot(self.ax)
-                self.ax.figure.canvas.draw()
+                f.parameters.pretty_print()
+                # print(['{:s} = {:f}\r\n'.format(v[0], v[1]) for v in f.parameters.valuesdict()])
         elif event.key == 'd':
             f = self.fibers[0]
             logger.debug(f.get_line_integral_over_image())
@@ -122,11 +113,15 @@ class Aster:
             f = self.fibers[0]
             result = f.fit()
             logger.debug(result.params)
+            print(result.params)
 
             f.parameters = result.params
             f.eval()
             f.plot(self.ax)
 
+            self.ax.figure.canvas.draw()
+        elif event.key == 'h':
+            f = self.fibers[0]
             f._hide_picker()
             self._hide_picker()
 
@@ -189,10 +184,10 @@ if __name__ == '__main__':
     ax.set_xlim([40, 70])
     ax.set_ylim([40, 70])
 
-    F = 30 * np.sqrt(2) * 1e-12
+    F = 30 * np.sqrt(2) * 1e-3
     x0, y0 = 56.5, 60
     fiber = e.PlanarImageMinimizerIVP(ax, w=1.0, k0=-1.0, alpha=np.pi / 6,
-                                      m0=0.0, x0=x0, y0=y0, L=10.0,
+                                      m0=0.0, x0=x0, y0=y0, L=11.0,
                                       theta=2 * np.pi / 3, image=tif.pages[10])
     # fiber = e.PlanarElasticaIVPArtist(ax, L=10.2, E=1e9, J=1e-8, F=5e-1, theta=np.pi / 3)
     centrosome = Aster(ax, x0=x0, y0=y0)

@@ -20,7 +20,6 @@ class ImagePlanarElastica(PlanarElasticaIVPArtist):
         min_value = np.finfo(img.dtype).min, np.finfo(img.dtype).min
         try:
             self.eval(num_points=100)
-            self.plot(self.ax)
         except Exception:
             return min_value
 
@@ -55,9 +54,5 @@ class ImagePlanarElastica(PlanarElasticaIVPArtist):
         fig = plt.figure()
         ax = fig.gca()
         ax.imshow(img)
-
-        fig = plt.figure()
-        ax = fig.gca()
-        ax.hist(img)
 
         plt.show()
