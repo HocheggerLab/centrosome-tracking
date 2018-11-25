@@ -58,9 +58,9 @@ class SelectionGui(QtGui.QWidget):
         self.experimentsTreeView.setModel(model)
         self.experimentsTreeView.setUniformRowHeights(True)
         with h5py.File(self.hdf5file, 'r') as f:
-            for cond in reversed(sorted(f.iterkeys())):
+            for cond in reversed(sorted(f.keys())):
                 conditem = QtGui.QStandardItem(cond)
-                for run in f[cond].iterkeys():
+                for run in f[cond].keys():
                     runitem = QtGui.QStandardItem(run)
                     self.experimentsTreeView.expand(runitem.index())
                     conditem.appendRow(runitem)
@@ -76,8 +76,8 @@ class SelectionGui(QtGui.QWidget):
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
     def on_exp_change(self, current, previous):
-        self.condition = str(current.parent().data().toString())
-        self.run = str(current.data().toString())
+        self.condition = str(current.parent().data())
+        self.run = str(current.data())
         self.frame = 0
         self.mplDistance.canvas.ax.cla()
         if len(self.condition) > 0:
@@ -126,9 +126,9 @@ class SelectionGui(QtGui.QWidget):
                 conditem = QtGui.QStandardItem(nucID)
                 # conditem.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
                 if nucID in sel:
-                    conditem.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
+                    conditem.setData(Qt.Checked, Qt.CheckStateRole)
                 else:
-                    conditem.setData(QtCore.QVariant(Qt.Unchecked), Qt.CheckStateRole)
+                    conditem.setData(Qt.Unchecked, Qt.CheckStateRole)
                 conditem.setCheckable(True)
                 model.appendRow(conditem)
         QtCore.QObject.connect(self.nucleiListView.selectionModel(),
@@ -137,7 +137,7 @@ class SelectionGui(QtGui.QWidget):
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
     def on_nuclei_change(self, current, previous):
-        self.nuclei_selected = int(current.data().toString()[1:])
+        self.nuclei_selected = int(current.data()[1:])
         self.populate_centrosomes()
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
         self.plot_tracks_of_nuclei(self.nuclei_selected)
@@ -188,7 +188,7 @@ class SelectionGui(QtGui.QWidget):
         self.centrosomeListView_B.setModel(modelB)
         self.centrosomeListView_B.setAcceptDrops(True)
         with h5py.File(self.hdf5file, 'r') as f:
-            centrosome_list = f['%s/%s/measurements/centrosomes' % (self.condition, self.run)].keys()
+            centrosome_list = list(f['%s/%s/measurements/centrosomes' % (self.condition, self.run)].keys())
             sel = f['%s/%s/selection' % (self.condition, self.run)]
             if self.nuclei_selected is not None and 'N%02d' % self.nuclei_selected in sel:
                 sel = sel['N%02d' % self.nuclei_selected]
@@ -198,11 +198,11 @@ class SelectionGui(QtGui.QWidget):
 
                     item = QtGui.QStandardItem(cntrID)
                     if centr_in_a:
-                        item.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
+                        item.setData(Qt.Checked, Qt.CheckStateRole)
                         item.setCheckable(True)
                         modelA.appendRow(item)
                     elif centr_in_b:
-                        item.setData(QtCore.QVariant(Qt.Checked), Qt.CheckStateRole)
+                        item.setData(Qt.Checked, Qt.CheckStateRole)
                         item.setCheckable(True)
                         modelB.appendRow(item)
 
@@ -333,11 +333,11 @@ class SelectionGui(QtGui.QWidget):
 
     def reprocess_selections(self):
         with h5py.File(self.hdf5file, 'r') as f:
-            conditions = f.keys()
+            conditions = list(f.keys())
         hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
         for cond in conditions:
             with h5py.File(self.hdf5file, 'a') as f:
-                runs = f[cond].keys()
+                runs = list(f[cond].keys())
             for run in runs:
                 try:
                     hlab.process_selection_for_run(cond, run)
