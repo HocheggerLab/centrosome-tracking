@@ -16,12 +16,14 @@ logging.getLogger('matplotlib').setLevel(level=logging.INFO)
 class Aster:
     def __init__(self, axes, x0=0.0, y0=0.0):
         self.picking = False
+        self.moving_fit = False
         self.ax = axes
         self.fibers = []
 
         self._whmax = 0.0  # width height
         self.xa = x0
         self.ya = y0
+        self.fit_pt = (x0 + 4, y0 + 1)
 
         ax_size_x = np.diff(self.ax.get_xticks())[0]
         self.r = ax_size_x
@@ -31,13 +33,17 @@ class Aster:
 
     def _init_graph(self):
         self.pick_ini_point = plt.Circle((self.xa, self.ya), radius=self.r / 5.0, fc='w', picker=5)
+        self.fit_point = plt.Circle(self.fit_pt, radius=self.r / 6.0, fc='g', picker=5)
         self.ax.add_artist(self.pick_ini_point)
+        self.ax.add_artist(self.fit_point)
 
     def _hide_picker(self):
         self.pick_ini_point.set_visible(False)
+        self.fit_point.set_visible(False)
 
     def _show_picker(self):
         self.pick_ini_point.set_visible(True)
+        self.fit_point.set_visible(True)
 
     def add_fiber(self, fiber):
         fiber.x0 = self.xa
@@ -48,13 +54,15 @@ class Aster:
     def _update_picker_point(self):
         self.pick_ini_point.center = (self.xa, self.ya)
         self.pick_ini_point.radius = (self.r / 5.0)
+        self.fit_point.center = self.fit_pt
+        self.fit_point.radius = (self.r / 6.0)
         self.ax.figure.canvas.draw()
 
     def _reframe(self):
         # computing radius for picker elements
         print(self.ax.get_xticks())
         ax_size_x = np.diff(self.ax.get_xticks())[0]
-        self.r = ax_size_x / 2.0
+        self.r = ax_size_x / 4.0
         for f in self.fibers:
             f.r = ax_size_x
             f.update_picker_point()
@@ -111,7 +119,7 @@ class Aster:
             self.ax.figure.canvas.draw()
         elif event.key == 'f':
             f = self.fibers[0]
-            result = f.fit()
+            result = f.fit(pt=self.fit_pt)
             logger.debug(result.params)
             print(result.params)
 
@@ -134,25 +142,37 @@ class Aster:
             logging.debug('aster pick: xdata=%f, ydata=%f' % (mevent.xdata, mevent.ydata))
             self.xa = mevent.xdata
             self.ya = mevent.ydata
+        if self.fit_point == event.artist:
+            self.moving_fit = True
+            mevent = event.mouseevent
+            self.fit_pt = (mevent.xdata, mevent.ydata)
 
     def on_motion(self, event):
-        if not self.picking: return
+        if not (self.picking or self.moving_fit): return
         # logging.debug('aster motion: xdata=%f, ydata=%f' % (event.xdata, event.ydata))
-        self.xa = event.xdata
-        self.ya = event.ydata
+        if self.picking:
+            self.xa = event.xdata
+            self.ya = event.ydata
+        if self.moving_fit:
+            self.fit_pt = (event.xdata, event.ydata)
+
         self._update_picker_point()
 
     def on_release(self, event):
-        if not self.picking: return
+        if not (self.picking or self.moving_fit): return
         logging.debug('aster release: xdata=%f, ydata=%f' % (event.xdata, event.ydata))
-        self.picking = False
-        self.xa = event.xdata
-        self.ya = event.ydata
-        for i, f in enumerate(self.fibers):
-            f.r = self.r
-            f.x0 = self.xa
-            f.y0 = self.ya
-            f.update_picker_point()
+        if self.picking:
+            self.picking = False
+            self.xa = event.xdata
+            self.ya = event.ydata
+            for i, f in enumerate(self.fibers):
+                f.r = self.r
+                f.x0 = self.xa
+                f.y0 = self.ya
+                f.update_picker_point()
+        if self.moving_fit:
+            self.moving_fit = False
+            self.fit_pt = (event.xdata, event.ydata)
 
         self._update_picker_point()
         self._reframe()

@@ -3,6 +3,8 @@ import logging
 import numpy as np
 import pandas as pd
 from lmfit import Minimizer
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 from ._imageplanar import ImagePlanarElastica
 
@@ -11,14 +13,20 @@ logger = logging.getLogger(__name__)
 
 class PlanarImageMinimizerIVP(ImagePlanarElastica):
 
-    def fit(self):
+    def fit(self, pt=None):
         def objective(params):
             self.parameters = params
 
             lineintegral, number_of_pixels = self.get_line_integral_over_image()
             max_intensity = self.tiffimage.asarray().max()
-            obj = max_intensity * number_of_pixels - lineintegral
-            # obj = 1 / lineintegral
+
+            if pt is not None:
+                p = Point(pt)
+                c = Polygon([(x, y) for x, y in zip(self.curve_x, self.curve_y)])
+                obj = 1 / lineintegral + p.distance(c)
+                # obj = p.distance(c)
+            else:
+                obj = max_intensity * number_of_pixels - lineintegral
 
             params.add('f_obj', value=obj)
             self._param_exploration.append(params.copy())
@@ -50,9 +58,9 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         self._param_exploration = []
 
         fitter = Minimizer(objective, inip)
-        # result = fitter.minimize(method='bgfs', params=self.parameters)
-        result = fitter.minimize(method='basinhopping', params=self.parameters,
-                                 niter=10 ** 4, niter_success=10 ** 2)
+        result = fitter.minimize(method='bgfs', params=self.parameters)
+        # result = fitter.minimize(method='basinhopping', params=self.parameters,
+        #                          niter=10 ** 4, niter_success=10 ** 2)
 
         df = pd.DataFrame([p.valuesdict() for p in self._param_exploration])
         df = df.set_index('f_obj').sort_index(ascending=False).reset_index()
