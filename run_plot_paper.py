@@ -19,14 +19,14 @@ import matplotlib.ticker as ticker
 import scipy.stats
 
 import stats
+import mechanics as m
+import data as hdata
 import parameters
 import plot_special_tools as sp
 from imagej_pandas import ImagejPandas
-import run_plots_eb3 as eb3
+import microtubules.run_plots_eb3 as eb3
 import tools.plots as pl
 import tools.data as data
-import mechanics as m
-import data as hdata
 
 logger = logging.getLogger(__name__)
 logger.info(font_manager.OSXInstalledFonts())
@@ -273,42 +273,85 @@ def fig_1(msd):
         # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
-def fig_1_selected_track(df, mask):
+def fig_1_selected_track(data):
+    from moviepy.video.io.bindings import mplfig_to_npimage
+    import moviepy.editor as mpy
+
+    df = data.df_m
     df_selected = df[(df['condition'] == 'pc') & (df['run'] == 'run_114') & (df['Nuclei'] == 2)]
-    msk_selected = mask[(mask['condition'] == 'pc') & (mask['run'] == 'run_114') & (mask['Nuclei'] == 2)]
 
-    with PdfPages(parameters.data_dir + 'out/fig1-selected.pdf') as pdf:
-        # ---------------------------
-        #          FIRST PAGE
-        # ---------------------------
-        fig = plt.figure(figsize=(1.6, 2.6), dpi=_dpi)
-        fig.clf()
-        gs = matplotlib.gridspec.GridSpec(4, 1)
-        ax1 = plt.subplot(gs[0:2, 0])
-        ax2 = plt.subplot(gs[2:4, 0], sharex=ax1)
+    plt.style.use('dark_background')
+    fig = plt.figure(figsize=(10, 5), dpi=150)
+    ax1 = fig.add_subplot(121)
+    ax2 = fig.add_subplot(122)
 
-        with sns.color_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED]):
-            time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df_selected, ImagejPandas.DIST_THRESHOLD)
-            sp.distance_to_nuclei_center(df_selected, ax1, mask=msk_selected, time_contact=time_of_c)
-            # sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c)
-            sp.distance_to_cell_center(df_selected, ax2, mask=msk_selected, time_contact=time_of_c)
+    ax1.set_aspect('equal')
+    for ax in [ax1, ax2]:
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(20))
+        ax.xaxis.set_minor_locator(ticker.MultipleLocator(10))
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(20))
+        ax.yaxis.set_minor_locator(ticker.MultipleLocator(10))
 
-        # change y axis title properties for small plots
-        for _ax in [ax1, ax2]:
-            # _ax.set_xlabel(_ax.get_xlabel(), rotation='horizontal', ha='center')
-            _ax.set_ylabel(_ax.get_ylabel(), rotation='vertical', ha='center')
-            _ax.set_xlim(0, _ax.get_xlim()[1])
-            _ax.set_ylim(0, _ax.get_ylim()[1])
-        ax1.set_ylabel('[um]')
-        ax2.set_ylabel('[um]')
-        ax1.set_title('distance from nuleus centroid')
-        ax2.set_title('distance from cell centroid')
-        ax2.set_xlabel('time [min]')
-        ax2.xaxis.set_major_locator(MultipleLocator(30))
-        plt.setp(ax2.get_xticklabels(), visible=True)
-        plt.subplots_adjust(hspace=0.7)
+    flist = df_selected['Frame'].unique()
+    frame = iter(flist)
 
-        pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
+    def make_frame_mpl(t):
+        f = frame.__next__()
+        p = df_selected[df_selected['Frame'] <= f]
+        pa = p[p['CentrLabel'] == 'A']
+        pb = p[p['CentrLabel'] == 'B']
+
+        ax1.cla()
+        d = df_selected[df_selected['Frame'] == f]
+        sp.render_cell(d, ax1, w=60, h=60)
+
+        ax2.cla()
+        ax2.plot(pa["Time"], pa["Dist"], c=sp.SUSSEX_CORAL_RED, marker='o')
+        ax2.plot(pb["Time"], pb["Dist"], c=sp.SUSSEX_NAVY_BLUE, marker='o')
+        ax2.set_xlim([0, 100])
+
+        return mplfig_to_npimage(fig)  # RGB image of the figure
+
+    animation = mpy.VideoClip(make_frame_mpl, duration=flist.size / 2 - 1)
+    animation.write_videofile("my_new_video.mp4", fps=2)
+    animation.close()
+
+    # sp.render_tracked_centrosomes('/Users/Fabio/centrosomes.nexus.hdf5', 'pc', 'run_114', 2)
+
+    # msk_selected = mask[(mask['condition'] == 'pc') & (mask['run'] == 'run_114') & (mask['Nuclei'] == 2)]
+
+    # with PdfPages(parameters.data_dir + 'out/fig1-selected.pdf') as pdf:
+    #     # ---------------------------
+    #     #          FIRST PAGE
+    #     # ---------------------------
+    #     fig = plt.figure(figsize=(1.6, 2.6), dpi=_dpi)
+    #     fig.clf()
+    #     gs = matplotlib.gridspec.GridSpec(4, 1)
+    #     ax1 = plt.subplot(gs[0:2, 0])
+    #     ax2 = plt.subplot(gs[2:4, 0], sharex=ax1)
+    #
+    #     with sns.color_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED]):
+    #         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df_selected, ImagejPandas.DIST_THRESHOLD)
+    #         sp.distance_to_nuclei_center(df_selected, ax1, mask=msk_selected, time_contact=time_of_c)
+    #         # sp.distance_between_centrosomes(between_df, ax2, mask=mask_c, time_contact=time_of_c)
+    #         sp.distance_to_cell_center(df_selected, ax2, mask=msk_selected, time_contact=time_of_c)
+    #
+    #     # change y axis title properties for small plots
+    #     for _ax in [ax1, ax2]:
+    #         # _ax.set_xlabel(_ax.get_xlabel(), rotation='horizontal', ha='center')
+    #         _ax.set_ylabel(_ax.get_ylabel(), rotation='vertical', ha='center')
+    #         _ax.set_xlim(0, _ax.get_xlim()[1])
+    #         _ax.set_ylim(0, _ax.get_ylim()[1])
+    #     ax1.set_ylabel('[um]')
+    #     ax2.set_ylabel('[um]')
+    #     ax1.set_title('distance from nuleus centroid')
+    #     ax2.set_title('distance from cell centroid')
+    #     ax2.set_xlabel('time [min]')
+    #     ax2.xaxis.set_major_locator(MultipleLocator(30))
+    #     plt.setp(ax2.get_xticklabels(), visible=True)
+    #     plt.subplots_adjust(hspace=0.7)
+    #
+    #     pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.3)
 
 
 def fig_1_mother_daughter(df, dfc):
@@ -1079,9 +1122,8 @@ if __name__ == '__main__':
     logger.info('loading data')
     data = data.Data()
 
-    #
     fig_1(data)
-    # fig_1_selected_track(df_m, df_msk)
+    fig_1_selected_track(data)
     # fig_1_mother_daughter(df_m, df_mc)
     # fig_2(df_m, dfcentr)
     # fig_3(df_m, dfcentr)

@@ -19,6 +19,8 @@ from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 import parameters
 from imagej_pandas import ImagejPandas
@@ -279,7 +281,6 @@ def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8), z_max=None
     ax.set_zlim3d(0, zmax)
     ax.set_zticks(zticks)
     ax.set_zticklabels(['%d' % t for t in zticks])
-
 
 
 def msd_indivs(df, ax, time='Time', ylim=None):
@@ -593,6 +594,47 @@ def find_image(img_name, folder):
                             images[i] = np.int32(page.asarray())
 
                     return (images, res, dt)
+
+
+def render_cell(df, ax, img=None, w=50, h=50):
+    """
+    Render an individual cell with all its measured features
+    """
+
+    # plot image
+    if img is not None: ax.imshow(img, cmap='gray')
+
+    _ca = df[df['CentrLabel'] == 'A']
+    _cb = df[df['CentrLabel'] == 'B']
+
+    if _ca['NuclBound'].empty: return
+
+    nucleus = Polygon(eval(_ca['NuclBound'].values[0][1:-1]))
+    cell = Polygon(eval(_ca['CellBound'].values[0])) if not _ca['CellBound'].empty > 0 else None
+
+    if nucleus is not None:
+        nuc_center = nucleus.centroid
+        x, y = nucleus.exterior.xy
+        ax.plot(x, y, color=SUSSEX_CORN_YELLOW, linewidth=1, solid_capstyle='round')
+        ax.plot(nuc_center.x, nuc_center.y, color=SUSSEX_CORN_YELLOW, marker='+', linewidth=1, solid_capstyle='round')
+
+    if cell is not None:
+        cll_center = cell.centroid
+        x, y = cell.exterior.xy
+        ax.plot(x, y, color='w', linewidth=1, solid_capstyle='round')
+        ax.plot(cll_center.x, cll_center.y, color='w', marker='o', linewidth=1, solid_capstyle='round')
+
+    c_a = Point(_ca['CentX'], _ca['CentY'])
+    c_b = Point(_cb['CentX'], _cb['CentY'])
+    ca = plt.Circle((c_a.x, c_a.y), radius=1, edgecolor=SUSSEX_NAVY_BLUE, facecolor='none', linewidth=2)
+    cb = plt.Circle((c_b.x, c_b.y), radius=1, edgecolor=SUSSEX_CORAL_RED, facecolor='none', linewidth=2)
+    ax.add_artist(ca)
+    ax.add_artist(cb)
+
+    ax.set_xlim(c_a.x - w / 2, c_a.x + w / 2)
+    ax.set_ylim(c_a.y - h / 2, c_a.y + h / 2)
+    # ax.set_xlim(nuc_center.x - w / 2, nuc_center.x + w / 2)
+    # ax.set_ylim(nuc_center.y - h / 2, nuc_center.y + h / 2)
 
 
 def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
