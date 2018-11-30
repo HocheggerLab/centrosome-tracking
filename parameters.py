@@ -1,4 +1,3 @@
-data_dir = "/Volumes/LaCie/lab/"
-experiments_dir = "/Volumes/LaCie/helfrid_lab/data/lab/"
-helfrid_lab_dir = "/Volumes/LaCie/helfrid_lab/"
+data_dir = "/Users/Fabio/data/lab/"
+experiments_dir = data_dir + "/data/lab/"
 dpi = 300
