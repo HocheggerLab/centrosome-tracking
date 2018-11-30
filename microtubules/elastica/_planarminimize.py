@@ -31,21 +31,19 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
             params.add('f_obj', value=obj)
             self._param_exploration.append(params.copy())
 
-            logger.debug('objective function = {:06.4e}'.format(obj))
+            # logger.debug('objective function = {:06.4e}'.format(obj))
             return obj
 
         inip = self.parameters
-        inip['x0'].min = inip['x0'].value - 5
-        inip['x0'].max = inip['x0'].value + 5
-        inip['theta'].min = inip['x0'].value * 0.9
-        inip['theta'].max = inip['x0'].value * 1.1
+        inip['x0'].min = inip['x0'].value - 0.2
+        inip['x0'].max = inip['x0'].value + 0.2
+        inip['y0'].min = inip['y0'].value - 0.2
+        inip['y0'].max = inip['y0'].value + 0.2
+        inip['phi'].min = inip['phi'].value * 0.8
+        inip['phi'].max = inip['phi'].value * 1.2
+        inip['L'].min = inip['L'].value * 0.8
+        inip['L'].max = inip['L'].value * 1.2
 
-        inip['L'].vary = False
-        inip['F'].vary = False
-        inip['m0'].vary = False
-        inip['phi'].vary = False
-
-        # inip['alpha'].vary = False
         inip['alpha'].min = 0
         inip['alpha'].max = 2 * np.pi
         inip['w'].min = 0
@@ -58,20 +56,23 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         self._param_exploration = []
 
         fitter = Minimizer(objective, inip)
-        result = fitter.minimize(method='bgfs', params=self.parameters)
-        # result = fitter.minimize(method='basinhopping', params=self.parameters,
-        #                          niter=10 ** 4, niter_success=10 ** 2)
+        # result = fitter.minimize(method='bgfs', params=inip)
+        result = fitter.minimize(method='basinhopping', params=inip)
+        # niter=10 ** 4, niter_success=10 ** 2)
 
-        df = pd.DataFrame([p.valuesdict() for p in self._param_exploration])
-        df = df.set_index('f_obj').sort_index(ascending=False).reset_index()
-        print(df)
-        print(df.set_index('f_obj').sort_index().iloc[0])
+        return result
 
+    def plot_fit(self):
         import matplotlib.pyplot as plt
         import matplotlib as mpl
         from matplotlib import cm
         # noinspection PyUnresolvedReferences
         from mpl_toolkits.mplot3d import Axes3D
+
+        df = pd.DataFrame([p.valuesdict() for p in self._param_exploration])
+        df = df.set_index('f_obj').sort_index(ascending=False).reset_index()
+        print(df)
+        print(df.set_index('f_obj').sort_index().iloc[0])
 
         fig = plt.figure()
         ax = fig.gca(projection='3d')
@@ -88,5 +89,3 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         # fig.colorbar(color)
 
         plt.show(block=False)
-
-        return result

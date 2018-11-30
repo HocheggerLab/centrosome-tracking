@@ -135,22 +135,6 @@ class PlanarElastica():
                 self.endY / self.L)
 
     def eval(self, num_points=1000):
-        # raise NotImplementedError("base class doesn't implement solvers")
-        logging.debug(
-            'evaluating base elastica with:\r\n'
-            '{:6} {:8} {:8} {:8} {:8} {:5} | '
-            '{:6} {:5} {:5} | '
-            '{:5} {:5} {:4}\r\n'
-            .format('L', 'E', 'J', 'B', 'F', 'm0',
-                    'theta_e', 'endX', 'endY',
-                    'x0', 'y0', 'phi') +
-            '{:< 6.2f} {:04.2e} {:04.2e} {:04.2e} {:04.2e} {: 4.2f} | '
-            '{:< 6.2f} {:< 5.2f} {:< 5.2f} | '
-            '{: 5.2f} {: 5.2f} {:04.2f}'
-            .format(self.L, self.E, self.J, self.B, self.F, self.m0,
-                    self.theta0, self.endX, self.endY,
-                    self.x0, self.y0, self.phi))
-
         if self.F < 0:
             self.F *= -1
             self.theta0 += 2 * np.pi

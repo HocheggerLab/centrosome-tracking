@@ -98,11 +98,14 @@ class Aster:
         self.ax.figure.canvas.mpl_disconnect(self.cidmotion)
         self.ax.figure.canvas.mpl_disconnect(self.cidkeyboard)
 
+    def clear(self):
+        self.ax.lines = []
+        self.ax.collections = []
+
     def on_key(self, event):
         print('press', event.key)
         if event.key == 'r':
-            self.ax.lines = []
-            self.ax.collections = []
+            self.clear()
             for f in self.fibers:
                 f.plot(self.ax, alpha=1, lw_curve=1)
                 f._show_picker()
@@ -111,7 +114,6 @@ class Aster:
         elif event.key == 'w':
             for f in self.fibers:
                 f.parameters.pretty_print()
-                # print(['{:s} = {:f}\r\n'.format(v[0], v[1]) for v in f.parameters.valuesdict()])
         elif event.key == 'd':
             f = self.fibers[0]
             logger.debug(f.get_line_integral_over_image())
@@ -120,12 +122,14 @@ class Aster:
         elif event.key == 'f':
             f = self.fibers[0]
             result = f.fit(pt=self.fit_pt)
-            logger.debug(result.params)
-            print(result.params)
+            f.plot_fit()
 
+            self.clear()
             f.parameters = result.params
+            f.parameters.pretty_print()
             f.eval()
             f.plot(self.ax)
+            f.forces()
 
             self.ax.figure.canvas.draw()
         elif event.key == 'h':

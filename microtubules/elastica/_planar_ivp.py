@@ -1,11 +1,17 @@
-import matplotlib.pyplot as plt
 from planar import Affine, Vec2
+from sympy import *
+from pint import UnitRegistry
+from lmfit import Parameters
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from matplotlib import cm
 
 from ._numerical import *
 from ._planar import PlanarElastica
 
 logger = logging.getLogger(__name__)
 np.set_printoptions(1)
+ur = UnitRegistry()
 
 
 class PlanarElasticaIVP(PlanarElastica):
@@ -63,7 +69,12 @@ class PlanarElasticaIVP(PlanarElastica):
 
     @property
     def parameters(self):
-        params = super().parameters
+        params = Parameters()
+        params.add('L', value=self.L)
+        params.add('x0', value=self.x0)
+        params.add('y0', value=self.y0)
+        params.add('phi', value=self.phi)
+
         params.add('w', value=self.w)
         params.add('k0', value=self.k0)
         params.add('alpha', value=self.alpha)
@@ -72,8 +83,12 @@ class PlanarElasticaIVP(PlanarElastica):
 
     @parameters.setter
     def parameters(self, value):
-        PlanarElastica.parameters = value
         vals = value.valuesdict()
+
+        self.L = vals['L']
+        self.x0 = vals['x0']
+        self.y0 = vals['y0']
+        self.phi = vals['phi']
 
         self._w = vals['w']
         self._k0 = vals['k0']
@@ -103,6 +118,62 @@ class PlanarElasticaIVP(PlanarElastica):
         self.curve_y = xo[1] * self.L
         self._endX = xo[0, -1] * self.L
         self._endY = xo[1, -1] * self.L
+        self.angle_phi = r.y[2, :]
+        self.curvature_k = r.y[3, :]
+
+    def forces(self):
+        I = ur.pi / 4 * ((12 * ur.nm) ** 4 - (8 * ur.nm) ** 4)
+        I.ito(ur.um ** 4)
+        print('I = %s' % str(I))
+
+        is_force_dominant = sin(self.alpha / 2) ** 2 + (self._k0 / 2 / self.w) ** 2 < 1
+        logger.info('The solution %s force dominant.' % ('is' if is_force_dominant else 'is not'))
+
+        EI = 10e-24 * ur.N * ur.m ** 2
+        # EI.ito(ur.pN * ur.um ** 2)
+
+        fig = plt.figure()
+        ax = fig.gca()
+        M = EI * self.curvature_k * self.L / ur.um
+        M.ito(ur.N * ur.m)
+        sct = ax.scatter(self.curve_x, self.curve_y, s=2, c=M, vmin=min(M), vmax=max(M), cmap='PiYG')
+        fig.colorbar(sct, ax=ax)
+
+        w, F, L, E, _I, B = symbols('w F L E I B')
+        N = Symbol('N', integer=True)
+        eq = Eq(w ** 2, F * L ** 2 / (B * N ** 2))
+        sol_EI = solve(eq.subs({L: self.L, w: self.w}), B)[0]
+        print('EI = ' + str(EI) + ' = ' + str(sol_EI))
+
+        fig = plt.figure()
+        ax = fig.gca()
+        num_fibers = 15
+        norm = mpl.colors.Normalize(vmin=0, vmax=num_fibers)
+        color = cm.ScalarMappable(norm=norm, cmap='PiYG')
+        slope = sol_EI.subs({F: 1, N: 1}) * ur.um ** 2
+        slope.ito(ur.m ** 2)
+        print('slope = ' + str(slope))
+
+        f_ = np.linspace(0, 40, num=10 ** 3) * ur.pN
+        for n in range(1, num_fibers + 2):
+            _EI = slope * f_.to(ur.N) / n ** 2
+            _EI.ito(ur.N * ur.m ** 2)
+            ax.plot(f_, _EI, c=color.to_rgba(n), label=n)
+            if n == 10:
+                _F = EI * n ** 2 / slope
+                _F.ito(ur.pN)
+                ax.axvline(_F.magnitude, color=color.to_rgba(n), linestyle='--')
+                print('F = ' + str(_F))
+
+        ax.legend()
+        ax.axhline(EI.to(ur.N * ur.m ** 2).magnitude, color='k', linestyle='--')
+        ax.set_xlabel('F [pN]')
+        ax.set_ylabel('EI [Nm^2]')
+        ax.set_yscale('log')
+        locmin = mpl.ticker.LogLocator(base=10.0, subs=(0.2, 0.4, 0.6, 0.8), numticks=12)
+        ax.yaxis.set_minor_locator(locmin)
+
+        plt.show(block=False)
 
 
 class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
