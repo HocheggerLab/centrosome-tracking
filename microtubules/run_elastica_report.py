@@ -47,8 +47,7 @@ def fig_1(df):
             config = configparser.ConfigParser()
             config.readfp(configfile)
 
-        print
-        'sections found in file ', config.sections()
+        print('sections found in file ', config.sections())
 
         section = config.sections()[1]
         yn = np.array(json.loads(config.get(section, 'measure')))
@@ -61,7 +60,7 @@ def fig_1(df):
         # ---------------------
         L, a1, a2, E, F, gamma, x0, y0, theta = inip
         s = np.linspace(0, L, num_points)
-        r = e.planar_elastica_bvp(s, F=F, E=E, gamma=gamma)
+        r = e.planar_elastica_bvp_numeric(s, F=F, E=E, gamma=gamma)
         pol = r.sol
         xo = pol(s)[0:2, :]
         ys = e.eval_planar_elastica(s, pol, a1, a2)[0:2, :]
@@ -86,7 +85,7 @@ def fig_1(df):
         for row in filter_df.iterrows():
             row = row[1]
             s = np.linspace(0, row['L'], num_points)
-            r = e.planar_elastica_bvp(s, F=row['F'], E=row['E'], gamma=row['gamma'])
+            r = e.planar_elastica_bvp_numeric(s, F=row['F'], E=row['E'], gamma=row['gamma'])
             pol = r.sol
             xo = pol(s)[0:2, :]
             xs, ys = e.eval_planar_elastica(s, pol, row['a1'], row['a2'])[0:2, :]
