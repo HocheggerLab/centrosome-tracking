@@ -7,6 +7,7 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.ticker as ticker
 import matplotlib.lines as mlines
+import mechanics as m
 
 from imagej_pandas import ImagejPandas
 import plot_special_tools as sp
@@ -51,7 +52,7 @@ class Tracks():
 
     def pSTLC(self, ax, centered=False):
         df, cond = self.data.get_condition(['1_P.C.'], centered=centered)
-        self._plot_dist_tracks(df, ax, color=sns.color_palette()[1])
+        self._plot_dist_tracks(df, ax, color=sns.color_palette()[0])
         ax.set_title('Tracks of +STLC')
 
     def nocodazole(self, ax, centered=False):
@@ -126,8 +127,51 @@ class MSD():
     def __init__(self, data):
         self.data = data
 
-    def pSTLC(self, ax, centered=False):
-        df, cond = self.data.get_condition(['1_P.C.'], centered=centered)
+    @staticmethod
+    def format_axes(ax, time_minor=5, time_major=15, msd_minor=50, msd_major=100):
+        ax.legend(loc='upper left')
+        # ax.get_legend().remove()
+
+        ax.set_ylim([0, 600])
+        ax.set_xlim([-60, 120])
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(time_major))
+        ax.xaxis.set_minor_locator(ticker.MultipleLocator(time_minor))
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(msd_major))
+        ax.yaxis.set_minor_locator(ticker.MultipleLocator(msd_minor))
+
+        ax.set_ylabel('MSD')
+        ax.set_xlabel('time [min]')
+
+    def pSTLC(self, ax):
+        df, cond = self.data.get_condition(['1_P.C.'], centered=True)
+        df = m.get_msd(df, group='trk', frame='Frame', time='Time', x='CentX', y='CentY')
+        df = df.loc[df['msd'].notna(), :]
+        df = m._msd_tag(df, time='Time', centrosome_label='CentrLabel')
+
+        sp.set_axis_size(4, 2, ax=ax)
+        sns.lineplot(x='Time', y='msd', data=df,
+                     style='msd_cat', style_order=['displacing more', 'displacing less'],
+                     hue='msd_cat', hue_order=['displacing more', 'displacing less'],
+                     estimator=np.nanmean)
+        # ax.axvline(x=0, linewidth=1, linestyle='--', color='k', zorder=50)
+        ax.set_title('MSD of +STLC')
+
+    def pSTLC_mother_dauther(self, ax):
+        df, cond = self.data.get_condition(['mother-daughter'], centered=True)
+
+        msd = m.get_msd(df, group='trk', frame='Frame', time='Time', x='CentX', y='CentY')
+        msd = msd.loc[msd['msd'].notna(), :]
+
+        msd.loc[msd['CentrLabel'] == 'A', 'mother'] = 'mother'
+        msd.loc[msd['CentrLabel'] == 'B', 'mother'] = 'daugther'
+
+        sns.lineplot(x='Time', y='msd', data=msd,
+                     style='mother', style_order=['mother', 'daughter'],
+                     hue='mother', hue_order=['mother', 'daughter'], ax=ax)
+
+        sp.set_axis_size(4, 2, ax=ax)
+        # ax.axvline(x=0, linewidth=1, linestyle='--', color='k', zorder=50)
+        ax.set_title('MSD of +STLC')
 
     def msd_vs_congression(self, ax):
         _conds = ['1_N.C.', '1_P.C.',

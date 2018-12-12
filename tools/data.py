@@ -94,8 +94,6 @@ class Data():
     def get_condition(self, conditions_list, centered=False):
         log.debug('getting condition {}'.format(conditions_list))
         if not centered:
-            df, conds = sorted_conditions(self.df_m, conditions_list)
+            return sorted_conditions(self.df_m, conditions_list)
         else:
-            df, conds = sorted_conditions(self.df_mc, conditions_list)
-
-        return df, conds
+            return sorted_conditions(self.df_mc, conditions_list)
