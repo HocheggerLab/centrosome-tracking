@@ -14,6 +14,7 @@ import seaborn as sns
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy import stats
 
+import parameters as p
 import mechanics as m
 import plot_special_tools as sp
 from tools import stats as st
@@ -44,7 +45,7 @@ def df_filter(df, k=10, f=-1):
 
 
 def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
-    with PdfPages('/Users/Fabio/data/lab/%s' % pdf_fname) as pdf:
+    with PdfPages(p.experiments_dir + '%s' % pdf_fname) as pdf:
         _err_kws = {'alpha': 0.3, 'lw': 1}
         flatui = ['#9b59b6', '#3498db', '#95a5a6', '#e74c3c', '#34495e', '#2ecc71']
         palette = sns.color_palette(flatui)
@@ -184,7 +185,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
 
 
 def stats_plots(df, df_stats):
-    with PdfPages('/Users/Fabio/data/lab/boxplot_spd.pdf') as pdf:
+    with PdfPages(p.experiments_dir + 'boxplot_spd.pdf') as pdf:
         flatui = ['#9b59b6', '#3498db', '#95a5a6', '#e74c3c', '#34495e', '#2ecc71']
         palette = sns.color_palette(flatui)
 
@@ -237,8 +238,8 @@ def stats_plots(df, df_stats):
                 tick.set_label(tick.get_label()[4:])
                 tick.set_rotation('vertical')
 
-        pmat = st.p_values(df_stats, 'speed', 'condition', filename='/Users/Fabio/data/lab/pvalues_spd.xls')
-        pmat = st.p_values(df_stats, 'length', 'condition', filename='/Users/Fabio/data/lab/pvalues_len.xls')
+        pmat = st.p_values(df_stats, 'speed', 'condition', filename=p.experiments_dir + 'pvalues_spd.xls')
+        pmat = st.p_values(df_stats, 'length', 'condition', filename=p.experiments_dir + 'pvalues_len.xls')
 
         pdf.savefig()
 
@@ -292,7 +293,7 @@ def stats_plots(df, df_stats):
 
 def msd_plots(df):
     dfn = df.reset_index()
-    with PdfPages('/Users/Fabio/data/lab/eb3_msd.pdf') as pdf:
+    with PdfPages(p.experiments_dir + 'eb3_msd.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches(_fig_size_A3)
@@ -451,8 +452,8 @@ def batch_filter(df):
     # speed_ix = dfi.groupby(indiv_idx).apply(lambda t: t['speed'].max() < 0.4)
     # df_flt = df_flt.set_index(indiv_idx)[speed_ix].reset_index()
 
-    df_flt.to_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
-    df_avg.to_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
+    df_flt.to_pickle(p.experiments_dir + 'eb3filter.pandas')
+    df_avg.to_pickle(p.experiments_dir + 'eb3stats.pandas')
 
     return df_flt, df_avg
 
@@ -465,21 +466,21 @@ if __name__ == '__main__':
     _err_kws = {'alpha': 0.3, 'lw': 1}
 
     if do_filter_stats:
-        df = pd.read_pickle('/Users/Fabio/data/lab/eb3.pandas')
+        df = pd.read_pickle(p.experiments_dir + 'eb3.pandas')
         # df=df[df['particle'].isin(df['particle'].unique()[0:10])]
         df_flt, df_avg = batch_filter(df)
     else:
-        if os.path.exists('/Users/Fabio/data/lab/eb3_selected.pandas'):
+        if os.path.exists(p.experiments_dir + 'eb3_selected.pandas'):
             logging.info('Loading GUI selected features instead of filtered particles!')
-            df_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3_selected.pandas')
-            df_avg = pd.read_pickle('/Users/Fabio/data/lab/eb3stats_sel.pandas')
+            df_flt = pd.read_pickle(p.experiments_dir + 'eb3_selected.pandas')
+            df_avg = pd.read_pickle(p.experiments_dir + 'eb3stats_sel.pandas')
         else:
-            df_flt = pd.read_pickle('/Users/Fabio/data/lab/eb3filter.pandas')
-            df_avg = pd.read_pickle('/Users/Fabio/data/lab/eb3stats.pandas')
+            df_flt = pd.read_pickle(p.experiments_dir + 'eb3filter.pandas')
+            df_avg = pd.read_pickle(p.experiments_dir + 'eb3stats.pandas')
         logging.info('Loaded %d tracks after filters' % df_flt.set_index(indiv_idx).index.unique().size)
 
     logging.info('rendering images.')
-    render_image_tracks(df_flt, folder='/Users/Fabio/data/lab/eb3')
+    render_image_tracks(df_flt, folder=p.experiments_dir + 'eb3')
 
     logging.info('making indiv plots')
     df_flt['time'] = df_flt['time'].apply(np.round, decimals=3)
