@@ -2,17 +2,25 @@ import logging
 import os
 import re
 import sys
+import warnings
 
 import coloredlogs
-import numpy as np
 import pandas as pd
-import scipy
-import scipy.stats
-import tifffile as tf
 import trackpy as tp
 import trackpy.diag
 import trackpy.predict
+import matplotlib.pyplot as plt
+import numpy as np
+import tifffile as tf
+from moviepy.video.io.bindings import mplfig_to_npimage
+import moviepy.editor as mpy
+import skimage.exposure as exposure
+import skimage.color as color
 
+import parameters as p
+import plot_special_tools as sp
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
 tp.diag.performance_report()
 logging.basicConfig(stream=sys.stderr, format='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
@@ -21,53 +29,100 @@ trackpy.quiet()
 pd.set_option('display.width', 320)
 
 
+def movie(frames, linked_particles, filename="movie.mp4", pix_per_um=1):
+    def make_frame_mpl(t):
+        fr = int(t)
+
+        ax.cla()
+        im = frames[fr]
+        # im = exposure.equalize_hist(im)
+        # w, h = im.shape[0], im.shape[1]
+
+        tp.annotate(linked_particles[linked_particles['frame'] == fr], im, ax=ax,
+                    plot_style={"markersize": 4},
+                    # imshow_style={"extent": [0, w / pix_per_um, h / pix_per_um, 0]})
+                    )
+        # tp.plot_displacements(linked_particles, fr, fr + 1, ax=ax, arrowprops={"color": "blue", "alpha": 0.2})
+        # ax.set_xlabel("x[um]")
+        # ax.set_ylabel("y[um]")
+
+        return mplfig_to_npimage(fig)  # RGB image of the figure
+
+    logging.info("rendering movie %s" % filename)
+    fig = plt.figure(20)
+    ax = fig.gca()
+    fig.tight_layout()
+
+    animation = mpy.VideoClip(make_frame_mpl, duration=len(frames))
+    animation.write_videofile(filename, fps=1)
+    animation.close()
+
+
 def do_trackpy(image_path):
-    with tf.TiffFile(image_path, fastij=True) as tif:
-        res = 'n/a'
-        if tif.pages[0].resolution_unit == 'centimeter':
-            # asuming square pixels
-            xr = tif.pages[0].x_resolution
-            res = float(xr[0]) / float(xr[1])  # pixels per cm
-            res = res / 1e4  # pixels per um
-        elif tif.pages[0].imagej_tags.unit == 'micron':
-            # asuming square pixels
-            xr = tif.pages[0].x_resolution
-            res = float(xr[0]) / float(xr[1])  # pixels per um
+    _images, pix_per_um, dt = sp.load_tiff(image_path)
 
-        # construct frames array based on tif file structure:
-        frames = None
-        if len(tif.pages) == 1:
-            frames = np.int32(tif.pages[0].asarray())
-        elif len(tif.pages) > 1:
-            frames = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width), dtype=np.int32)
-            for i, page in enumerate(tif.pages):
-                frames[i] = page.asarray()
+    # subtract first frame and deal with negative results after the operation
+    frames = np.int32(_images)
+    frames -= frames[0]
+    frames = frames[1:, :, :]
+    frames = np.uint16(frames.clip(0))
 
-        # subtract first frame and deal with negative results after the operation
-        # frames = np.int32(frames)
-        # frames -= frames[0]
-        # frames = frames[1:, :, :]
-        # frames = np.uint16(frames.clip(0))
-        diam = np.ceil(1 * res) // 2 * 2 + 1
+    diam = np.ceil(pix_per_um) // 2 * 4 + 1
 
-        logging.info(scipy.stats.describe(frames, axis=None))
-        f = tp.batch(frames, diam, separation=diam, characterize=True)
-        stat = f[['mass', 'size']].describe()
-        f1 = f[((f['mass'] > stat['mass']['25%']) & (f['size'] < 1.5))]
-        logging.info(stat)
+    f = tp.batch(frames[1:], diameter=diam, separation=diam / 6, characterize=True)
+    stat = f[['mass', 'size']].describe()
+    # f = f[((f['mass'] > stat['mass']['25%']) & (f['size'] < 1.5))]
+    f = f[(f['mass'] > stat['mass']['25%'])]
+    # logging.info(stat)
 
-        pred = trackpy.predict.DriftPredict()
-        search_rng_px = 4
-        # search_rng_px=np.ceil(1 * res)
-        t = pred.link_df(f1, search_rng_px)
+    f['xum'] = f['x'] / pix_per_um
+    f['yum'] = f['y'] / pix_per_um
+    # for search_range in [1.0, 1.5, 2.0, 2.5]:
+    #     linked = tp.link_df(f, search_range, pos_columns=['xum', 'yum'])
+    #     hist, bins = np.histogram(np.bincount(linked.particle.astype(int)),
+    #                               bins=np.arange(30), normed=True)
+    #     plt.step(bins[1:], hist, label='range = {} microns'.format(search_range))
+    # plt.gca().set(ylabel='relative frequency', xlabel='track length (frames)')
+    # plt.legend()
+    # plt.show()
+    # exit()
 
-        return t
+    search_range = 1.0
+    pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.4)
+    linked = pred.link_df(f, search_range, pos_columns=['xum', 'yum'])
+    #  filter spurious tracks
+    # linked = tp.filter_stubs(linked, 4)
+    frames_per_particle = linked.groupby('particle')['frame'].nunique()
+    particles = frames_per_particle[frames_per_particle > 15].index
+    linked = linked[linked['particle'].isin(particles)]
+    logging.info('filtered %d particles by track length' % linked['particle'].nunique())
+
+    m = tp.imsd(linked, 1, 1, pos_columns=['xum', 'yum'])
+    mt = m.ix[15]
+    particles = mt[mt > 2].index
+    linked = linked[linked['particle'].isin(particles)]
+    # plt.hist(m.ix[15],bins=100)
+    # plt.savefig('%s_msdhist.png' % image_path[:-4])
+    # linked = linked.set_index('particle').ix[tp.is_typical(m, 10, lower=0.1)].reset_index()
+    logging.info('filtered %d particles msd' % linked['particle'].nunique())
+
+    # path, fim = os.path.split(image_path)
+    linked['frame'] += 1
+    frames = exposure.equalize_hist(frames)
+    _images = exposure.equalize_hist(_images)
+    frames = color.gray2rgb(frames)
+    _images = color.gray2rgb(_images)
+    render = _images[1:] * 0.2 + frames * sp.colors.hoechst_33342 * 0.4
+    movie(render, linked, filename='%s.mp4' % image_path[:-4], pix_per_um=pix_per_um)
+    # exit()
+
+    return linked
 
 
 def process_dir(dir_base):
     logging.info('processing data from folder %s' % dir_base)
     df = pd.DataFrame()
-    cal = pd.read_excel('/Users/Fabio/data/lab/eb3/eb3_calibration.xls')
+    cal = pd.read_excel(p.experiments_dir + 'eb3/eb3_calibration.xls')
     # Traverse through all subdirs looking for image files. When a file is found, assume folder structure of (cond/date)
     for root, directories, files in os.walk(dir_base):
         for f in files:
@@ -82,8 +137,6 @@ def process_dir(dir_base):
 
                     calp = cal[cal['filename'] == f].iloc[0]
                     tdf['time'] = tdf['frame'] * calp['dt']
-                    tdf['x'] /= calp['resolution']
-                    tdf['y'] /= calp['resolution']
 
                     tdf['particle'] = tdf['particle'].astype('int32')
                     tdf['frame'] = tdf['frame'].astype('int32')
@@ -91,12 +144,16 @@ def process_dir(dir_base):
 
                     # consider 1.6X magification of optivar system
                     if calp['optivar'] == 'yes':
-                        tdf['x'] /= 1.6
-                        tdf['y'] /= 1.6
+                        tdf['xum'] /= 1.6
+                        tdf['yum'] /= 1.6
 
+                    df.to_csv(os.path.join(root, '%s.csv' % f[:-4]), index=False)
                     df = df.append(tdf)
                 except IOError as ioe:
                     logging.warning('could not import due to IO error: %s' % ioe)
+                except Exception as e:
+                    logging.error('skipped file %s' % f)
+                    logging.error(e)
 
     # df_matlab['tag'] = pd.factorize(df_matlab['tag'], sort=True)[0] + 1
     # df_matlab['tag'] = df_matlab['tag'].astype('category')
@@ -172,8 +229,9 @@ if __name__ == '__main__':
     _err_kws = {'alpha': 0.3, 'lw': 1}
 
     # df = optivar_resolution_to_excel('/Users/Fabio/data/lab/eb3')
-    df = process_dir('/Users/Fabio/data/lab/eb3')
-    df.to_pickle('/Users/Fabio/data/lab/eb3.pandas')
+    df = process_dir(p.experiments_dir + 'eb3')
+    df.to_pickle(p.experiments_dir + 'eb3.pandas')
+    # df = pd.read_pickle(p.experiments_dir + 'eb3.pandas')
 
     # process dataframe and render images
     from microtubules.eb3 import run_plots_eb3
@@ -181,4 +239,4 @@ if __name__ == '__main__':
     logging.info('filtering using run_plots_eb3.')
     df, df_avg = run_plots_eb3.batch_filter(df)
     logging.info('rendering images.')
-    run_plots_eb3.render_image_tracks(df, folder='/Users/Fabio/data/lab/eb3')
+    run_plots_eb3.render_image_tracks(df, folder=p.experiments_dir + 'eb3')
