@@ -15,19 +15,13 @@ import tifffile as tf
 from moviepy.video.io.bindings import mplfig_to_npimage
 import moviepy.editor as mpy
 import skimage.draw as draw
-import skimage.transform as transform
 import skimage.filters as filters
 import skimage.exposure as exposure
 import skimage.morphology as morphology
 import skimage.measure as measure
-import skimage.segmentation as segmentation
 import skimage.color as color
-import skimage.feature as feature
 from matplotlib import cm
-import skimage.filters.rank as rank
-from skimage.morphology import disk
 from scipy import ndimage
-import matplotlib.patches as mpatches
 from shapely.geometry import Point, Polygon
 
 import parameters as p
@@ -81,15 +75,12 @@ def movie(frames, linked_particles, filename="movie.mp4", pix_per_um=1):
     ax = fig.gca()
     fig.tight_layout()
 
-    animation = mpy.VideoClip(make_frame_mpl, duration=len(frames))
+    animation = mpy.VideoClip(make_frame_mpl, duration=len(render))
     animation.write_videofile(filename, fps=1)
     animation.close()
 
 
 def vis_detection(image_path, filename="movie.mp4"):
-    from skimage.transform import (probabilistic_hough_line)
-    from skimage.feature import canny
-
     def make_frame_mpl(t):
         fr = int(t)
 
@@ -190,30 +181,47 @@ def vis_detection(image_path, filename="movie.mp4"):
     exit()
 
 
-def obj_function(df, x, y, radius=5, n=8):
+def obj_function(_df, x, y, radius=5, n=16, ax=None):
     n = 2 ** int(np.log2(n))
-    o = 0
-    no = 0
-    for i in range(n):
-        # build triangle
-        ang_i = 2 * np.pi / n * i
-        ang_ii = 2 * np.pi / n * (i + 1)
-        ang_avg = (ang_ii + ang_i) / 2
-        tri = Polygon([(x, y),
-                       (radius * np.cos(ang_i), radius * np.sin(ang_i)),
-                       (radius * np.cos(ang_ii), radius * np.sin(ang_ii))
-                       ])
-        in_idx = df['pt1'].apply(lambda pt: pt.within(tri)) | df['pt2'].apply(lambda pt: pt.within(tri))
+    box = Polygon(
+        [(x - radius, y - radius), (x - radius, y + radius), (x + radius, y + radius), (x + radius, y - radius)])
+    if min(box.bounds) < 0 or min(box.bounds) > 512: return 0
 
-        if np.pi / 2 <= ang_avg < 3 / 2 * np.pi:
-            ang_avg -= np.pi
-        u = np.abs(ang_avg - df.loc[in_idx, 'theta'])
-        o += u.sum()
-        no += len(df[in_idx])
+    in_idx = _df['pt1'].apply(lambda pt: pt.within(box)) | _df['pt2'].apply(lambda pt: pt.within(box))
+    df = _df[in_idx]
+    if len(df) == 0: return 0
 
-    fn = 1e-3 * no + 10 * 1 / o
-    print(no, o, 1 / o, fn)
-    return fn
+    # fill four cuadrants
+    cuadrants = list()
+    divs_per_cuadrant = int(n / 4)
+    for cuad in [0, np.pi / 2, np.pi, 3 / 2 * np.pi]:
+        o = 0
+        no = 0
+        for i in range(divs_per_cuadrant):
+            ang_i = 2 * np.pi / n * i + cuad
+            ang_ii = 2 * np.pi / n * (i + 1) + cuad
+            # build triangle
+            tri = Polygon([(x, y),
+                           (x + radius * np.cos(ang_i), y + radius * np.sin(ang_i)),
+                           (x + radius * np.cos(ang_ii), y + radius * np.sin(ang_ii))
+                           ])
+            if ax is not None:
+                ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=2, c='white')
+            in_idx = df['pt1'].apply(lambda pt: pt.within(tri)) | df['pt2'].apply(lambda pt: pt.within(tri))
+
+            ang_avg = (ang_ii + ang_i) / 2
+            if np.pi / 2 <= ang_avg < 3 / 2 * np.pi:
+                ang_avg -= np.pi
+            u = np.abs(ang_avg - df.loc[in_idx, 'theta'])
+            o += u.sum()
+            no += len(df[in_idx])
+        cuadrants.append((no, o))
+
+    fn = [1e-3 * no + 10 * 1 / o if o > 0 else 0 for no, o in cuadrants]
+    print(cuadrants, fn)
+    print(min(fn))
+    # print(no, o, 1 / o, fn)
+    return min(fn)
 
 
 def detection(images, pix_per_um=1):
@@ -277,30 +285,33 @@ def do_trackpy(image_path):
     log.info("detection step completed.")
 
     w, h = _images[0].shape[0], _images[0].shape[1]
-    x = np.linspace(0, w, 10)
-    y = np.linspace(0, h, 10)
+    divs = 10
+    x = np.linspace(0, w / pix_per_um, divs)
+    y = np.linspace(0, h / pix_per_um, divs)
     obj = np.zeros((x.size, y.size), dtype=np.float32)
     xx, yy = np.meshgrid(x, y)
     for i in range(x.size):
         for j in range(y.size):
             print(j, i, )
             obj[j, i] = obj_function(f, xx[j, i], yy[j, i])
-    # np.savetxt('obj.csv',obj)
-    # obj=np.loadtxt('obj.csv')
+    np.savetxt('obj.csv', obj)
+    # obj = np.loadtxt('obj.csv')
 
     fig = plt.figure()
     ax = fig.gca()
-    ax.imshow(obj, interpolation='none')
+    # obj_function(f, 65, 40, ax=ax)
+    ax.imshow(obj, interpolation='none', extent=[0, w / pix_per_um, h / pix_per_um, 0])
     for ix, row in f.iterrows():
-        ax.plot([row['x1'] / 10, row['x2'] / 10], [row['y1'] / 10, row['y2'] / 10], lw=1, c='white', alpha=0.3)
-    fig.savefig('objfn.pdf', format='pdf')
+        ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=0.3)
+    ax.set_aspect('equal')
+    fig.savefig('objfn.png')
 
-    fig = plt.figure()
-    ax = fig.gca()
-    for ix, row in f.iterrows():
-        ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='k', alpha=0.3)
-    fig.savefig('linedens.pdf', format='pdf')
-    # exit()
+    # fig = plt.figure()
+    # ax = fig.gca()
+    # for ix, row in f.iterrows():
+    #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='k', alpha=0.3)
+    # fig.savefig('linedens.pdf', format='pdf')
+    exit()
 
     # for search_range in [1.0, 1.5, 2.0, 2.5]:
     #     linked = tp.link_df(f, search_range, pos_columns=['xum', 'yum'])
@@ -368,9 +379,9 @@ def process_dir(dir_base):
                     df = df.append(tdf)
                 except IOError as ioe:
                     logging.warning('could not import due to IO error: %s' % ioe)
-                except Exception as e:
-                    logging.error('skipped file %s' % f)
-                    logging.error(e)
+                # except Exception as e:
+                #     logging.error('skipped file %s' % f)
+                #     logging.error(e)
 
     return df
 
