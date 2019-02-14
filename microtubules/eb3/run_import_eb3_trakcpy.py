@@ -14,8 +14,21 @@ import numpy as np
 import tifffile as tf
 from moviepy.video.io.bindings import mplfig_to_npimage
 import moviepy.editor as mpy
+import skimage.draw as draw
+import skimage.transform as transform
+import skimage.filters as filters
 import skimage.exposure as exposure
+import skimage.morphology as morphology
+import skimage.measure as measure
+import skimage.segmentation as segmentation
 import skimage.color as color
+import skimage.feature as feature
+from matplotlib import cm
+import skimage.filters.rank as rank
+from skimage.morphology import disk
+from scipy import ndimage
+import matplotlib.patches as mpatches
+from shapely.geometry import Point, Polygon
 
 import parameters as p
 import plot_special_tools as sp
@@ -24,6 +37,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
 tp.diag.performance_report()
 logging.basicConfig(stream=sys.stderr, format='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
+log = logging.getLogger(__name__)
 coloredlogs.install()
 trackpy.quiet()
 pd.set_option('display.width', 320)
@@ -34,7 +48,7 @@ def movie(frames, linked_particles, filename="movie.mp4", pix_per_um=1):
         fr = int(t)
 
         ax.cla()
-        im = frames[fr]
+        im = render[fr]
         # im = exposure.equalize_hist(im)
         # w, h = im.shape[0], im.shape[1]
 
@@ -48,6 +62,20 @@ def movie(frames, linked_particles, filename="movie.mp4", pix_per_um=1):
 
         return mplfig_to_npimage(fig)  # RGB image of the figure
 
+    # subtract first frame and deal with negative results after the operation
+    nobkg = np.int32(frames)
+    nobkg -= nobkg[0]
+    nobkg = nobkg[1:, :, :]
+    nobkg = np.uint16(nobkg.clip(0))
+
+    # path, fim = os.path.split(image_path)
+    linked_particles['frame'] += 1
+    nobkg = exposure.equalize_hist(nobkg)
+    frames = exposure.equalize_hist(frames)
+    nobkg = color.gray2rgb(nobkg)
+    frames = color.gray2rgb(frames)
+    render = frames[1:] * 0.2 + nobkg * sp.colors.hoechst_33342 * 0.4
+
     logging.info("rendering movie %s" % filename)
     fig = plt.figure(20)
     ax = fig.gca()
@@ -58,25 +86,222 @@ def movie(frames, linked_particles, filename="movie.mp4", pix_per_um=1):
     animation.close()
 
 
-def do_trackpy(image_path):
-    _images, pix_per_um, dt = sp.load_tiff(image_path)
+def vis_detection(image_path, filename="movie.mp4"):
+    from skimage.transform import (probabilistic_hough_line)
+    from skimage.feature import canny
 
+    def make_frame_mpl(t):
+        fr = int(t)
+
+        for ax in [ax1, ax2, ax3, ax4]:
+            ax.cla()
+        # im = _images[fr]
+        im = frames[fr]
+        # im = exposure.equalize_hist(im)
+
+        # edges = canny(im, 2, 1, 25)
+        # median=rank.median(image=im, selem=disk(0.2*pix_per_um))
+        median = im
+        ax1.imshow(median, cmap=cm.gray)
+
+        thr_lvl = filters.threshold_otsu(median)
+        thresh = im >= thr_lvl
+        morphology.remove_small_objects(thresh, min_size=2 * pix_per_um, in_place=True)
+        ax2.imshow(thresh, cmap=cm.gray)
+
+        # distance=ndimage.distance_transform_edt(thresh)
+        # local_maxi = feature.peak_local_max(distance, labels=thresh, min_distance=int(0.5*pix_per_um), indices = False)
+        # markers = ndimage.label(local_maxi)[0]
+        # labels = segmentation.watershed(-distance, markers, mask=thresh)
+        # image_label_overlay = color.label2rgb(labels, image=median)
+        # # thr_lvl=filters.threshold_otsu(thresh)
+        # # thresh = im >= thr_lvl
+        # # morphology.remove_small_objects(thresh,min_size=2*pix_per_um,in_place=True)
+
+        w, h = im.shape
+        labels = ndimage.label(thresh)[0]
+        image_label_overlay = color.label2rgb(labels, image=median)
+        out = np.zeros((w, h, 3), dtype=np.double)
+
+        # ax3.imshow(image_label_overlay, cmap=cm.gray)
+        ax3.text(0, 0, '%d' % t)
+
+        for k, region in enumerate(measure.regionprops(labels, coordinates='rc', cache=True)):
+            # if k!=100: continue
+            if region.eccentricity < 0.8: continue
+            rp, cp = draw.polygon(region.coords[:, 0], region.coords[:, 1], im.shape)
+            # out[rp, cp, :] = (0,1,0)
+
+            # rotate = transform.SimilarityTransform(rotation=np.pi / 2)
+            # rotate = transform.SimilarityTransform(rotation=0)
+            # rc,cc=rotate(region.centroid)[0]
+
+            rc, cc = region.centroid
+            l = region.major_axis_length / 2
+            # l_sint, l_cost = np.sin(region.orientation) * l, np.cos(region.orientation) * l
+
+            if region.orientation > 0:
+                out[rp, cp, :] = (0, 1, 0)
+                l_sint, l_cost = np.sin(region.orientation) * l, np.cos(region.orientation) * l
+                xx1, yy1 = cc + l_sint, rc + l_cost  # don't know why, but i had to interchange sin and cos
+                xx2, yy2 = cc - l_sint, rc - l_cost
+            if region.orientation == 0:
+                # log.warning("orientation was zero!")
+                out[rp, cp, :] = (1, 1, 1)
+                xx1, yy1 = cc + l, rc
+                xx2, yy2 = cc - l, rc
+            if region.orientation < 0:
+                out[rp, cp, :] = (1, 0, 1)
+                l_sint, l_cost = np.sin(np.pi - region.orientation) * l, np.cos(np.pi - region.orientation) * l
+                xx1, yy1 = cc + l_sint, rc - l_cost  # don't know why, but i had to interchange sin and cos
+                xx2, yy2 = cc - l_sint, rc + l_cost
+            ax3.plot(xx1, yy1, marker='o', markersize=2, c='red')
+            ax3.plot(xx2, yy2, marker='o', markersize=2, c='blue')
+
+        ax3.imshow(out)
+        # ax4.set_xlim([0,w])
+        # ax4.set_ylim([0,h])
+
+        # lines = probabilistic_hough_line(thresh, threshold=10, line_length=5, line_gap=3)
+        # for line in lines:
+        #     p0, p1 = line
+        #     ax.plot((p0[0], p1[0]), (p0[1], p1[1]))
+
+        return mplfig_to_npimage(fig)  # RGB image of the figure
+
+    _images, pix_per_um, dt = sp.load_tiff(image_path)
     # subtract first frame and deal with negative results after the operation
     frames = np.int32(_images)
     frames -= frames[0]
     frames = frames[1:, :, :]
     frames = np.uint16(frames.clip(0))
 
-    diam = np.ceil(pix_per_um) // 2 * 4 + 1
+    logging.info("rendering movie %s" % filename)
+    fig = plt.figure(20, figsize=(10, 10))
+    ax1 = fig.add_subplot(221)
+    ax2 = fig.add_subplot(222)
+    ax3 = fig.add_subplot(223)
+    ax4 = fig.add_subplot(224)
+    fig.tight_layout()
 
-    f = tp.batch(frames[1:], diameter=diam, separation=diam / 6, characterize=True)
-    stat = f[['mass', 'size']].describe()
-    # f = f[((f['mass'] > stat['mass']['25%']) & (f['size'] < 1.5))]
-    f = f[(f['mass'] > stat['mass']['25%'])]
-    # logging.info(stat)
+    animation = mpy.VideoClip(make_frame_mpl, duration=len(frames))
+    animation.write_videofile(filename, fps=1)
+    animation.close()
+    exit()
 
-    f['xum'] = f['x'] / pix_per_um
-    f['yum'] = f['y'] / pix_per_um
+
+def obj_function(df, x, y, radius=5, n=8):
+    n = 2 ** int(np.log2(n))
+    o = 0
+    no = 0
+    for i in range(n):
+        # build triangle
+        ang_i = 2 * np.pi / n * i
+        ang_ii = 2 * np.pi / n * (i + 1)
+        ang_avg = (ang_ii + ang_i) / 2
+        tri = Polygon([(x, y),
+                       (radius * np.cos(ang_i), radius * np.sin(ang_i)),
+                       (radius * np.cos(ang_ii), radius * np.sin(ang_ii))
+                       ])
+        in_idx = df['pt1'].apply(lambda pt: pt.within(tri)) | df['pt2'].apply(lambda pt: pt.within(tri))
+
+        if np.pi / 2 <= ang_avg < 3 / 2 * np.pi:
+            ang_avg -= np.pi
+        u = np.abs(ang_avg - df.loc[in_idx, 'theta'])
+        o += u.sum()
+        no += len(df[in_idx])
+
+    fn = 1e-3 * no + 10 * 1 / o
+    print(no, o, 1 / o, fn)
+    return fn
+
+
+def detection(images, pix_per_um=1):
+    features = pd.DataFrame()
+
+    # subtract first frame and deal with negative results after the operation
+    nobkg = np.int32(images)
+    nobkg -= nobkg[0]
+    nobkg = nobkg[1:, :, :]
+    nobkg = np.uint16(nobkg.clip(0))
+
+    # last_frame=np.zeros(frames[0].shape,dtype=bool)
+    for num, im in enumerate(nobkg):
+
+        # median=rank.median(image=im, selem=disk(0.2*pix_per_um))
+        # thr_lvl=filters.threshold_otsu(median)
+
+        thr_lvl = filters.threshold_otsu(im)
+        thresh = im >= thr_lvl
+        morphology.remove_small_objects(thresh, min_size=2 * pix_per_um, in_place=True)
+
+        labels = ndimage.label(thresh)[0]
+        w, h = im.shape
+
+        for region in measure.regionprops(labels, coordinates='rc', cache=True):
+            if region.eccentricity < 0.8: continue
+
+            rc, cc = region.centroid
+            l = region.major_axis_length / 2
+            if region.orientation > 0:
+                l_sint, l_cost = np.sin(region.orientation) * l, np.cos(region.orientation) * l
+                xx1, yy1 = cc + l_sint, rc + l_cost  # don't know why, but i had to interchange sin and cos
+                xx2, yy2 = cc - l_sint, rc - l_cost
+            elif region.orientation == 0:
+                # log.warning("orientation was zero!")
+                xx1, yy1 = cc + l, rc
+                xx2, yy2 = cc - l, rc
+            else:
+                l_sint, l_cost = np.sin(np.pi - region.orientation) * l, np.cos(np.pi - region.orientation) * l
+                xx1, yy1 = cc + l_sint, rc - l_cost  # don't know why, but i had to interchange sin and cos
+                xx2, yy2 = cc - l_sint, rc + l_cost
+
+            features = features.append([{'x': rc, 'y': cc,
+                                         'pt1': Point((xx1 / pix_per_um, (h - yy1) / pix_per_um)),
+                                         'pt2': Point((xx2 / pix_per_um, (h - yy2) / pix_per_um)),
+                                         'x1': xx1 / pix_per_um, 'y1': (h - yy1) / pix_per_um,
+                                         'x2': xx2 / pix_per_um, 'y2': (h - yy2) / pix_per_um,
+                                         'theta': region.orientation, 'frame': num}])
+
+    features['xum'] = features['x'] / pix_per_um
+    features['yum'] = features['y'] / pix_per_um
+    return features.reset_index(drop=True)
+
+
+def do_trackpy(image_path):
+    _images, pix_per_um, dt = sp.load_tiff(image_path)
+
+    f = detection(_images, pix_per_um=pix_per_um)
+    # f.to_pickle('f.pandas')
+    # f=pd.read_pickle('f.pandas')
+    log.info("detection step completed.")
+
+    w, h = _images[0].shape[0], _images[0].shape[1]
+    x = np.linspace(0, w, 10)
+    y = np.linspace(0, h, 10)
+    obj = np.zeros((x.size, y.size), dtype=np.float32)
+    xx, yy = np.meshgrid(x, y)
+    for i in range(x.size):
+        for j in range(y.size):
+            print(j, i, )
+            obj[j, i] = obj_function(f, xx[j, i], yy[j, i])
+    # np.savetxt('obj.csv',obj)
+    # obj=np.loadtxt('obj.csv')
+
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.imshow(obj, interpolation='none')
+    for ix, row in f.iterrows():
+        ax.plot([row['x1'] / 10, row['x2'] / 10], [row['y1'] / 10, row['y2'] / 10], lw=1, c='white', alpha=0.3)
+    fig.savefig('objfn.pdf', format='pdf')
+
+    fig = plt.figure()
+    ax = fig.gca()
+    for ix, row in f.iterrows():
+        ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='k', alpha=0.3)
+    fig.savefig('linedens.pdf', format='pdf')
+    # exit()
+
     # for search_range in [1.0, 1.5, 2.0, 2.5]:
     #     linked = tp.link_df(f, search_range, pos_columns=['xum', 'yum'])
     #     hist, bins = np.histogram(np.bincount(linked.particle.astype(int)),
@@ -87,33 +312,24 @@ def do_trackpy(image_path):
     # plt.show()
     # exit()
 
-    search_range = 1.0
-    pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.4)
+    search_range = 0.4
+    pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.1)
+    # trackpy.linking.Linker.MAX_SUB_NET_SIZE=50
     linked = pred.link_df(f, search_range, pos_columns=['xum', 'yum'])
+
     #  filter spurious tracks
-    # linked = tp.filter_stubs(linked, 4)
     frames_per_particle = linked.groupby('particle')['frame'].nunique()
-    particles = frames_per_particle[frames_per_particle > 15].index
+    particles = frames_per_particle[frames_per_particle > 8].index
     linked = linked[linked['particle'].isin(particles)]
     logging.info('filtered %d particles by track length' % linked['particle'].nunique())
 
     m = tp.imsd(linked, 1, 1, pos_columns=['xum', 'yum'])
     mt = m.ix[15]
-    particles = mt[mt > 2].index
+    particles = mt[mt > 1].index
     linked = linked[linked['particle'].isin(particles)]
-    # plt.hist(m.ix[15],bins=100)
-    # plt.savefig('%s_msdhist.png' % image_path[:-4])
-    # linked = linked.set_index('particle').ix[tp.is_typical(m, 10, lower=0.1)].reset_index()
     logging.info('filtered %d particles msd' % linked['particle'].nunique())
 
-    # path, fim = os.path.split(image_path)
-    linked['frame'] += 1
-    frames = exposure.equalize_hist(frames)
-    _images = exposure.equalize_hist(_images)
-    frames = color.gray2rgb(frames)
-    _images = color.gray2rgb(_images)
-    render = _images[1:] * 0.2 + frames * sp.colors.hoechst_33342 * 0.4
-    movie(render, linked, filename='%s.mp4' % image_path[:-4], pix_per_um=pix_per_um)
+    movie(_images, linked, filename='%s.mp4' % image_path[:-4], pix_per_um=pix_per_um)
     # exit()
 
     return linked
@@ -130,6 +346,7 @@ def process_dir(dir_base):
             if os.path.isfile(mpath) and f[-4:] == '.tif':
                 logging.info('processing file %s in folder %s' % (f, root))
                 try:  # process
+                    # vis_detection(mpath, filename='%s.mp4' % mpath[:-4])
                     tdf = do_trackpy(mpath)
                     tdf['condition'] = os.path.basename(os.path.dirname(root))
                     tdf['tag'] = f[:-4]
@@ -140,7 +357,7 @@ def process_dir(dir_base):
 
                     tdf['particle'] = tdf['particle'].astype('int32')
                     tdf['frame'] = tdf['frame'].astype('int32')
-                    tdf[['x', 'y', 'time']] = tdf[['x', 'y', 'time']].astype('float64')
+                    tdf[['x', 'y', 'xum', 'yum', 'time']] = tdf[['x', 'y', 'xum', 'yum', 'time']].astype('float64')
 
                     # consider 1.6X magification of optivar system
                     if calp['optivar'] == 'yes':
@@ -155,8 +372,6 @@ def process_dir(dir_base):
                     logging.error('skipped file %s' % f)
                     logging.error(e)
 
-    # df_matlab['tag'] = pd.factorize(df_matlab['tag'], sort=True)[0] + 1
-    # df_matlab['tag'] = df_matlab['tag'].astype('category')
     return df
 
 
