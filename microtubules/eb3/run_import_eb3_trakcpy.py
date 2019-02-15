@@ -181,47 +181,50 @@ def vis_detection(image_path, filename="movie.mp4"):
     exit()
 
 
-def obj_function(_df, x, y, radius=5, n=16, ax=None):
+def obj_function(_df, x, y, radius=10, n=16, ax=None):
     n = 2 ** int(np.log2(n))
     box = Polygon(
         [(x - radius, y - radius), (x - radius, y + radius), (x + radius, y + radius), (x + radius, y - radius)])
     if min(box.bounds) < 0 or min(box.bounds) > 512: return 0
 
-    in_idx = _df['pt1'].apply(lambda pt: pt.within(box)) | _df['pt2'].apply(lambda pt: pt.within(box))
+    in_idx = _df['pt1'].apply(lambda pt: pt.within(box)) & _df['pt2'].apply(lambda pt: pt.within(box))
     df = _df[in_idx]
     if len(df) == 0: return 0
 
     # fill four cuadrants
     cuadrants = list()
     divs_per_cuadrant = int(n / 4)
-    for cuad in [0, np.pi / 2, np.pi, 3 / 2 * np.pi]:
+    for cuadrant, color in zip(range(4), ['red', 'blue', 'green', 'yellow']):
         o = 0
-        no = 0
+        pn_idx = df['theta'].apply(lambda t: t < 0 if (cuadrant == 0 or cuadrant == 2) else t > 0)
+        dc = df[pn_idx]
         for i in range(divs_per_cuadrant):
-            ang_i = 2 * np.pi / n * i + cuad
-            ang_ii = 2 * np.pi / n * (i + 1) + cuad
+            ang_i = 2 * np.pi / n * i
+            ang_ii = 2 * np.pi / n * (i + 1)
             # build triangle
+            c_ang = cuadrant / 2 * np.pi
             tri = Polygon([(x, y),
-                           (x + radius * np.cos(ang_i), y + radius * np.sin(ang_i)),
-                           (x + radius * np.cos(ang_ii), y + radius * np.sin(ang_ii))
+                           (x + radius * np.cos(ang_i + c_ang), y + radius * np.sin(ang_i + c_ang)),
+                           (x + radius * np.cos(ang_ii + c_ang), y + radius * np.sin(ang_ii + c_ang))
                            ])
-            if ax is not None:
-                ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=2, c='white')
-            in_idx = df['pt1'].apply(lambda pt: pt.within(tri)) | df['pt2'].apply(lambda pt: pt.within(tri))
+
+            in_idx = dc['pt1'].apply(lambda pt: pt.within(tri)) & dc['pt2'].apply(lambda pt: pt.within(tri))
 
             ang_avg = (ang_ii + ang_i) / 2
-            if np.pi / 2 <= ang_avg < 3 / 2 * np.pi:
-                ang_avg -= np.pi
-            u = np.abs(ang_avg - df.loc[in_idx, 'theta'])
-            o += u.sum()
-            no += len(df[in_idx])
-        cuadrants.append((no, o))
+            ang_diff = np.abs(ang_ii - ang_i)
+            if (cuadrant == 0 or cuadrant == 2): dc.loc[in_idx, 'theta'] += np.pi / 2
+            in_ang = dc.loc[in_idx, 'theta'].apply(lambda t: np.abs(t - ang_avg) < ang_diff)
+            # o += dc.loc[in_idx & in_ang, 'theta'].sum()
+            o += len(dc[in_idx & in_ang])
 
-    fn = [1e-3 * no + 10 * 1 / o if o > 0 else 0 for no, o in cuadrants]
-    print(cuadrants, fn)
-    print(min(fn))
-    # print(no, o, 1 / o, fn)
-    return min(fn)
+            if ax is not None:
+                # ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.1, c=color)
+                ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.5, c='white')
+                # for ix, row in dc[in_idx & in_ang].iterrows():
+                #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=0.3)
+        cuadrants.append(o)
+
+    return min(cuadrants)
 
 
 def detection(images, pix_per_um=1):
@@ -278,14 +281,14 @@ def detection(images, pix_per_um=1):
 
 def do_trackpy(image_path):
     _images, pix_per_um, dt = sp.load_tiff(image_path)
+    w, h = _images[0].shape[0], _images[0].shape[1]
 
     f = detection(_images, pix_per_um=pix_per_um)
     # f.to_pickle('f.pandas')
-    # f=pd.read_pickle('f.pandas')
+    # f = pd.read_pickle('f.pandas')
     log.info("detection step completed.")
 
-    w, h = _images[0].shape[0], _images[0].shape[1]
-    divs = 10
+    divs = 20
     x = np.linspace(0, w / pix_per_um, divs)
     y = np.linspace(0, h / pix_per_um, divs)
     obj = np.zeros((x.size, y.size), dtype=np.float32)
@@ -294,15 +297,22 @@ def do_trackpy(image_path):
         for j in range(y.size):
             print(j, i, )
             obj[j, i] = obj_function(f, xx[j, i], yy[j, i])
-    np.savetxt('obj.csv', obj)
+    # np.savetxt('obj.csv', obj)
     # obj = np.loadtxt('obj.csv')
 
     fig = plt.figure()
     ax = fig.gca()
-    # obj_function(f, 65, 40, ax=ax)
+    # obj_function(f, 60, 65, ax=ax)
     ax.imshow(obj, interpolation='none', extent=[0, w / pix_per_um, h / pix_per_um, 0])
     for ix, row in f.iterrows():
         ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=0.3)
+    for i in range(obj.shape[0]):
+        for j in range(obj.shape[1]):
+            if obj[j, i] > 10:
+                obj_function(f, xx[j, i], yy[j, i], ax=ax)
+            # text = ax.text(xx[j, i], yy[j, i], '%d' % obj[j, i], ha="center", va="center", color="w",
+            #                fontsize='xx-small')
+
     ax.set_aspect('equal')
     fig.savefig('objfn.png')
 
