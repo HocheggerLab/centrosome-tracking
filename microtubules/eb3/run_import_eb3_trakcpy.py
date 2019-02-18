@@ -37,22 +37,39 @@ trackpy.quiet()
 pd.set_option('display.width', 320)
 
 
-def movie(frames, linked_particles, filename="movie.mp4", pix_per_um=1):
-    def make_frame_mpl(t):
+def movie(frames, linked_particles, objective_fn, n=16, filename="movie.mp4", pix_per_um=1):
+    def make_frame_mpl(t, n=16):
         fr = int(t)
 
         ax.cla()
         im = render[fr]
-        # im = exposure.equalize_hist(im)
-        # w, h = im.shape[0], im.shape[1]
+        w, h = im.shape[0], im.shape[1]
 
-        tp.annotate(linked_particles[linked_particles['frame'] == fr], im, ax=ax,
-                    plot_style={"markersize": 4},
-                    # imshow_style={"extent": [0, w / pix_per_um, h / pix_per_um, 0]})
-                    )
-        # tp.plot_displacements(linked_particles, fr, fr + 1, ax=ax, arrowprops={"color": "blue", "alpha": 0.2})
-        # ax.set_xlabel("x[um]")
-        # ax.set_ylabel("y[um]")
+        ax.imshow(im, cmap=cm.gray, interpolation='none', extent=[0, w / pix_per_um, h / pix_per_um, 0])
+        for ix, gr in linked_particles.groupby('particle'):
+            ax.plot(gr['xum'], gr['yum'], lw=1, c='white', alpha=0.5)
+            ax.scatter(gr.loc[gr['frame'] == fr, 'xum'], gr.loc[gr['frame'] == fr, 'yum'], s=1, c='red')
+
+        divs = 20
+        x = np.linspace(0, w / pix_per_um, divs)
+        y = np.linspace(0, h / pix_per_um, divs)
+        xx, yy = np.meshgrid(x, y)
+        for i in range(objective_fn.shape[0]):
+            for j in range(objective_fn.shape[1]):
+                if objective_fn[j, i] > 10:
+                    divs_per_cuadrant = int(n / 4)
+                    n = 2 ** int(np.log2(n))
+                    ang_diff = 2 * np.pi / n
+                    for cuadrant, color in zip(range(4), ['red', 'blue', 'green', 'yellow']):
+                        c_ang = cuadrant / 2 * np.pi
+                        for i in range(divs_per_cuadrant):
+                            ang_i = ang_diff * i
+                            tri = triangle(xx[j, i], yy[j, i], radius=10, angle_start=ang_i + c_ang,
+                                           angle_delta=ang_diff)
+                            ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.5, c='white')
+
+        ax.set_xlabel("x [um]")
+        ax.set_ylabel("y [um]")
 
         return mplfig_to_npimage(fig)  # RGB image of the figure
 
@@ -100,15 +117,6 @@ def vis_detection(image_path, filename="movie.mp4"):
         morphology.remove_small_objects(thresh, min_size=2 * pix_per_um, in_place=True)
         ax2.imshow(thresh, cmap=cm.gray)
 
-        # distance=ndimage.distance_transform_edt(thresh)
-        # local_maxi = feature.peak_local_max(distance, labels=thresh, min_distance=int(0.5*pix_per_um), indices = False)
-        # markers = ndimage.label(local_maxi)[0]
-        # labels = segmentation.watershed(-distance, markers, mask=thresh)
-        # image_label_overlay = color.label2rgb(labels, image=median)
-        # # thr_lvl=filters.threshold_otsu(thresh)
-        # # thresh = im >= thr_lvl
-        # # morphology.remove_small_objects(thresh,min_size=2*pix_per_um,in_place=True)
-
         w, h = im.shape
         labels = ndimage.label(thresh)[0]
         image_label_overlay = color.label2rgb(labels, image=median)
@@ -150,13 +158,6 @@ def vis_detection(image_path, filename="movie.mp4"):
             ax3.plot(xx2, yy2, marker='o', markersize=2, c='blue')
 
         ax3.imshow(out)
-        # ax4.set_xlim([0,w])
-        # ax4.set_ylim([0,h])
-
-        # lines = probabilistic_hough_line(thresh, threshold=10, line_length=5, line_gap=3)
-        # for line in lines:
-        #     p0, p1 = line
-        #     ax.plot((p0[0], p1[0]), (p0[1], p1[1]))
 
         return mplfig_to_npimage(fig)  # RGB image of the figure
 
@@ -181,11 +182,66 @@ def vis_detection(image_path, filename="movie.mp4"):
     exit()
 
 
-def obj_function(_df, x, y, radius=10, n=16, ax=None):
+def triangle(x, y, radius=10, angle_start=0, angle_delta=np.pi / 8):
+    tri = Polygon([(x, y),
+                   (x + radius * np.cos(angle_start), y + radius * np.sin(angle_start)),
+                   (x + radius * np.cos(angle_start + angle_delta), y + radius * np.sin(angle_start + angle_delta))
+                   ])
+    return tri
+
+
+def filter_wheel(df, x, y, radius=10, n=16):
+    box = Polygon(
+        [(x - radius, y - radius), (x - radius, y + radius), (x + radius, y + radius), (x + radius, y - radius)])
+
     n = 2 ** int(np.log2(n))
+    ang_diff = 2 * np.pi / n
+
+    in_idx = df['pt1'].apply(lambda pt: pt.within(box)) & df['pt2'].apply(lambda pt: pt.within(box))
+    df = df[in_idx]
+    out = pd.DataFrame()
+    if len(df) == 0: return out
+
+    # fill four cuadrants
+    divs_per_cuadrant = int(n / 4)
+    for cuadrant, color in zip(range(4), ['red', 'blue', 'green', 'yellow']):
+        pn_idx = df['theta'].apply(lambda t: t < 0 if (cuadrant == 0 or cuadrant == 2) else t > 0)
+        dc = df[pn_idx]
+        for i in range(divs_per_cuadrant):
+            ang_i = ang_diff * i
+            ang_ii = ang_i + ang_diff
+            ang_avg = (ang_ii + ang_i) / 2
+
+            # build triangle
+            c_ang = cuadrant / 2 * np.pi
+            tri = triangle(x, y, radius=radius, angle_start=ang_i + c_ang, angle_delta=ang_diff)
+
+            in_idx = dc['pt1'].apply(lambda pt: pt.within(tri)) & dc['pt2'].apply(lambda pt: pt.within(tri))
+            dcc = dc[in_idx]
+
+            if cuadrant == 0 or cuadrant == 2: dcc.loc[:, 'theta'] += np.pi / 2
+            dcc = dcc[(dcc['theta'] - ang_avg) < ang_diff]
+            if cuadrant == 0 or cuadrant == 1:
+                dcc.loc[:, 'x'] = dcc['x2']
+                dcc.loc[:, 'y'] = dcc['y2']
+            if cuadrant == 2 or cuadrant == 3:
+                dcc.loc[:, 'x'] = dcc['x1']
+                dcc.loc[:, 'y'] = dcc['y1']
+            dcc.drop(columns=['x1', 'y1', 'x1', 'x2'])
+            out = out.append(dcc)
+
+    out.loc[:, 'xum'] = out['x']
+    out.loc[:, 'yum'] = out['y']
+    return out
+
+
+def obj_function(_df, x, y, radius=10, n=16, ax=None):
     box = Polygon(
         [(x - radius, y - radius), (x - radius, y + radius), (x + radius, y + radius), (x + radius, y - radius)])
     if min(box.bounds) < 0 or min(box.bounds) > 512: return 0
+
+    n = 2 ** int(np.log2(n))
+    ang_diff = 2 * np.pi / n
 
     in_idx = _df['pt1'].apply(lambda pt: pt.within(box)) & _df['pt2'].apply(lambda pt: pt.within(box))
     df = _df[in_idx]
@@ -199,29 +255,26 @@ def obj_function(_df, x, y, radius=10, n=16, ax=None):
         pn_idx = df['theta'].apply(lambda t: t < 0 if (cuadrant == 0 or cuadrant == 2) else t > 0)
         dc = df[pn_idx]
         for i in range(divs_per_cuadrant):
-            ang_i = 2 * np.pi / n * i
-            ang_ii = 2 * np.pi / n * (i + 1)
+            ang_i = ang_diff * i
+            ang_ii = ang_i + ang_diff
+            ang_avg = (ang_ii + ang_i) / 2
+
             # build triangle
             c_ang = cuadrant / 2 * np.pi
-            tri = Polygon([(x, y),
-                           (x + radius * np.cos(ang_i + c_ang), y + radius * np.sin(ang_i + c_ang)),
-                           (x + radius * np.cos(ang_ii + c_ang), y + radius * np.sin(ang_ii + c_ang))
-                           ])
+            tri = triangle(x, y, radius=radius, angle_start=ang_i + c_ang, angle_delta=ang_diff)
 
             in_idx = dc['pt1'].apply(lambda pt: pt.within(tri)) & dc['pt2'].apply(lambda pt: pt.within(tri))
 
-            ang_avg = (ang_ii + ang_i) / 2
-            ang_diff = np.abs(ang_ii - ang_i)
             if (cuadrant == 0 or cuadrant == 2): dc.loc[in_idx, 'theta'] += np.pi / 2
             in_ang = dc.loc[in_idx, 'theta'].apply(lambda t: np.abs(t - ang_avg) < ang_diff)
             # o += dc.loc[in_idx & in_ang, 'theta'].sum()
-            o += len(dc[in_idx & in_ang])
+            o += len((in_idx & in_ang) == True)
 
             if ax is not None:
-                # ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.1, c=color)
                 ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.5, c='white')
-                # for ix, row in dc[in_idx & in_ang].iterrows():
-                #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=0.3)
+                for ix, row in dc[in_idx & in_ang].iterrows():
+                    ax.scatter(row['x1'], row['y1'], s=1, c='blue')
+                    ax.scatter(row['x2'], row['y2'], s=1, c='red')
         cuadrants.append(o)
 
     return min(cuadrants)
@@ -236,12 +289,7 @@ def detection(images, pix_per_um=1):
     nobkg = nobkg[1:, :, :]
     nobkg = np.uint16(nobkg.clip(0))
 
-    # last_frame=np.zeros(frames[0].shape,dtype=bool)
     for num, im in enumerate(nobkg):
-
-        # median=rank.median(image=im, selem=disk(0.2*pix_per_um))
-        # thr_lvl=filters.threshold_otsu(median)
-
         thr_lvl = filters.threshold_otsu(im)
         thresh = im >= thr_lvl
         morphology.remove_small_objects(thresh, min_size=2 * pix_per_um, in_place=True)
@@ -280,10 +328,10 @@ def detection(images, pix_per_um=1):
 
 
 def do_trackpy(image_path):
-    _images, pix_per_um, dt = sp.load_tiff(image_path)
-    w, h = _images[0].shape[0], _images[0].shape[1]
+    images, pix_per_um, dt = sp.load_tiff(image_path)
+    w, h = images[0].shape[0], images[0].shape[1]
 
-    f = detection(_images, pix_per_um=pix_per_um)
+    f = detection(images, pix_per_um=pix_per_um)
     # f.to_pickle('f.pandas')
     # f = pd.read_pickle('f.pandas')
     log.info("detection step completed.")
@@ -291,8 +339,8 @@ def do_trackpy(image_path):
     divs = 20
     x = np.linspace(0, w / pix_per_um, divs)
     y = np.linspace(0, h / pix_per_um, divs)
-    obj = np.zeros((x.size, y.size), dtype=np.float32)
     xx, yy = np.meshgrid(x, y)
+    obj = np.zeros((x.size, y.size), dtype=np.float32)
     for i in range(x.size):
         for j in range(y.size):
             print(j, i, )
@@ -302,26 +350,28 @@ def do_trackpy(image_path):
 
     fig = plt.figure()
     ax = fig.gca()
-    # obj_function(f, 60, 65, ax=ax)
     ax.imshow(obj, interpolation='none', extent=[0, w / pix_per_um, h / pix_per_um, 0])
     for ix, row in f.iterrows():
         ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=0.3)
+
+    filtered = pd.DataFrame()
     for i in range(obj.shape[0]):
         for j in range(obj.shape[1]):
             if obj[j, i] > 10:
                 obj_function(f, xx[j, i], yy[j, i], ax=ax)
+                filtered = filtered.append(filter_wheel(f, xx[j, i], yy[j, i]))
             # text = ax.text(xx[j, i], yy[j, i], '%d' % obj[j, i], ha="center", va="center", color="w",
             #                fontsize='xx-small')
 
     ax.set_aspect('equal')
-    fig.savefig('objfn.png')
+    fig.savefig('%s_objfn.png' % image_path[:-4])
 
     # fig = plt.figure()
     # ax = fig.gca()
     # for ix, row in f.iterrows():
     #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='k', alpha=0.3)
     # fig.savefig('linedens.pdf', format='pdf')
-    exit()
+    # exit()
 
     # for search_range in [1.0, 1.5, 2.0, 2.5]:
     #     linked = tp.link_df(f, search_range, pos_columns=['xum', 'yum'])
@@ -336,22 +386,22 @@ def do_trackpy(image_path):
     search_range = 0.4
     pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.1)
     # trackpy.linking.Linker.MAX_SUB_NET_SIZE=50
-    linked = pred.link_df(f, search_range, pos_columns=['xum', 'yum'])
+    linked = pred.link_df(filtered, search_range, pos_columns=['xum', 'yum'])
 
-    #  filter spurious tracks
-    frames_per_particle = linked.groupby('particle')['frame'].nunique()
-    particles = frames_per_particle[frames_per_particle > 8].index
-    linked = linked[linked['particle'].isin(particles)]
-    logging.info('filtered %d particles by track length' % linked['particle'].nunique())
+    # #  filter spurious tracks
+    # frames_per_particle = linked.groupby('particle')['frame'].nunique()
+    # particles = frames_per_particle[frames_per_particle > 8].index
+    # linked = linked[linked['particle'].isin(particles)]
+    # logging.info('filtered %d particles by track length' % linked['particle'].nunique())
+    #
+    # m = tp.imsd(linked, 1, 1, pos_columns=['xum', 'yum'])
+    # mt = m.ix[15]
+    # particles = mt[mt > 1].index
+    # linked = linked[linked['particle'].isin(particles)]
+    # logging.info('filtered %d particles msd' % linked['particle'].nunique())
 
-    m = tp.imsd(linked, 1, 1, pos_columns=['xum', 'yum'])
-    mt = m.ix[15]
-    particles = mt[mt > 1].index
-    linked = linked[linked['particle'].isin(particles)]
-    logging.info('filtered %d particles msd' % linked['particle'].nunique())
-
-    movie(_images, linked, filename='%s.mp4' % image_path[:-4], pix_per_um=pix_per_um)
-    # exit()
+    movie(images, linked, obj, filename='%s.mp4' % image_path[:-4], pix_per_um=pix_per_um)
+    exit()
 
     return linked
 
