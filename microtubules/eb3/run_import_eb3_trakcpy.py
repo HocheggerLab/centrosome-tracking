@@ -1,14 +1,10 @@
 import logging
 import os
 import re
-import sys
 import warnings
 
-import coloredlogs
 import pandas as pd
 import trackpy as tp
-import trackpy.diag
-import trackpy.predict
 import matplotlib.pyplot as plt
 import numpy as np
 import tifffile as tf
@@ -16,7 +12,6 @@ from moviepy.video.io.bindings import mplfig_to_npimage
 import moviepy.editor as mpy
 import skimage.draw as draw
 import skimage.filters as filters
-import skimage.exposure as exposure
 import skimage.morphology as morphology
 import skimage.measure as measure
 import skimage.color as color
@@ -28,12 +23,11 @@ import parameters as p
 import plot_special_tools as sp
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
-tp.diag.performance_report()
-logging.basicConfig(stream=sys.stderr, format='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
+# coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
+# tp.diag.performance_report()
+# logging.basicConfig(stream=sys.stderr, format='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 log = logging.getLogger(__name__)
-coloredlogs.install()
-trackpy.quiet()
+tp.quiet()
 pd.set_option('display.width', 320)
 
 
@@ -46,30 +40,20 @@ def movie(frames, linked_particles, objective_fn, n=16, filename="movie.mp4", pi
         w, h = im.shape[0], im.shape[1]
 
         ax.imshow(im, cmap=cm.gray, interpolation='none', extent=[0, w / pix_per_um, h / pix_per_um, 0])
-        for ix, gr in linked_particles.groupby('particle'):
-            ax.plot(gr['xum'], gr['yum'], lw=1, c='white', alpha=0.5)
-            ax.scatter(gr.loc[gr['frame'] == fr, 'xum'], gr.loc[gr['frame'] == fr, 'yum'], s=1, c='red')
-
-        divs = 20
-        x = np.linspace(0, w / pix_per_um, divs)
-        y = np.linspace(0, h / pix_per_um, divs)
-        xx, yy = np.meshgrid(x, y)
-        for i in range(objective_fn.shape[0]):
-            for j in range(objective_fn.shape[1]):
-                if objective_fn[j, i] > 10:
-                    divs_per_cuadrant = int(n / 4)
-                    n = 2 ** int(np.log2(n))
-                    ang_diff = 2 * np.pi / n
-                    for cuadrant, color in zip(range(4), ['red', 'blue', 'green', 'yellow']):
-                        c_ang = cuadrant / 2 * np.pi
-                        for i in range(divs_per_cuadrant):
-                            ang_i = ang_diff * i
-                            tri = triangle(xx[j, i], yy[j, i], radius=10, angle_start=ang_i + c_ang,
-                                           angle_delta=ang_diff)
-                            ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.5, c='white')
+        # for ix, gr in linked_particles.groupby('particle'):
+        #     ax.plot(gr['xum'], gr['yum'], lw=1, c='white', alpha=0.5)
+        #     ax.scatter(gr.loc[gr['frame'] == fr, 'xum'], gr.loc[gr['frame'] == fr, 'yum'], s=1, c='red')
+        lp = linked_particles
+        ax.scatter(lp.loc[lp['frame'] == fr, 'xum'], lp.loc[lp['frame'] == fr, 'yum'], s=4, c='green')
+        # ax.scatter(lp.loc[lp['frame'] == fr, 'x1'], lp.loc[lp['frame'] == fr, 'y1'], s=1, c='red')
+        # ax.scatter(lp.loc[lp['frame'] == fr, 'x2'], lp.loc[lp['frame'] == fr, 'y2'], s=1, c='blue')
+        ax.plot([lp.loc[lp['frame'] == fr, 'x1'], lp.loc[lp['frame'] == fr, 'x2']],
+                [lp.loc[lp['frame'] == fr, 'y1'], lp.loc[lp['frame'] == fr, 'y2']], lw=0.5, c='white')
 
         ax.set_xlabel("x [um]")
         ax.set_ylabel("y [um]")
+        ax.set_xlim([0, w / pix_per_um])
+        ax.set_ylim([0, h / pix_per_um])
 
         return mplfig_to_npimage(fig)  # RGB image of the figure
 
@@ -81,11 +65,13 @@ def movie(frames, linked_particles, objective_fn, n=16, filename="movie.mp4", pi
 
     # path, fim = os.path.split(image_path)
     linked_particles['frame'] += 1
-    nobkg = exposure.equalize_hist(nobkg)
-    frames = exposure.equalize_hist(frames)
+    thr_lvl = filters.threshold_otsu(nobkg)
+    nobkg = nobkg >= thr_lvl
+    morphology.remove_small_objects(nobkg, min_size=2 * pix_per_um, in_place=True)
     nobkg = color.gray2rgb(nobkg)
-    frames = color.gray2rgb(frames)
-    render = frames[1:] * 0.2 + nobkg * sp.colors.hoechst_33342 * 0.4
+    # frames = color.gray2rgb(frames)
+    # render = frames[1:] * 0.2 + nobkg * sp.colors.hoechst_33342 * 0.4
+    render = nobkg * sp.colors.alexa_594
 
     logging.info("rendering movie %s" % filename)
     fig = plt.figure(20)
@@ -144,12 +130,12 @@ def vis_detection(image_path, filename="movie.mp4"):
                 l_sint, l_cost = np.sin(region.orientation) * l, np.cos(region.orientation) * l
                 xx1, yy1 = cc + l_sint, rc + l_cost  # don't know why, but i had to interchange sin and cos
                 xx2, yy2 = cc - l_sint, rc - l_cost
-            if region.orientation == 0:
+            elif region.orientation == 0:
                 # log.warning("orientation was zero!")
                 out[rp, cp, :] = (1, 1, 1)
                 xx1, yy1 = cc + l, rc
                 xx2, yy2 = cc - l, rc
-            if region.orientation < 0:
+            else:
                 out[rp, cp, :] = (1, 0, 1)
                 l_sint, l_cost = np.sin(np.pi - region.orientation) * l, np.cos(np.pi - region.orientation) * l
                 xx1, yy1 = cc + l_sint, rc - l_cost  # don't know why, but i had to interchange sin and cos
@@ -179,7 +165,6 @@ def vis_detection(image_path, filename="movie.mp4"):
     animation = mpy.VideoClip(make_frame_mpl, duration=len(frames))
     animation.write_videofile(filename, fps=1)
     animation.close()
-    exit()
 
 
 def triangle(x, y, radius=10, angle_start=0, angle_delta=np.pi / 8):
@@ -190,9 +175,9 @@ def triangle(x, y, radius=10, angle_start=0, angle_delta=np.pi / 8):
     return tri
 
 
-def filter_wheel(df, x, y, radius=10, n=16):
-    box = Polygon(
-        [(x - radius, y - radius), (x - radius, y + radius), (x + radius, y + radius), (x + radius, y - radius)])
+def filter_wheel(inp, x, y, radius=10, n=16):
+    # box = Polygon(
+    #     [(x - radius, y - radius), (x - radius, y + radius), (x + radius, y + radius), (x + radius, y - radius)])
 
     n = 2 ** int(np.log2(n))
     ang_diff = 2 * np.pi / n
@@ -204,7 +189,7 @@ def filter_wheel(df, x, y, radius=10, n=16):
 
     # fill four cuadrants
     divs_per_cuadrant = int(n / 4)
-    for cuadrant, color in zip(range(4), ['red', 'blue', 'green', 'yellow']):
+    for cuadrant, color in zip(range(1, 5), ['red', 'blue', 'green', 'yellow']):
         pn_idx = df['theta'].apply(lambda t: t < 0 if (cuadrant == 0 or cuadrant == 2) else t > 0)
         dc = df[pn_idx]
         for i in range(divs_per_cuadrant):
@@ -213,20 +198,21 @@ def filter_wheel(df, x, y, radius=10, n=16):
             ang_avg = (ang_ii + ang_i) / 2
 
             # build triangle
-            c_ang = cuadrant / 2 * np.pi
+            c_ang = (cuadrant - 1) / 2 * np.pi
             tri = triangle(x, y, radius=radius, angle_start=ang_i + c_ang, angle_delta=ang_diff)
 
             in_idx = dc['pt1'].apply(lambda pt: pt.within(tri)) & dc['pt2'].apply(lambda pt: pt.within(tri))
             dcc = dc[in_idx]
 
-            if cuadrant == 0 or cuadrant == 2: dcc.loc[:, 'theta'] += np.pi / 2
-            dcc = dcc[(dcc['theta'] - ang_avg) < ang_diff]
-            if cuadrant == 0 or cuadrant == 1:
-                dcc.loc[:, 'x'] = dcc['x2']
-                dcc.loc[:, 'y'] = dcc['y2']
-            if cuadrant == 2 or cuadrant == 3:
+            if cuadrant == 2 or cuadrant == 4:
+                dcc.loc[:, 'theta'] += np.pi / 2
+            dcc = dcc[(dcc['theta'] + ang_avg - np.pi / 2) < ang_diff]
+            if cuadrant == 1 or cuadrant == 2:
                 dcc.loc[:, 'x'] = dcc['x1']
                 dcc.loc[:, 'y'] = dcc['y1']
+            if cuadrant == 3 or cuadrant == 4:
+                dcc.loc[:, 'x'] = dcc['x2']
+                dcc.loc[:, 'y'] = dcc['y2']
             dcc.drop(columns=['x1', 'y1', 'x1', 'x2'])
             out = out.append(dcc)
 
@@ -235,7 +221,7 @@ def filter_wheel(df, x, y, radius=10, n=16):
     return out
 
 
-def obj_function(_df, x, y, radius=10, n=16, ax=None):
+def obj_function(df, x, y, radius=10, n=16, ax=None):
     box = Polygon(
         [(x - radius, y - radius), (x - radius, y + radius), (x + radius, y + radius), (x + radius, y - radius)])
     if min(box.bounds) < 0 or min(box.bounds) > 512: return 0
@@ -250,31 +236,38 @@ def obj_function(_df, x, y, radius=10, n=16, ax=None):
     # fill four cuadrants
     cuadrants = list()
     divs_per_cuadrant = int(n / 4)
-    for cuadrant, color in zip(range(4), ['red', 'blue', 'green', 'yellow']):
+    for cuadrant, color in zip(range(1, 5), ['red', 'blue', 'green', 'yellow']):
         o = 0
-        pn_idx = df['theta'].apply(lambda t: t < 0 if (cuadrant == 0 or cuadrant == 2) else t > 0)
-        dc = df[pn_idx]
+        pn_idx = _df['theta'].apply(lambda t: t > 0 if (cuadrant == 1 or cuadrant == 3) else t < 0)
+        dc = _df[pn_idx]
+        log.debug('- 2', dc['pt1'].count())
         for i in range(divs_per_cuadrant):
+            # if cuadrant != 1 or i != 0: continue
             ang_i = ang_diff * i
             ang_ii = ang_i + ang_diff
             ang_avg = (ang_ii + ang_i) / 2
 
             # build triangle
-            c_ang = cuadrant / 2 * np.pi
+            c_ang = (cuadrant - 1) / 2 * np.pi
             tri = triangle(x, y, radius=radius, angle_start=ang_i + c_ang, angle_delta=ang_diff)
 
             in_idx = dc['pt1'].apply(lambda pt: pt.within(tri)) & dc['pt2'].apply(lambda pt: pt.within(tri))
+            if len(dc[in_idx]) == 0: continue
+            log.debug('- 3', dc[in_idx]['pt1'].count())
 
-            if (cuadrant == 0 or cuadrant == 2): dc.loc[in_idx, 'theta'] += np.pi / 2
-            in_ang = dc.loc[in_idx, 'theta'].apply(lambda t: np.abs(t - ang_avg) < ang_diff)
-            # o += dc.loc[in_idx & in_ang, 'theta'].sum()
-            o += len((in_idx & in_ang) == True)
+            if (cuadrant == 2 or cuadrant == 4):
+                dc.loc[in_idx, 'theta'] += np.pi / 2
+            in_ang = np.abs(dc.loc[in_idx, 'theta'] + ang_avg - np.pi / 2) < ang_diff
+            log.debug('- 4', dc[in_idx & in_ang]['pt1'].count())
+            if len(dc[in_idx & in_ang]) == 0: continue
+            o += len(dc[in_idx & in_ang])
 
             if ax is not None:
                 ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.5, c='white')
                 for ix, row in dc[in_idx & in_ang].iterrows():
-                    ax.scatter(row['x1'], row['y1'], s=1, c='blue')
-                    ax.scatter(row['x2'], row['y2'], s=1, c='red')
+                    ax.scatter(row['x1'], row['y1'], s=5, c='blue')
+                    ax.scatter(row['x2'], row['y2'], s=5, c='red')
+                    ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=1)
         cuadrants.append(o)
 
     return min(cuadrants)
@@ -315,11 +308,11 @@ def detection(images, pix_per_um=1):
                 xx1, yy1 = cc + l_sint, rc - l_cost  # don't know why, but i had to interchange sin and cos
                 xx2, yy2 = cc - l_sint, rc + l_cost
 
-            features = features.append([{'x': rc, 'y': cc,
-                                         'pt1': Point((xx1 / pix_per_um, (h - yy1) / pix_per_um)),
-                                         'pt2': Point((xx2 / pix_per_um, (h - yy2) / pix_per_um)),
-                                         'x1': xx1 / pix_per_um, 'y1': (h - yy1) / pix_per_um,
-                                         'x2': xx2 / pix_per_um, 'y2': (h - yy2) / pix_per_um,
+            features = features.append([{'x': cc, 'y': rc,
+                                         'pt1': Point((xx1 / pix_per_um, yy1 / pix_per_um)),
+                                         'pt2': Point((xx2 / pix_per_um, yy2 / pix_per_um)),
+                                         'x1': xx1 / pix_per_um, 'y1': yy1 / pix_per_um,
+                                         'x2': xx2 / pix_per_um, 'y2': yy2 / pix_per_um,
                                          'theta': region.orientation, 'frame': num}])
 
     features['xum'] = features['x'] / pix_per_um
@@ -340,24 +333,27 @@ def do_trackpy(image_path):
     x = np.linspace(0, w / pix_per_um, divs)
     y = np.linspace(0, h / pix_per_um, divs)
     xx, yy = np.meshgrid(x, y)
-    obj = np.zeros((x.size, y.size), dtype=np.float32)
+    obj = np.zeros((x.size, y.size), dtype=np.int16)
     for i in range(x.size):
         for j in range(y.size):
-            print(j, i, )
             obj[j, i] = obj_function(f, xx[j, i], yy[j, i])
+            print(j, i, obj[j, i])
     # np.savetxt('obj.csv', obj)
     # obj = np.loadtxt('obj.csv')
 
-    fig = plt.figure()
+    fig = plt.figure(dpi=150)
     ax = fig.gca()
+    ax.set_facecolor(sp.colors.sussex_cobalt_blue)
     ax.imshow(obj, interpolation='none', extent=[0, w / pix_per_um, h / pix_per_um, 0])
     for ix, row in f.iterrows():
-        ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=0.3)
+        ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=0.1, c='white', alpha=0.1)
+    # obj_function(f, 60, 65, ax=ax)
 
     filtered = pd.DataFrame()
     for i in range(obj.shape[0]):
         for j in range(obj.shape[1]):
             if obj[j, i] > 10:
+                print(j, i, obj[j, i])
                 obj_function(f, xx[j, i], yy[j, i], ax=ax)
                 filtered = filtered.append(filter_wheel(f, xx[j, i], yy[j, i]))
             # text = ax.text(xx[j, i], yy[j, i], '%d' % obj[j, i], ha="center", va="center", color="w",
@@ -366,24 +362,10 @@ def do_trackpy(image_path):
     ax.set_aspect('equal')
     fig.savefig('%s_objfn.png' % image_path[:-4])
 
-    # fig = plt.figure()
-    # ax = fig.gca()
-    # for ix, row in f.iterrows():
-    #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='k', alpha=0.3)
-    # fig.savefig('linedens.pdf', format='pdf')
-    # exit()
+    if len(filtered) == 0:
+        raise Exception('no data after filter.')
 
-    # for search_range in [1.0, 1.5, 2.0, 2.5]:
-    #     linked = tp.link_df(f, search_range, pos_columns=['xum', 'yum'])
-    #     hist, bins = np.histogram(np.bincount(linked.particle.astype(int)),
-    #                               bins=np.arange(30), normed=True)
-    #     plt.step(bins[1:], hist, label='range = {} microns'.format(search_range))
-    # plt.gca().set(ylabel='relative frequency', xlabel='track length (frames)')
-    # plt.legend()
-    # plt.show()
-    # exit()
-
-    search_range = 0.4
+    search_range = 0.2
     pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.1)
     # trackpy.linking.Linker.MAX_SUB_NET_SIZE=50
     linked = pred.link_df(filtered, search_range, pos_columns=['xum', 'yum'])
@@ -401,7 +383,6 @@ def do_trackpy(image_path):
     # logging.info('filtered %d particles msd' % linked['particle'].nunique())
 
     movie(images, linked, obj, filename='%s.mp4' % image_path[:-4], pix_per_um=pix_per_um)
-    exit()
 
     return linked
 
