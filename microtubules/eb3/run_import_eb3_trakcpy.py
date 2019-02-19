@@ -182,8 +182,12 @@ def filter_wheel(inp, x, y, radius=10, n=16):
     n = 2 ** int(np.log2(n))
     ang_diff = 2 * np.pi / n
 
-    in_idx = df['pt1'].apply(lambda pt: pt.within(box)) & df['pt2'].apply(lambda pt: pt.within(box))
-    df = df[in_idx]
+    # in_idx = inp['pt1'].apply(lambda pt: pt.within(box)) & inp['pt2'].apply(lambda pt: pt.within(box))
+    in_idx = ((inp['x1'] > x - radius) | (inp['x2'] > x - radius)) & (
+            (inp['x1'] < x + radius) | (inp['x2'] < x + radius)) & (
+                     (inp['y1'] > y - radius) | (inp['y2'] > y - radius)) & (
+                     (inp['y1'] < y + radius) | (inp['y2'] < y + radius))
+    df = inp[in_idx]
     out = pd.DataFrame()
     if len(df) == 0: return out
 
@@ -229,9 +233,15 @@ def obj_function(df, x, y, radius=10, n=16, ax=None):
     n = 2 ** int(np.log2(n))
     ang_diff = 2 * np.pi / n
 
-    in_idx = _df['pt1'].apply(lambda pt: pt.within(box)) & _df['pt2'].apply(lambda pt: pt.within(box))
-    df = _df[in_idx]
-    if len(df) == 0: return 0
+    log.debug('- 0', df['pt1'].count())
+    # in_idx = _df['pt1'].apply(lambda pt: pt.within(box)) & _df['pt2'].apply(lambda pt: pt.within(box))
+    in_idx = ((df['x1'] > x - radius) | (df['x2'] > x - radius)) & (
+            (df['x1'] < x + radius) | (df['x2'] < x + radius)) & (
+                     (df['y1'] > y - radius) | (df['y2'] > y - radius)) & (
+                     (df['y1'] < y + radius) | (df['y2'] < y + radius))
+    _df = df[in_idx]
+    if len(_df) == 0: return 0
+    log.debug('- 1', len(_df))
 
     # fill four cuadrants
     cuadrants = list()
