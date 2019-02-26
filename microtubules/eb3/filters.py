@@ -3,16 +3,29 @@ import warnings
 
 import pandas as pd
 import numpy as np
-from shapely.geometry import Polygon
+from shapely.geometry import LinearRing, Point, Polygon
 import geopandas as gp
+
+from tools.measurements import integral_over_surface
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 log = logging.getLogger(__name__)
 
 
+def _angle(pt1, pt2):
+    dx = pt2.x - pt1.x
+    dy = pt2.y - pt1.y
+
+    if dy >= 0:
+        return np.arctan2(dy, dx)
+    else:
+        return np.arctan2(dy, dx) + 2 * np.pi
+
+
 class Wheel:
-    def __init__(self, df, radius=10, number_of_divisions=16):
+    def __init__(self, df, image, radius=10, number_of_divisions=16):
         self.df = gp.GeoDataFrame(df, geometry="l")
+        self.image = image
         self.radius = radius
         self.n = 2 ** int(np.log2(number_of_divisions))
         self.angle_delta = 2 * np.pi / number_of_divisions
@@ -123,16 +136,55 @@ class Wheel:
 
         return cuadrants
 
+    def dev_from_circle_angles(self, x, y):
+        center = Point(x, y)
+        circle = LinearRing(list(center.buffer(4).exterior.coords))
+        in_idx = self.df["l"].apply(lambda r: circle.crosses(r))
+        df = self.df[in_idx]
+        if len(df) == 0: return 0
+
+        df.loc[:, "i"] = df["l"].intersection(circle)
+        df = df[df["i"].apply(lambda r: type(r) == Point)]
+
+        # df.loc[:, "angle"] = df["i"].apply(lambda r: np.arctan2(center.x - r.x, center.y - r.y))
+        df.loc[:, "angle"] = df["i"].apply(lambda r: _angle(center, r))
+        df.loc[(df["angle"] > np.pi) & (df["angle"] <= 2 * np.pi), "theta"] += np.pi
+        df.loc[:, "adiff"] = np.abs(df["angle"] - df["theta"])
+
+        fn = 1 / df["adiff"].sum() + len(df) + integral_over_surface(self.image, center.buffer(1)) * 1e-4
+
+        return fn
+
     def plot(self, x, y, ax):
-        divs_per_cuadrant = int(self.n / 4)
-        for cuadrant, color in zip(range(1, 5), ['red', 'blue', 'green', 'yellow']):
-            for i in range(divs_per_cuadrant):
-                # build triangle
-                ang_i = self.angle_delta * i
-                c_ang = (cuadrant - 1) / 2 * np.pi
-                tri = self.triangle(x, y, angle_start=ang_i + c_ang)
-                ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.1, c='white')
-                # for ix, row in dc[in_idx & in_ang].iterrows():
-                #     ax.scatter(row['x1'], row['y1'], s=5, c='blue')
-                #     ax.scatter(row['x2'], row['y2'], s=5, c='red')
-                #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=1)
+        # divs_per_cuadrant = int(self.n / 4)
+        # for cuadrant, color in zip(range(1, 5), ['red', 'blue', 'green', 'yellow']):
+        #     for i in range(divs_per_cuadrant):
+        #         # build triangle
+        #         ang_i = self.angle_delta * i
+        #         c_ang = (cuadrant - 1) / 2 * np.pi
+        #         tri = self.triangle(x, y, angle_start=ang_i + c_ang)
+        #         ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.1, c='white')
+        #         # for ix, row in dc[in_idx & in_ang].iterrows():
+        #         #     ax.scatter(row['x1'], row['y1'], s=5, c='blue')
+        #         #     ax.scatter(row['x2'], row['y2'], s=5, c='red')
+        #         #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=1)
+        center = Point(x, y)
+        circle = LinearRing(list(center.buffer(4).exterior.coords))
+        in_idx = self.df["l"].apply(lambda r: circle.crosses(r))
+        df = self.df[in_idx]
+
+        # df.loc[:, "i"] = df["l"].intersection(circle)
+        # df.loc[:, "angle"] = df["i"].apply(lambda r: _angle(center, r))
+        # df.loc[(df["angle"] > np.pi) & (df["angle"] <= 2 * np.pi), "theta"] += np.pi
+        # df = df.set_index("angle").sort_index().reset_index()
+        # # df = df[(df["angle"] > 0) & (df["angle"] < np.pi / 2)]
+        # # df = df[(df["angle"] > np.pi / 2) & (df["angle"] < np.pi)]
+        # # df = df[(df["angle"] > np.pi) & (df["angle"] < 3 / 2 * np.pi)]
+        # df = df[(df["angle"] > 3 / 2 * np.pi) & (df["angle"] < 2 * np.pi)]
+        # print(df[["angle", "theta"]])
+        # import matplotlib.pyplot as plt
+        # df[["angle", "theta"]].plot()
+        # plt.show()
+
+        df["l"].plot(lw=0.5, color="red", ax=ax)
+        ax.plot(circle.coords.xy[0], circle.coords.xy[1], c="white")

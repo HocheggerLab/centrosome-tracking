@@ -600,7 +600,8 @@ def load_tiff(path):
 
             frames = None
             if len(tif.pages) == 1:
-                if 'slices' in metadata and metadata['slices'] > 1:
+                if ('slices' in metadata and metadata['slices'] > 1) or (
+                        'frames' in metadata and metadata['frames'] > 1):
                     frames = tif.pages[0].asarray()
                 else:
                     frames = [tif.pages[0].asarray()]

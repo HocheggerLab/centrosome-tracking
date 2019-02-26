@@ -20,6 +20,8 @@ from matplotlib import cm
 from scipy import ndimage
 from shapely.geometry import LineString, Point
 
+from tools.draggable import DraggableCircle
+from microtubules.eb3 import aster
 import parameters as p
 import plot_special_tools as sp
 from microtubules.eb3.filters import Wheel
@@ -225,12 +227,12 @@ def detection(images, pix_per_um=1):
                                                           (xx2 / pix_per_um, yy2 / pix_per_um)]),
                                          'x1': xx1 / pix_per_um, 'y1': yy1 / pix_per_um,
                                          'x2': xx2 / pix_per_um, 'y2': yy2 / pix_per_um,
-                                         'theta': region.orientation, 'frame': num}])
+                                         'theta': np.pi / 2 - region.orientation, 'frame': num}])
 
     return features.reset_index(drop=True)
 
 
-def do_tracking(image_path):
+def do_tracking(image_path, asters=None):
     images, pix_per_um, dt = sp.load_tiff(image_path)
     w, h = images[0].shape[0], images[0].shape[1]
 
@@ -240,41 +242,45 @@ def do_tracking(image_path):
     # f = pd.read_pickle('f.pandas')
     log.info("detection step completed.")
 
-    x = np.arange(0, w / pix_per_um, 5)
-    y = np.arange(0, h / pix_per_um, 5)
-    xx, yy = np.meshgrid(x, y)
-    wheel = Wheel(f, radius=15)
-    obj = np.zeros((x.size, y.size), dtype=np.int16)
-    tot = x.size * y.size
-    printProgressBar(0, tot, prefix='Progress:', suffix='', length=50)
-    for i in range(x.size):
-        for j in range(y.size):
-            lines_per_cuadrant = wheel.count_lines_with_same_slope(xx[j, i], yy[j, i])
-            obj[j, i] = min(lines_per_cuadrant)
-            # Update Progress Bar
-            printProgressBar(i * x.size + j, tot, prefix='Progress:', suffix=' Fn=%d' % obj[j, i], length=50)
-    #         # print(j, i, obj[j, i])
-    # np.savetxt('obj.csv', obj)
-    # obj = np.loadtxt('obj.csv')
+    # Estimate centrosome asters automatically if not provided by parameter
+    wheel = Wheel(f, np.max(images, axis=0), radius=15)
+    if asters is not None:
+        for a in asters:
+            wheel.add(a[0], a[1])
+    else:
+        x = np.arange(10, w / pix_per_um - 10, 5)
+        y = np.arange(10, h / pix_per_um - 10, 5)
+        xx, yy = np.meshgrid(x, y)
+        obj = np.zeros((x.size, y.size), dtype=np.float32)
+        tot = x.size * y.size - 1
+        printProgressBar(0, tot, prefix='Progress:', suffix='', length=50)
+        for i in range(x.size):
+            for j in range(y.size):
+                lines_per_cuadrant = wheel.count_lines_with_same_slope(xx[j, i], yy[j, i])
+                obj[j, i] = min(lines_per_cuadrant)
+                # Update Progress Bar
+                printProgressBar(i * x.size + j, tot, prefix='Progress:', suffix=' Fn=%d' % obj[j, i], length=50)
+        # np.savetxt('obj.csv', obj)
+        # obj = np.loadtxt('obj.csv')
 
-    p99 = np.percentile(obj.ravel(), 99)
-    log.debug("selecting Fn greater than %d" % p99)
-    log.debug(scipy.stats.describe(obj.ravel()))
-    for i in range(x.size):
-        for j in range(y.size):
-            if obj[j, i] > p99:
-                wheel.add(xx[j, i], yy[j, i])
-            # Update Progress Bar
-            # printProgressBar(i * x.size + j, x.size * y.size, prefix='Progress:', suffix='Complete. Fn=%d' % obj[j, i],
-            #                  length=50)
-    log.debug("%d points selected" % len(wheel.best))
+        p_high = np.percentile(obj.ravel(), 95)
+        log.debug("selecting Fn higher than %d" % p_high)
+        log.debug(scipy.stats.describe(obj.ravel()))
+        for i in range(x.size):
+            for j in range(y.size):
+                if obj[j, i] > p_high:
+                    wheel.add(xx[j, i], yy[j, i])
+                # Update Progress Bar
+                # printProgressBar(i * x.size + j, x.size * y.size, prefix='Progress:', suffix='Complete. Fn=%d' % obj[j, i],
+                #                  length=50)
+        log.debug("%d points selected" % len(wheel.best))
 
     fig = plt.figure(dpi=150)
     ax = fig.gca()
     ax.set_facecolor(sp.colors.sussex_cobalt_blue)
     ext = [0, w / pix_per_um, h / pix_per_um, 0]
     ax.imshow(np.max(images, axis=0), interpolation='none', extent=ext, cmap=cm.gray)
-    ax.imshow(obj, interpolation='none', extent=ext, alpha=0.3)
+    # ax.imshow(obj, interpolation='none', extent=ext, alpha=0.3)
     # for ix, row in f.iterrows():
     #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=0.1, c='white', alpha=0.1)
     # obj_function(f, 60, 65, ax=ax)
@@ -285,6 +291,8 @@ def do_tracking(image_path):
         filtered = filtered.append(wheel.filter_wheel(xb, yb))
 
     ax.set_aspect('equal')
+    ax.set_xlim([0, w / pix_per_um])
+    ax.set_ylim([0, h / pix_per_um])
     fig.savefig('%s_objfn.png' % image_path[:-4])
 
     if len(filtered) == 0:
@@ -307,9 +315,40 @@ def do_tracking(image_path):
     # linked = linked[linked['particle'].isin(particles)]
     # logging.info('filtered %d particles msd' % linked['particle'].nunique())
 
-    movie(images, linked, obj, filename='%s.mp4' % image_path[:-4], pix_per_um=pix_per_um)
+    movie(images, linked, wheel, filename='%s.mp4' % image_path[:-4], pix_per_um=pix_per_um)
 
     return linked
+
+
+def select_asters(image_path):
+    def on_key(event):
+        print('press', event.key)
+        if event.key == 'c':
+            ci = DraggableCircle(plt.Circle(xy=orig, radius=2, fc='g', picker=5))
+            asters.append(ci)
+            ax.add_artist(ci.circle)
+            ci.connect()
+            fig.canvas.draw()
+
+    images, pix_per_um, dt = sp.load_tiff(image_path)
+    w, h = images[0].shape[0], images[0].shape[1]
+
+    fig = plt.figure()
+    ax = fig.gca()
+    ext = [0, w / pix_per_um, h / pix_per_um, 0]
+    ax.imshow(np.max(images, axis=0), interpolation='none', extent=ext, cmap=cm.gray)
+    orig = (w / 2 / pix_per_um, h / 2 / pix_per_um)
+
+    ci = DraggableCircle(plt.Circle(xy=orig, radius=2, fc='g', picker=5))
+    asters = [ci]
+    ax.add_artist(ci.circle)
+    ci.connect()
+
+    cidkeyboard = fig.canvas.mpl_connect('key_press_event', on_key)
+    fig.canvas.draw()
+    plt.show()
+
+    return [a.circle.center for a in asters]
 
 
 def process_dir(dir_base):
@@ -327,11 +366,19 @@ def process_dir(dir_base):
                     log.warning(
                         "found a csv file with the same name of the one i'm trying to create, reading file instead of running tracking algorithm.")
                     log.warning("file: %s" % csv_file)
-                    df = df.append(pd.read_csv(csv_file, ignore_index=True))
+                    df = df.append(pd.read_csv(csv_file))
                     continue
                 try:  # process
+                    log.info('processing %s' % f)
+                    cfg_file = os.path.join(root, '%s.cfg' % f[:-4])
+                    if os.path.exists(cfg_file):
+                        asters = aster.read_aster_config(cfg_file)
+                    else:
+                        asters = select_asters(mpath)
+                        aster.write_aster_config(cfg_file, asters)
+
                     # vis_detection(mpath, filename='%s.mp4' % mpath[:-4])
-                    tdf = do_tracking(mpath)
+                    tdf = do_tracking(mpath, asters=asters)
                     tdf['condition'] = os.path.basename(os.path.dirname(root))
                     tdf['tag'] = f[:-4]
                     # tdf.drop(['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep'], axis=1, inplace=True)
