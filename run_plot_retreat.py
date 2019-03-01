@@ -91,7 +91,7 @@ msd_ylim = [0, 420]
 
 
 def rename_conditions(df):
-    for k, n in names.iteritems():
+    for k, n in names.items():
         df.loc[df['condition'] == k, 'condition'] = n
     return df
 
@@ -133,6 +133,7 @@ def retreat0(_df, _mask):
 
         between_df = df[df['CentrLabel'] == 'A']
         mask_c = r.centrosome_masks(mask)
+        mask_c['CentrLabel'] = 'A'
         time_of_c, frame_of_c, dist_of_c = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
 
         with sns.color_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_TURQUOISE]):
@@ -294,8 +295,8 @@ def retreat4(df):
         idx = ImagejPandas.MASK_INDEX
         idx.append('run')
         for i, (id, idf) in enumerate(df.groupby(ImagejPandas.NUCLEI_INDIV_INDEX)):
-            if 'CentrLabel' in idf:
-                idf = idf.drop('CentrLabel', axis=1)
+            # if 'CentrLabel' in idf:
+            #     idf = idf.drop('CentrLabel', axis=1)
             s = idf.set_index(idx).sort_index()
             u = s.unstack('Centrosome')
             # u = u.fillna(method='pad').stack().reset_index()
@@ -623,7 +624,7 @@ if __name__ == '__main__':
     dfcentr = df_mc[df_mc['CentrLabel'] == 'A']
     dfcentr['indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['Nuclei'].map(int).map(str)
     dfcentr.drop(
-        ['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY', 'Speed', 'Acc'],
+        ['CentrLabel', 'Centrosome', 'NuclBound', 'CentX', 'CentY', 'NuclX', 'NuclY', 'Speed', 'Acc'],
         axis=1, inplace=True)
 
     df_m.loc[:, 'indv'] = df_m['condition'] + '-' + df_m['run'] + '-' + df_m['Nuclei'].map(int).map(str) + '-' + \

@@ -21,7 +21,10 @@ from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+import matplotlib.ticker as ticker
+import scipy.stats
 
+import stats
 import parameters
 from imagej_pandas import ImagejPandas
 
@@ -152,9 +155,29 @@ def anotated_boxplot(data_grouped, var, point_size=5, fontsize=None, cat='condit
     # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
     if xlabels is not None:
         _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
-                            rotation=45, multialignment='right')
+                            rotation=0, multialignment='right')
     else:
-        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
+        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=0, multialignment='right')
+    _ax.xaxis.set_major_locator(ticker.NullLocator())
+
+    # plot pvalues
+    signals = data_grouped[cat].unique()
+    maxy = _ax.get_ylim()[1]
+    ypos = np.flip(_ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
+    dy = np.diff(ypos)[0] * -4
+    k = 0
+    for i, s11 in enumerate(signals):
+        for j, s12 in enumerate(signals):
+            if i < j:
+                sig1 = data_grouped[data_grouped[cat] == s11][var]
+                sig2 = data_grouped[data_grouped[cat] == s12][var]
+                st, p = scipy.stats.ttest_ind(sig1, sig2)
+                # st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
+                if p <= 0.05:
+                    ypos = maxy - dy * k
+                    _ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
+                    _ax.text(j, ypos - dy * 0.1, stats.star_system(p), ha='right', va='bottom', zorder=20)
+                    k += 1
     # ax.set_xlabel('')
 
     return _ax
@@ -215,7 +238,7 @@ def congression(cg, ax=None, order=None, linestyles=None):
 
 def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8), z_max=None):
     right_axes_class = (str(type(ax)) == "<class 'matplotlib.axes._subplots.Axes3DSubplot'>") or \
-                       (str(type(ax)) == "<class 'special_plots.Axes3DSubplot'>")
+                       (str(type(ax)) == "<class 'plot_special_tools.Axes3DSubplot'>")
 
     if not right_axes_class:
         raise Exception('Not the right axes class for ribbon plot.')

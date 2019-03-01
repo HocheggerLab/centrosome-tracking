@@ -9,6 +9,7 @@ from matplotlib import font_manager
 from matplotlib.backends.backend_pdf import PdfPages
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.ticker as ticker
 
 import mechanics as m
 import data as hdata
@@ -67,17 +68,17 @@ def fig_1(data):
         # ---------------------------
         #          PAGE
         # ---------------------------
-        # sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
-        sns.set_palette(['#000000', '#000000'])
+        sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
+        # sns.set_palette(['#000000', '#000000'])
         fig = plt.figure(dpi=_dpi, clear=True)
         ax = fig.gca()
 
         msd_harry.displacement_more_less(ax, '+1nmpp1+stlc-washout-STLC')
-        msd_harry.format_axes(ax, time_minor=5, time_major=20, msd_minor=25, msd_major=50)
+        msd_harry.format_axes(ax, time_minor=15, time_major=30, msd_minor=25, msd_major=50)
 
         ax.set_ylim([0, 200])
-        ax.set_xlim([0, 90])
-        sp.set_axis_size(3, 3, ax=ax)
+        # ax.set_xlim([0, 90])
+        sp.set_axis_size(5, 2, ax=ax)
         pdf.savefig(transparent=True, bbox_inches='tight')
 
         # ---------------------------
@@ -112,18 +113,18 @@ def fig_1(data):
         # ---------------------------
         #          PAGE
         # ---------------------------
-        # sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
-        sns.set_palette(['#000000', '#000000'])
+        sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
+        # sns.set_palette(['#000000', '#000000'])
         fig = plt.figure(dpi=_dpi, clear=True)
         ax = fig.gca()
 
         msd_plots.pSTLC(ax)
-        msd_plots.format_axes(ax, time_minor=5, time_major=20, msd_minor=25, msd_major=50)
+        msd_plots.format_axes(ax, time_minor=15, time_major=30, msd_minor=25, msd_major=50)
 
         # ax.set_xlim([-240, 30])
         ax.set_ylim([0, 300])
-        ax.set_xlim([-90, 0])
-        sp.set_axis_size(3, 3, ax=ax)
+        ax.set_xlim([-240, 30])
+        sp.set_axis_size(5, 2, ax=ax)
         pdf.savefig(transparent=True, bbox_inches='tight')
 
         # ---------------------------
@@ -157,17 +158,17 @@ def fig_1(data):
         # ---------------------------
         #          PAGE
         # ---------------------------
-        # sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
-        sns.set_palette(['#000000', '#000000'])
+        sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
+        # sns.set_palette(['#000000', '#000000'])
         fig = plt.figure(dpi=_dpi, clear=True)
         ax = fig.gca()
 
         msd_harry.displacement_more_less(ax, 'unperterbed')
-        msd_harry.format_axes(ax, time_minor=5, time_major=20, msd_minor=50, msd_major=150)
+        msd_harry.format_axes(ax, time_minor=15, time_major=30, msd_minor=50, msd_major=150)
 
         ax.set_ylim([0, 600])
-        ax.set_xlim([0, 90])
-        sp.set_axis_size(3, 3, ax=ax)
+        # ax.set_xlim([0, 90])
+        sp.set_axis_size(5, 2, ax=ax)
         pdf.savefig(transparent=True, bbox_inches='tight')
 
         # ---------------------------
@@ -181,7 +182,7 @@ def fig_1(data):
         msd_harry.format_axes(ax, time_minor=5, time_major=20, msd_minor=25, msd_major=50)
 
         ax.set_ylim([0, 200])
-        ax.set_xlim([0, 90])
+        ax.set_xlim([0, 30])
         sp.set_axis_size(3, 3, ax=ax)
         pdf.savefig(transparent=True, bbox_inches='tight')
 
@@ -201,7 +202,7 @@ def fig_1(data):
 
         dfs, cond = data.get_condition(['1_P.C.'])
         dfs.drop(
-            columns=['NuclX', 'NuclY', 'CNx', 'CNy', 'Dist', 'Speed', 'Acc',
+            columns=['NuclX', 'NuclY', 'Dist', 'Speed', 'Acc',
                      'Centrosome', 'DistCentr', 'SpeedCentr', 'AccCentr',
                      'CellX', 'CellY', 'DistCell', 'SpdCell', 'AccCell', 'NuclBound', 'CellBound'], inplace=True)
         dfs = dfs.rename(columns={'CentX': 'x', 'CentY': 'y'})
@@ -220,6 +221,49 @@ def fig_1(data):
         for i, artist in enumerate(ax.artists):
             artist.set_facecolor('None')
         sns.swarmplot('condition', 'avg_speed', data=dd, ax=ax, size=2, zorder=0, order=order)
+
+        pdf.savefig(transparent=True, bbox_inches='tight')
+
+
+def fig_1sup(data):
+    # trk_plots = pl.Tracks(data)
+    msd_plots = pl.MSD(data)
+    # trk_harry = hp.Tracks()
+    msd_harry = hp.MSD()
+
+    logger.info('doing supplementary of figure 1')
+    with PdfPages(parameters.data_dir + 'out/figure1_sup.pdf') as pdf:
+        # ---------------------------
+        #          PAGE
+        # ---------------------------
+        sns.set_palette([sp.SUSSEX_CORAL_RED, sns.xkcd_rgb["grey"], sp.SUSSEX_COBALT_BLUE])
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, )
+        ax = fig.gca()
+        for ((cond, state), msd), yl in zip(msd_harry.dft.groupby(['condition', 'state']),
+                                            [50, 50, 50, 200, 100, 200]):
+            ax.cla()
+
+            msd_harry.mother_daughter(ax, cond, state)
+            msd_harry.format_axes(ax)
+            ax.yaxis.set_major_locator(ticker.MultipleLocator(yl / 2))
+            ax.yaxis.set_minor_locator(ticker.MultipleLocator(yl / 4))
+
+            ax.set_ylim([0, yl])
+            ax.set_xlim([0, 30])
+
+            pdf.savefig(transparent=True, bbox_inches='tight')
+
+        # ---------------------------
+        #          NEXT PAGE - MSD to compare nuclei wr to centrosome
+        # ---------------------------
+        sns.set_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED])
+        ax.cla()
+
+        msd_plots.pSTLC_nuclei_vs_slowc(ax)
+        msd_plots.format_axes(ax, time_minor=15, time_major=30, msd_minor=15, msd_major=30)
+
+        ax.set_ylim([0, 60])
+        ax.set_xlim([0, 60])
 
         pdf.savefig(transparent=True, bbox_inches='tight')
 
@@ -243,6 +287,26 @@ def fig_3(data):
         # ---------------------------
         fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
         ax = fig.gca()
+        trk_plots.chTog(ax, centered=True)
+        ax.set_xlim([-100, 0])
+        ax.set_ylim([0, 30])
+        pdf.savefig(transparent=True, bbox_inches='tight')
+
+        # ---------------------------
+        #          PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
+        ax = fig.gca()
+        trk_plots.MCAK(ax, centered=True)
+        ax.set_xlim([-100, 0])
+        ax.set_ylim([0, 30])
+        pdf.savefig(transparent=True, bbox_inches='tight')
+
+        # ---------------------------
+        #          PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
+        ax = fig.gca()
         trk_plots.blebbistatin(ax, centered=True)
         ax.set_xlim([-100, 0])
         ax.set_ylim([0, 30])
@@ -254,16 +318,6 @@ def fig_3(data):
         fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
         ax = fig.gca()
         trk_plots.cytochalsinD(ax, centered=True)
-        ax.set_xlim([-100, 0])
-        ax.set_ylim([0, 30])
-        pdf.savefig(transparent=True, bbox_inches='tight')
-
-        # ---------------------------
-        #          PAGE
-        # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
-        ax = fig.gca()
-        trk_plots.chTog(ax, centered=True)
         ax.set_xlim([-100, 0])
         ax.set_ylim([0, 30])
         pdf.savefig(transparent=True, bbox_inches='tight')
@@ -296,9 +350,24 @@ def fig_3(data):
         pdf.savefig(transparent=True)
 
 
+def fig_4(data):
+    trk_plots = pl.Tracks(data)
+    with PdfPages(parameters.data_dir + 'out/figure4.pdf') as pdf:
+        sns.set_palette([sp.SUSSEX_CORAL_RED] * 5)
+        # ---------------------------
+        #          PAGE
+        # ---------------------------
+        fig = plt.figure(figsize=(3, 1.8), dpi=_dpi, clear=True)
+        ax = fig.gca()
+        trk_plots.dist_toc(ax)
+        pdf.savefig(transparent=True, bbox_inches='tight')
+
+
 if __name__ == '__main__':
     logger.info('loading data')
     data = data.Data()
 
     fig_1(data)
-    # fig_3(data)
+    fig_1sup(data)
+    fig_3(data)
+    fig_4(data)
