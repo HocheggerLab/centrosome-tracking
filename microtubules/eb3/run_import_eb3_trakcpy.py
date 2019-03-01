@@ -227,7 +227,7 @@ def detection(images, pix_per_um=1):
                                                           (xx2 / pix_per_um, yy2 / pix_per_um)]),
                                          'x1': xx1 / pix_per_um, 'y1': yy1 / pix_per_um,
                                          'x2': xx2 / pix_per_um, 'y2': yy2 / pix_per_um,
-                                         'theta': np.pi / 2 - region.orientation, 'frame': num}])
+                                         'theta': region.orientation, 'frame': num}])
 
     return features.reset_index(drop=True)
 
@@ -476,7 +476,7 @@ if __name__ == '__main__':
 
     # df = optivar_resolution_to_excel('/Users/Fabio/data/lab/eb3')
     df = process_dir(p.experiments_dir + 'eb3')
-    df.to_pickle(p.experiments_dir + 'eb3.pandas')
+    df.to_pickle(p.data_dir + 'eb3.pandas')
     # df = pd.read_pickle(p.experiments_dir + 'eb3.pandas')
 
     # process dataframe and render images

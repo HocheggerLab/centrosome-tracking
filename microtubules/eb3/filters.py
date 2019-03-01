@@ -24,7 +24,8 @@ def _angle(pt1, pt2):
 
 class Wheel:
     def __init__(self, df, image, radius=10, number_of_divisions=16):
-        self.df = gp.GeoDataFrame(df, geometry="l")
+        self.df = df
+        self.dfg = None
         self.image = image
         self.radius = radius
         self.n = 2 ** int(np.log2(number_of_divisions))
@@ -42,9 +43,7 @@ class Wheel:
     def add(self, x, y):
         self.best.append((x, y))
 
-    def filter_wheel(self, x, y):
-        ang_diff = 2 * np.pi / self.n
-
+    def filter_wheel(self, x, y, ax=None):
         inp = self.df
         in_idx = ((inp['x1'] > x - self.radius) | (inp['x2'] > x - self.radius)) & \
                  ((inp['x1'] < x + self.radius) | (inp['x2'] < x + self.radius)) & \
@@ -57,11 +56,12 @@ class Wheel:
         # fill four cuadrants
         divs_per_cuadrant = int(self.n / 4)
         for cuadrant in range(1, 5):
-            pn_idx = df['theta'].apply(lambda t: t < 0 if (cuadrant == 0 or cuadrant == 2) else t > 0)
+            pn_idx = df['theta'].apply(lambda t: t > 0 if (cuadrant == 1 or cuadrant == 3) else t < 0)
             dc = df[pn_idx]
             for i in range(divs_per_cuadrant):
-                ang_i = ang_diff * i
-                ang_ii = ang_i + ang_diff
+                # if cuadrant != 4 or i != 1: continue
+                ang_i = self.angle_delta * i
+                ang_ii = ang_i + self.angle_delta
                 ang_avg = (ang_ii + ang_i) / 2
 
                 # build triangle
@@ -73,7 +73,7 @@ class Wheel:
 
                 if cuadrant == 2 or cuadrant == 4:
                     dcc.loc[:, 'theta'] += np.pi / 2
-                dcc = dcc[(dcc['theta'] + ang_avg - np.pi / 2) < ang_diff]
+                dcc = dcc[(dcc['theta'] + ang_avg - np.pi / 2) < self.angle_delta]
                 if cuadrant == 1 or cuadrant == 2:
                     dcc.loc[:, 'x'] = dcc['x1']
                     dcc.loc[:, 'y'] = dcc['y1']
@@ -82,6 +82,13 @@ class Wheel:
                     dcc.loc[:, 'y'] = dcc['y2']
                 dcc.drop(columns=['x1', 'y1', 'x1', 'x2'])
                 out = out.append(dcc)
+
+                if ax is not None:
+                    ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.1, c='white')
+                    ax.scatter(dcc['x'], dcc['y'], s=15, c='green', zorder=10)
+                    ax.scatter(dcc['x1'], dcc['y1'], s=2, c='blue', zorder=20)
+                    ax.scatter(dcc['x2'], dcc['y2'], s=2, c='red', zorder=20)
+                    ax.plot([dcc['x1'], dcc['x2']], [dcc['y1'], dcc['y2']], lw=1, c='white', alpha=1)
 
         return out
 
@@ -137,10 +144,12 @@ class Wheel:
         return cuadrants
 
     def dev_from_circle_angles(self, x, y):
+        if self.dfg is None:
+            self.dfg = gp.GeoDataFrame(self.df, geometry="l")
         center = Point(x, y)
         circle = LinearRing(list(center.buffer(4).exterior.coords))
-        in_idx = self.df["l"].apply(lambda r: circle.crosses(r))
-        df = self.df[in_idx]
+        in_idx = self.dfg["l"].apply(lambda r: circle.crosses(r))
+        df = self.dfg[in_idx]
         if len(df) == 0: return 0
 
         df.loc[:, "i"] = df["l"].intersection(circle)
