@@ -44,7 +44,7 @@ def write_aster_config(fname, asters):
         config.set(section, 'unit', 'micrometer')
 
         for i, a in enumerate(asters):
-            if type(a) != DraggableCircle: continue
+            # if type(a) != DraggableCircle: continue
 
             section = 'Aster %d' % i
             config.add_section(section)

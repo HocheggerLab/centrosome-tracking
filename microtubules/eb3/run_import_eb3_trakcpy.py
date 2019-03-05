@@ -15,10 +15,10 @@ import skimage.draw as draw
 import skimage.filters as filters
 import skimage.morphology as morphology
 import skimage.measure as measure
-import skimage.color as color
 from matplotlib import cm
 from scipy import ndimage
 from shapely.geometry import LineString, Point
+from matplotlib.colors import ListedColormap
 
 from tools.draggable import DraggableCircle
 from microtubules.eb3 import aster
@@ -82,7 +82,7 @@ def movie(frames, linked_particles, objective_fn, n=16, filename="movie.mp4", pi
     logging.info("rendering movie %s" % filename)
     fig = plt.figure(20)
     ax = fig.gca()
-    fig.tight_layout()
+    # fig.tight_layout()
 
     animation = mpy.VideoClip(make_frame_mpl, duration=len(render))
     animation.write_videofile(filename, fps=1)
@@ -285,30 +285,35 @@ def do_tracking(image_path, asters=None):
     #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=0.1, c='white', alpha=0.1)
     # obj_function(f, 60, 65, ax=ax)
 
-    filtered = pd.DataFrame()
+    linked = pd.DataFrame()
     for xb, yb in wheel.best:
-        wheel.plot(xb, yb, ax=ax)
-        filtered = filtered.append(wheel.filter_wheel(xb, yb))
+        try:
+            wheel.plot(xb, yb, ax=ax)
+            _fil = wheel.filter_wheel(xb, yb, ax=ax)
+
+            search_range = 0.2
+            pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.1)
+            # trackpy.linking.Linker.MAX_SUB_NET_SIZE=50
+            linked = linked.append(pred.link_df(_fil, search_range), sort=False)
+        except Exception as e:
+            pass
+
+    # print(linked)
+    print(linked.columns)
 
     ax.set_aspect('equal')
     ax.set_xlim([0, w / pix_per_um])
     ax.set_ylim([0, h / pix_per_um])
     fig.savefig('%s_objfn.png' % image_path[:-4])
 
-    if len(filtered) == 0:
-        raise Exception('no data after filter.')
+    if linked.empty: return linked
 
-    search_range = 0.2
-    pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.1)
-    # trackpy.linking.Linker.MAX_SUB_NET_SIZE=50
-    linked = pred.link_df(filtered, search_range)
+    #  filter spurious tracks
+    frames_per_particle = linked.groupby('particle')['frame'].nunique()
+    particles = frames_per_particle[frames_per_particle > 5].index
+    linked = linked[linked['particle'].isin(particles)]
+    logging.info('filtered %d particles by track length' % linked['particle'].nunique())
 
-    # #  filter spurious tracks
-    # frames_per_particle = linked.groupby('particle')['frame'].nunique()
-    # particles = frames_per_particle[frames_per_particle > 8].index
-    # linked = linked[linked['particle'].isin(particles)]
-    # logging.info('filtered %d particles by track length' % linked['particle'].nunique())
-    #
     # m = tp.imsd(linked, 1, 1, pos_columns=['xum', 'yum'])
     # mt = m.ix[15]
     # particles = mt[mt > 1].index
@@ -379,6 +384,8 @@ def process_dir(dir_base):
 
                     # vis_detection(mpath, filename='%s.mp4' % mpath[:-4])
                     tdf = do_tracking(mpath, asters=asters)
+                    if tdf.empty: continue
+
                     tdf['condition'] = os.path.basename(os.path.dirname(root))
                     tdf['tag'] = f[:-4]
                     # tdf.drop(['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep'], axis=1, inplace=True)
@@ -395,13 +402,10 @@ def process_dir(dir_base):
                         tdf['x'] /= 1.6
                         tdf['y'] /= 1.6
 
-                    df.to_csv(csv_file, index=False)
+                    tdf.to_csv(csv_file, index=False)
                     df = df.append(tdf)
                 except IOError as ioe:
                     logging.warning('could not import due to IO error: %s' % ioe)
-                except Exception as e:
-                    logging.error('skipped file %s' % f)
-                    logging.error(e)
 
     return df
 
@@ -476,13 +480,4 @@ if __name__ == '__main__':
 
     # df = optivar_resolution_to_excel('/Users/Fabio/data/lab/eb3')
     df = process_dir(p.experiments_dir + 'eb3')
-    df.to_pickle(p.data_dir + 'eb3.pandas')
-    # df = pd.read_pickle(p.experiments_dir + 'eb3.pandas')
-
-    # process dataframe and render images
-    from microtubules.eb3 import run_plots_eb3
-
-    logging.info('filtering using run_plots_eb3.')
-    df, df_avg = run_plots_eb3.batch_filter(df)
-    logging.info('rendering images.')
-    run_plots_eb3.render_image_tracks(df, folder=p.experiments_dir + 'eb3')
+    df.to_pickle(p.experiments_dir + 'eb3.pandas')

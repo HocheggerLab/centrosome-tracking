@@ -83,12 +83,12 @@ class Wheel:
                 dcc.drop(columns=['x1', 'y1', 'x1', 'x2'])
                 out = out.append(dcc)
 
-                if ax is not None:
+                if ax is not None and not dcc.empty:
                     ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.1, c='white')
-                    ax.scatter(dcc['x'], dcc['y'], s=15, c='green', zorder=10)
-                    ax.scatter(dcc['x1'], dcc['y1'], s=2, c='blue', zorder=20)
-                    ax.scatter(dcc['x2'], dcc['y2'], s=2, c='red', zorder=20)
-                    ax.plot([dcc['x1'], dcc['x2']], [dcc['y1'], dcc['y2']], lw=1, c='white', alpha=1)
+                    ax.scatter(dcc['x'].values, dcc['y'].values, s=15, c='green', zorder=10)
+                    ax.scatter(dcc['x1'].values, dcc['y1'].values, s=2, c='blue', zorder=20)
+                    ax.scatter(dcc['x2'].values, dcc['y2'].values, s=2, c='red', zorder=20)
+                    ax.plot([dcc['x1'].values, dcc['x2'].values], [dcc['y1'].values, dcc['y2'].values], lw=1, c='white')
 
         return out
 
@@ -165,22 +165,22 @@ class Wheel:
         return fn
 
     def plot(self, x, y, ax):
-        # divs_per_cuadrant = int(self.n / 4)
-        # for cuadrant, color in zip(range(1, 5), ['red', 'blue', 'green', 'yellow']):
-        #     for i in range(divs_per_cuadrant):
-        #         # build triangle
-        #         ang_i = self.angle_delta * i
-        #         c_ang = (cuadrant - 1) / 2 * np.pi
-        #         tri = self.triangle(x, y, angle_start=ang_i + c_ang)
-        #         ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.1, c='white')
-        #         # for ix, row in dc[in_idx & in_ang].iterrows():
-        #         #     ax.scatter(row['x1'], row['y1'], s=5, c='blue')
-        #         #     ax.scatter(row['x2'], row['y2'], s=5, c='red')
-        #         #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=1)
-        center = Point(x, y)
-        circle = LinearRing(list(center.buffer(4).exterior.coords))
-        in_idx = self.df["l"].apply(lambda r: circle.crosses(r))
-        df = self.df[in_idx]
+        divs_per_cuadrant = int(self.n / 4)
+        for cuadrant, color in zip(range(1, 5), ['red', 'blue', 'green', 'yellow']):
+            for i in range(divs_per_cuadrant):
+                # build triangle
+                ang_i = self.angle_delta * i
+                c_ang = (cuadrant - 1) / 2 * np.pi
+                tri = self.triangle(x, y, angle_start=ang_i + c_ang)
+                ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.1, c='white')
+                # for ix, row in dc[in_idx & in_ang].iterrows():
+                #     ax.scatter(row['x1'], row['y1'], s=5, c='blue')
+                #     ax.scatter(row['x2'], row['y2'], s=5, c='red')
+                #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=1, c='white', alpha=1)
+        # center = Point(x, y)
+        # circle = LinearRing(list(center.buffer(4).exterior.coords))
+        # in_idx = self.df["l"].apply(lambda r: circle.crosses(r))
+        # df = self.df[in_idx]
 
         # df.loc[:, "i"] = df["l"].intersection(circle)
         # df.loc[:, "angle"] = df["i"].apply(lambda r: _angle(center, r))
@@ -195,5 +195,5 @@ class Wheel:
         # df[["angle", "theta"]].plot()
         # plt.show()
 
-        df["l"].plot(lw=0.5, color="red", ax=ax)
-        ax.plot(circle.coords.xy[0], circle.coords.xy[1], c="white")
+        # df["l"].plot(lw=0.5, color="red", ax=ax)
+        # ax.plot(circle.coords.xy[0], circle.coords.xy[1], c="white")
