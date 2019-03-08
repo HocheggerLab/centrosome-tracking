@@ -55,9 +55,8 @@ class Wheel:
         # fill four cuadrants
         divs_per_cuadrant = int(self.n / 4)
         for cuadrant in range(1, 5):
-            # pn_idx = df['theta'].apply(lambda t: t > 0 if (cuadrant == 1 or cuadrant == 3) else t < 0)
-            # dc = df[pn_idx]
-            dc = df
+            pn_idx = df['theta'].apply(lambda t: t > 0 if (cuadrant == 1 or cuadrant == 3) else t < 0)
+            dc = df[pn_idx]
             c_ang = (cuadrant - 1) / 2 * np.pi
             for i in range(divs_per_cuadrant):
                 # if cuadrant != 2 or i != 1: continue
@@ -72,15 +71,14 @@ class Wheel:
                 dcc = dc[in_idx]
 
                 if cuadrant == 2 or cuadrant == 4:
-                    ang_i = -self.angle_delta * i
-                    ang_ii = ang_i - self.angle_delta
+                    dcc.loc[:, 'theta'] += np.pi / 2
 
-                log.debug("cuadrant %d: %0.1f < theta < %0.1f" % (cuadrant, dcc['theta'].min(), dcc['theta'].max()))
-                # dcc = dcc[(ang_i <= dcc['theta']) & (dcc['theta'] < ang_ii)]
-                if cuadrant == 1 or cuadrant == 2:
+                # log.debug("  cuadrant %d: %0.1f < theta < %0.1f" % (cuadrant, dcc['theta'].min(), dcc['theta'].max()))
+                dcc = dcc[(ang_i <= dcc['theta']) & (dcc['theta'] < ang_ii)]
+                if cuadrant == 1 or cuadrant == 4:
                     dcc.loc[:, 'x'] = dcc['x1']
                     dcc.loc[:, 'y'] = dcc['y1']
-                if cuadrant == 3 or cuadrant == 4:
+                if cuadrant == 2 or cuadrant == 3:
                     dcc.loc[:, 'x'] = dcc['x2']
                     dcc.loc[:, 'y'] = dcc['y2']
                 dcc.drop(columns=['x1', 'y1', 'x1', 'x2'])

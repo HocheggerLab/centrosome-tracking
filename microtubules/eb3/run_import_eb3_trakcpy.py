@@ -14,11 +14,10 @@ import moviepy.editor as mpy
 import skimage.filters as filters
 import skimage.morphology as morphology
 import skimage.color as color
-import skimage.measure as measure
 from matplotlib import cm
 from scipy import ndimage
 from shapely.geometry import LineString, Point
-from matplotlib.colors import ListedColormap
+import cv2
 
 from tools.draggable import DraggableCircle
 from microtubules.eb3 import aster
@@ -109,81 +108,79 @@ def detection(images, pix_per_um=1):
     nobkg = (nobkg >= thr_lvl).astype(bool)
     morphology.remove_small_objects(nobkg, min_size=4 * pix_per_um, connectivity=1, in_place=True)
 
+    w, h = images[0].shape
+    blackboard = np.zeros(shape=images[0].shape, dtype=np.uint8)
     for num, im in enumerate(nobkg):
         labels = ndimage.label(im)[0]
-        w, h = im.shape
 
-        for region in measure.regionprops(labels, coordinates='rc', cache=True):
+        for (i, l) in enumerate([l for l in np.unique(labels) if l > 0]):
+            # find contour of mask
+            blackboard[labels == l] = 255
+            cnt = cv2.findContours(blackboard, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2][0]
+            blackboard[labels == l] = 0
+            if cnt.shape[0] < 5: continue
             # if region.eccentricity < 0.8: continue
+            ellipse = cv2.fitEllipse(cnt)
+            # print(ellipse)
+            (x0, y0), (we, he), angle_deg = ellipse  # angle_rad goes from 0 to 180
+            x0, y0, we, he = np.array([x0, y0, we, he]) / pix_per_um
+            angle_rad = np.deg2rad(angle_deg - 90)  # angle_rad goes from -pi/2 to pi/2
 
-            rc, cc = region.centroid
-            xx, yy = cc / pix_per_um, rc / pix_per_um
-            l = region.major_axis_length / 2 / pix_per_um
-            # if region.orientation >= 0: continue
-            if region.orientation > 0:
-                orientation = region.orientation - np.pi / 2
-                l_sint, l_cost = np.sin(orientation) * l, np.cos(orientation) * l
-                xx1, yy1 = xx + l_cost, yy - l_sint
-                xx2, yy2 = xx - l_cost, yy + l_sint
-            elif region.orientation == 0:
-                orientation = 0
-                xx1, yy1 = xx + l, yy
-                xx2, yy2 = xx - l, yy
-            else:  # rotation in pi rads: sin(-a) = -sin(a), cos(-a) = cos(a).
-                orientation = np.pi / 2 + region.orientation
-                l_sint, l_cost = np.sin(orientation) * l, np.cos(orientation) * l
-                xx1, yy1 = xx + l_cost, yy + l_sint
-                xx2, yy2 = xx - l_cost, yy - l_sint
+            # if num > 2 and 50 < x0 < 100 and 50 < y0 < 100:
+            #     from matplotlib.patches import Ellipse
+            #
+            #     fig = plt.figure(dpi=100)
+            #     ax = fig.gca()
+            #     ext = [0, w / pix_per_um, h / pix_per_um, 0]
+            #     ax.imshow(images[num], interpolation='none', extent=ext)
+            #     # blackboard[labels == l] = 255
+            #     # ax.imshow(blackboard, interpolation='none', extent=ext, alpha=0.5)
+            #     ax.imshow(im, interpolation='none', extent=ext, alpha=0.3)
+            #
+            #     ell = Ellipse(xy=(x0, y0), angle=angle_deg,
+            #                   width=we, height=he,
+            #                   facecolor='gray', alpha=0.5)
+            #     ax.add_artist(ell)
+            #
+            #     x1 = x0 + np.cos(angle_rad) * 0.5 * he
+            #     y1 = y0 + np.sin(angle_rad) * 0.5 * he
+            #     x2 = x0 + np.sin(angle_rad) * 0.5 * we
+            #     y2 = y0 - np.cos(angle_rad) * 0.5 * we
+            #     ax.plot((x0, x1), (y0, y1), '-y', linewidth=1, zorder=15)  # major axis
+            #     ax.plot((x0, x2), (y0, y2), '-r', linewidth=1, zorder=15)  # minor axis
+            #     ax.plot(x0, y0, '.g', markersize=10, zorder=20)
+            #
+            #     l = he / 2
+            #     l_sint, l_cost = np.sin(angle_rad) * l, np.cos(angle_rad) * l
+            #     xx1, yy1 = x0 + l_cost, y0 + l_sint
+            #     xx2, yy2 = x0 - l_cost, y0 - l_sint
+            #     ax.plot((x0, xx1), (y0, yy1), color='magenta', linewidth=2, zorder=10)  # minor axis
+            #     ax.plot((x0, xx2), (y0, yy2), color='blue', linewidth=2, zorder=10)  # major axis
+            #
+            #     x, y, wbr, hbr = np.array(cv2.boundingRect(cnt)) / pix_per_um
+            #     bx = (x, x + wbr, x + wbr, x, x)
+            #     by = (y, y, y + hbr, y + hbr, y)
+            #     ax.plot(bx, by, '-b', linewidth=1)
+            #
+            #     ax.text(x + wbr, y + hbr, "orig: %0.2f" % angle_deg, color="white")
+            #     ax.text(x + wbr, y, "tran: %0.2f" % angle_rad, color="white")
+            #
+            #     ax.set_aspect('equal')
+            #     ax.set_xlim([x - wbr, x + 2 * wbr])
+            #     ax.set_ylim([y - hbr, y + 2 * hbr])
+            #
+            #     plt.show()
 
-            features.append({'x': xx, 'y': yy,
+            l = he / 2
+            l_sint, l_cost = np.sin(angle_rad) * l, np.cos(angle_rad) * l
+            xx1, yy1 = x0 + l_cost, y0 + l_sint
+            xx2, yy2 = x0 - l_cost, y0 - l_sint
+
+            features.append({'x': x0, 'y': y0,
                              'pt1': Point((xx1, yy1)), 'pt2': Point((xx2, yy2)),
                              'l': LineString([(xx1, yy1), (xx2, yy2)]),
                              'x1': xx1, 'y1': yy1, 'x2': xx2, 'y2': yy2,
-                             'theta': orientation, 'frame': num})
-
-            if num > 2 and 50 < xx < 100 and 50 < yy < 100:
-                from matplotlib.patches import Ellipse
-
-                fig = plt.figure(dpi=100)
-                ax = fig.gca()
-                ax.set_facecolor(sp.colors.sussex_cobalt_blue)
-                ext = [0, w / pix_per_um, h / pix_per_um, 0]
-                ax.imshow(images[num], interpolation='none', extent=ext)
-                ax.imshow(im, interpolation='none', extent=ext, alpha=0.3)
-                y0, x0 = yy, xx
-
-                orientation = region.orientation - np.pi / 2
-                x1 = x0 + np.cos(orientation) * 0.5 * region.major_axis_length / pix_per_um
-                y1 = y0 + np.sin(orientation) * 0.5 * region.major_axis_length / pix_per_um
-                x2 = x0 + np.sin(orientation) * 0.5 * region.minor_axis_length / pix_per_um
-                y2 = y0 - np.cos(orientation) * 0.5 * region.minor_axis_length / pix_per_um
-                ell = Ellipse(xy=(x0, y0), angle=np.rad2deg(orientation),
-                              width=region.major_axis_length / pix_per_um, height=region.minor_axis_length / pix_per_um,
-                              facecolor='gray', alpha=0.5)
-                ax.add_artist(ell)
-
-                ell = Ellipse(xy=(x0, y0), angle=np.rad2deg(region.orientation),
-                              width=region.major_axis_length / pix_per_um, height=region.minor_axis_length / pix_per_um,
-                              facecolor='blue', alpha=0.5)
-                ax.add_artist(ell)
-
-                ax.plot((x0, x1), (y0, y1), '-r', linewidth=1)
-                ax.plot((x0, x2), (y0, y2), '-r', linewidth=1)
-                ax.plot(x0, y0, '.g', markersize=1)
-
-                minr, minc, maxr, maxc = np.array(region.bbox) / pix_per_um
-                bx = (minc, maxc, maxc, minc, minc)
-                by = (minr, minr, maxr, maxr, minr)
-                ax.plot(bx, by, '-b', linewidth=1)
-
-                ax.text(maxc, maxr, "orig: %0.2f" % region.orientation, color="white")
-                ax.text(maxc, minr, "tran: %0.2f" % orientation, color="white")
-
-                ax.set_aspect('equal')
-                ax.set_xlim([minc - 5, maxc + 5])
-                ax.set_ylim([minr - 5, maxr + 5])
-
-                plt.show()
+                             'theta': angle_rad, 'frame': num})
 
     return pd.DataFrame(features)
 
@@ -237,32 +234,15 @@ def do_tracking(image_path, asters=None):
     ext = [0, w / pix_per_um, h / pix_per_um, 0]
     ax.imshow(np.max(images, axis=0), interpolation='none', extent=ext, cmap=cm.gray)
 
-    nobkg = np.int32(images)
-    nobkg -= nobkg[0]
-    nobkg = nobkg[1:, :, :]
-    nobkg = np.uint16(nobkg.clip(0))
-    thr_lvl = filters.threshold_otsu(nobkg)
-    nobkg = (nobkg >= thr_lvl).astype(bool)
-    morphology.remove_small_objects(nobkg, min_size=4 * pix_per_um, connectivity=1, in_place=True)
-    nobkg = color.gray2rgb(nobkg)
-    nobkg = nobkg * [1., 0., 0.]
-    ax.imshow(np.max(nobkg, axis=0), interpolation='none', extent=ext, alpha=0.2)
-
     linked = pd.DataFrame()
     for xb, yb in wheel.best:
         # wheel.plot(xb, yb, ax=ax)
         _fil = wheel.filter_wheel(xb, yb, ax=ax)
         if _fil.empty: continue
-        print(len(_fil))
-        linked = _fil
-        break
 
         search_range = 1
         pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.5)
         linked = linked.append(pred.link_df(_fil, search_range), sort=False)
-
-    # linked = wheel.df
-    print(linked.columns)
 
     ax.set_aspect('equal')
     ax.set_xlim([0, w / pix_per_um])
@@ -271,11 +251,11 @@ def do_tracking(image_path, asters=None):
 
     if linked.empty: return linked
 
-    # #  filter spurious tracks
-    # frames_per_particle = linked.groupby('particle')['frame'].nunique()
-    # particles = frames_per_particle[frames_per_particle > 5].index
-    # linked = linked[linked['particle'].isin(particles)]
-    # logging.info('filtered %d particles by track length' % linked['particle'].nunique())
+    #  filter spurious tracks
+    frames_per_particle = linked.groupby('particle')['frame'].nunique()
+    particles = frames_per_particle[frames_per_particle > 5].index
+    linked = linked[linked['particle'].isin(particles)]
+    logging.info('filtered %d particles by track length' % linked['particle'].nunique())
 
     # m = tp.imsd(linked, 1, 1)
     # mt = m.ix[15]
@@ -347,7 +327,7 @@ def process_dir(dir_base):
 
                     # vis_detection(mpath, filename='%s.mp4' % mpath[:-4])
                     tdf = do_tracking(mpath, asters=asters)
-                    if __debug__: exit()
+                    # if __debug__: exit()
                     if tdf.empty: continue
 
                     tdf['condition'] = os.path.basename(os.path.dirname(root))
