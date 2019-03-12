@@ -1,5 +1,4 @@
 import logging
-import warnings
 
 import pandas as pd
 import numpy as np
@@ -8,8 +7,8 @@ import geopandas as gp
 
 from tools.measurements import integral_over_surface
 
-warnings.filterwarnings("ignore", category=DeprecationWarning)
 log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 
 def _angle(pt1, pt2):
@@ -58,26 +57,28 @@ class Wheel:
         for cuadrant in range(1, 5):
             pn_idx = df['theta'].apply(lambda t: t > 0 if (cuadrant == 1 or cuadrant == 3) else t < 0)
             dc = df[pn_idx]
+            c_ang = (cuadrant - 1) / 2 * np.pi
             for i in range(divs_per_cuadrant):
-                # if cuadrant != 4 or i != 1: continue
+                # if cuadrant != 2 or i != 1: continue
                 ang_i = self.angle_delta * i
                 ang_ii = ang_i + self.angle_delta
-                ang_avg = (ang_ii + ang_i) / 2
 
                 # build triangle
-                c_ang = (cuadrant - 1) / 2 * np.pi
                 tri = self.triangle(x, y, angle_start=ang_i + c_ang)
 
-                in_idx = dc['pt1'].apply(lambda pt: pt.within(tri)) & dc['pt2'].apply(lambda pt: pt.within(tri))
+                in_idx = dc['l'].apply(lambda l: l.length < 3) & (
+                        dc['pt1'].apply(lambda pt: pt.within(tri)) | dc['pt2'].apply(lambda pt: pt.within(tri)))
                 dcc = dc[in_idx]
 
                 if cuadrant == 2 or cuadrant == 4:
                     dcc.loc[:, 'theta'] += np.pi / 2
-                dcc = dcc[(dcc['theta'] + ang_avg - np.pi / 2) < self.angle_delta]
-                if cuadrant == 1 or cuadrant == 2:
+
+                # log.debug("  cuadrant %d: %0.1f < theta < %0.1f" % (cuadrant, dcc['theta'].min(), dcc['theta'].max()))
+                dcc = dcc[(ang_i <= dcc['theta']) & (dcc['theta'] < ang_ii)]
+                if cuadrant == 1 or cuadrant == 4:
                     dcc.loc[:, 'x'] = dcc['x1']
                     dcc.loc[:, 'y'] = dcc['y1']
-                if cuadrant == 3 or cuadrant == 4:
+                if cuadrant == 2 or cuadrant == 3:
                     dcc.loc[:, 'x'] = dcc['x2']
                     dcc.loc[:, 'y'] = dcc['y2']
                 dcc.drop(columns=['x1', 'y1', 'x1', 'x2'])
@@ -85,10 +86,12 @@ class Wheel:
 
                 if ax is not None and not dcc.empty:
                     ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.1, c='white')
-                    ax.scatter(dcc['x'].values, dcc['y'].values, s=15, c='green', zorder=10)
-                    ax.scatter(dcc['x1'].values, dcc['y1'].values, s=2, c='blue', zorder=20)
-                    ax.scatter(dcc['x2'].values, dcc['y2'].values, s=2, c='red', zorder=20)
-                    ax.plot([dcc['x1'].values, dcc['x2'].values], [dcc['y1'].values, dcc['y2'].values], lw=1, c='white')
+                    ax.scatter(dcc['x'].values, dcc['y'].values, s=0.1, c='green', zorder=21)
+                    ax.scatter(dcc['x1'].values, dcc['y1'].values, s=0.1, c='magenta', zorder=20)
+                    ax.scatter(dcc['x2'].values, dcc['y2'].values, s=0.1, c='blue', zorder=20)
+                    ax.plot([dcc['x1'].values, dcc['x2'].values],
+                            [dcc['y1'].values, dcc['y2'].values],
+                            lw=0.1, c='yellow')
 
         return out
 

@@ -4,28 +4,23 @@ import re
 import warnings
 
 import pandas as pd
-import scipy.stats
 import trackpy as tp
 import matplotlib.pyplot as plt
 import numpy as np
 import tifffile as tf
 from moviepy.video.io.bindings import mplfig_to_npimage
 import moviepy.editor as mpy
-import skimage.draw as draw
 import skimage.filters as filters
 import skimage.morphology as morphology
-import skimage.measure as measure
+import skimage.color as color
 from matplotlib import cm
-from scipy import ndimage
-from shapely.geometry import LineString, Point
-from matplotlib.colors import ListedColormap
 
+import microtubules.eb3.detection as detection
 from tools.draggable import DraggableCircle
 from microtubules.eb3 import aster
 import parameters as p
 import plot_special_tools as sp
 from microtubules.eb3.filters import Wheel
-from tools.terminal import printProgressBar
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 # coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
@@ -34,27 +29,32 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 tp.quiet()
+tp.linking.Linker.MAX_SUB_NET_SIZE = 50
 pd.set_option('display.width', 320)
 
 
-def movie(frames, linked_particles, objective_fn, n=16, filename="movie.mp4", pix_per_um=1):
-    def make_frame_mpl(t, n=16):
+def movie(frames, linked_particles, wheel, filename="movie.mp4", pix_per_um=1):
+    def make_frame_mpl(t):
         fr = int(t)
 
         ax.cla()
-        im = render[fr]
-        w, h = im.shape[0], im.shape[1]
 
-        ax.imshow(im, cmap=cm.gray, interpolation='none', extent=[0, w / pix_per_um, h / pix_per_um, 0])
+        ax.imshow(frames[fr], cmap=cm.gray, interpolation='none', extent=xtnt)
+        ax.imshow(nobkg[fr], interpolation='none', extent=xtnt, alpha=0.4)
         # for ix, gr in linked_particles.groupby('particle'):
         #     ax.plot(gr['xum'], gr['yum'], lw=1, c='white', alpha=0.5)
         #     ax.scatter(gr.loc[gr['frame'] == fr, 'xum'], gr.loc[gr['frame'] == fr, 'yum'], s=1, c='red')
         lp = linked_particles
-        ax.scatter(lp.loc[lp['frame'] == fr, 'x'], lp.loc[lp['frame'] == fr, 'y'], s=4, c='green')
-        # ax.scatter(lp.loc[lp['frame'] == fr, 'x1'], lp.loc[lp['frame'] == fr, 'y1'], s=1, c='red')
-        # ax.scatter(lp.loc[lp['frame'] == fr, 'x2'], lp.loc[lp['frame'] == fr, 'y2'], s=1, c='blue')
-        ax.plot([lp.loc[lp['frame'] == fr, 'x1'], lp.loc[lp['frame'] == fr, 'x2']],
-                [lp.loc[lp['frame'] == fr, 'y1'], lp.loc[lp['frame'] == fr, 'y2']], lw=0.5, c='white')
+        try:
+            ax.scatter(lp.loc[lp['frame'] == fr, 'x'], lp.loc[lp['frame'] == fr, 'y'], s=2, marker='+', c='green')
+            # ax.scatter(lp.loc[lp['frame'] == fr, 'x1'], lp.loc[lp['frame'] == fr, 'y1'], s=1, c='magenta', zorder=10)
+            # ax.scatter(lp.loc[lp['frame'] == fr, 'x2'], lp.loc[lp['frame'] == fr, 'y2'], s=1, c='blue', zorder=10)
+            ax.plot([lp.loc[lp['frame'] == fr, 'x1'], lp.loc[lp['frame'] == fr, 'x2']],
+                    [lp.loc[lp['frame'] == fr, 'y1'], lp.loc[lp['frame'] == fr, 'y2']], lw=0.5, alpha=0.3, c='white')
+        except Exception as e:
+            pass
+        for xb, yb in wheel.best:
+            wheel.plot(xb, yb, ax=ax)
 
         ax.set_xlabel("x [um]")
         ax.set_ylabel("y [um]")
@@ -69,241 +69,57 @@ def movie(frames, linked_particles, objective_fn, n=16, filename="movie.mp4", pi
     nobkg = nobkg[1:, :, :]
     nobkg = np.uint16(nobkg.clip(0))
 
+    w, h = frames.shape[1], frames.shape[2]
+    xtnt = [0, w / pix_per_um, h / pix_per_um, 0]
+
     # path, fim = os.path.split(image_path)
-    linked_particles['frame'] += 1
+    # linked_particles['frame'] += 1
+
     thr_lvl = filters.threshold_otsu(nobkg)
-    nobkg = nobkg >= thr_lvl
-    morphology.remove_small_objects(nobkg, min_size=2 * pix_per_um, in_place=True)
+    nobkg = (nobkg >= thr_lvl).astype(bool)
+    morphology.remove_small_objects(nobkg, min_size=4 * pix_per_um, connectivity=1, in_place=True)
+
     nobkg = color.gray2rgb(nobkg)
-    # frames = color.gray2rgb(frames)
-    # render = frames[1:] * 0.2 + nobkg * sp.colors.hoechst_33342 * 0.4
-    render = nobkg * sp.colors.alexa_594
+    nobkg = nobkg * [1., 0., 0.]
 
     logging.info("rendering movie %s" % filename)
-    fig = plt.figure(20)
+    fig = plt.figure(20, dpi=300)
     ax = fig.gca()
     # fig.tight_layout()
 
-    animation = mpy.VideoClip(make_frame_mpl, duration=len(render))
+    animation = mpy.VideoClip(make_frame_mpl, duration=len(frames) - 1)
     animation.write_videofile(filename, fps=1)
     animation.close()
-
-
-def vis_detection(image_path, filename="movie.mp4"):
-    def make_frame_mpl(t):
-        fr = int(t)
-
-        for ax in [ax1, ax2, ax3, ax4]:
-            ax.cla()
-        # im = _images[fr]
-        im = frames[fr]
-        # im = exposure.equalize_hist(im)
-
-        # edges = canny(im, 2, 1, 25)
-        # median=rank.median(image=im, selem=disk(0.2*pix_per_um))
-        # ax1.imshow(median, cmap=cm.gray)
-        ax1.imshow(_images[fr], cmap=cm.gray)
-
-        # p2 = np.percentile(im, 15)
-        # p98 = np.percentile(im, 100)
-        # im = exposure.rescale_intensity(im, in_range=(p2, p98))
-        ax2.imshow(im, cmap=cm.gray)
-
-        # low = 0.1
-        # high = 0.35
-        # thr_lvl = filters.apply_hysteresis_threshold(im, low, high)
-        thr_lvl = filters.threshold_yen(im)
-        thresh = im >= thr_lvl
-        # selem = morphology.disk(pix_per_um / 4)
-        # thresh = morphology.opening(thresh, selem)
-        morphology.remove_small_objects(thresh, min_size=1 * pix_per_um, in_place=True)
-        ax3.imshow(thresh, cmap=cm.gray)
-
-        w, h = im.shape
-        labels = ndimage.label(thresh)[0]
-        # image_label_overlay = color.label2rgb(labels, image=im)
-        out = np.zeros((w, h, 3), dtype=np.double)
-
-        # ax3.imshow(image_label_overlay, cmap=cm.gray)
-        ax3.text(0, 0, '%d' % t)
-
-        for k, region in enumerate(measure.regionprops(labels, coordinates='rc', cache=True)):
-            # if k!=100: continue
-            # if region.eccentricity < 0.9: continue
-            rp, cp = draw.polygon(region.coords[:, 0], region.coords[:, 1], im.shape)
-            # out[rp, cp, :] = (0,1,0)
-
-            # rotate = transform.SimilarityTransform(rotation=np.pi / 2)
-            # rotate = transform.SimilarityTransform(rotation=0)
-            # rc,cc=rotate(region.centroid)[0]
-
-            rc, cc = region.centroid
-            l = region.major_axis_length / 2
-            # l_sint, l_cost = np.sin(region.orientation) * l, np.cos(region.orientation) * l
-
-            if region.orientation > 0:
-                out[rp, cp, :] = (0, 1, 0)
-                l_sint, l_cost = np.sin(region.orientation) * l, np.cos(region.orientation) * l
-                xx1, yy1 = cc + l_sint, rc + l_cost  # don't know why, but i had to interchange sin and cos
-                xx2, yy2 = cc - l_sint, rc - l_cost
-            elif region.orientation == 0:
-                # log.warning("orientation was zero!")
-                out[rp, cp, :] = (1, 1, 1)
-                xx1, yy1 = cc + l, rc
-                xx2, yy2 = cc - l, rc
-            else:
-                out[rp, cp, :] = (1, 0, 1)
-                l_sint, l_cost = np.sin(np.pi - region.orientation) * l, np.cos(np.pi - region.orientation) * l
-                xx1, yy1 = cc + l_sint, rc - l_cost  # don't know why, but i had to interchange sin and cos
-                xx2, yy2 = cc - l_sint, rc + l_cost
-            ax3.plot(xx1, yy1, marker='o', markersize=2, c='red')
-            ax3.plot(xx2, yy2, marker='o', markersize=2, c='blue')
-        ax3.set_xlim([0, w])
-        ax3.set_ylim([h, 0])
-
-        ax4.imshow(out)
-
-        return mplfig_to_npimage(fig)  # RGB image of the figure
-
-    _images, pix_per_um, dt = sp.load_tiff(image_path)
-    # subtract first frame and deal with negative results after the operation
-    frames = np.int32(_images)
-    frames -= frames[0]
-    frames = frames[1:, :, :]
-    frames = np.uint16(frames.clip(0))
-
-    logging.info("rendering movie %s" % filename)
-    fig = plt.figure(20, figsize=(10, 10))
-    ax1 = fig.add_subplot(221)
-    ax2 = fig.add_subplot(222)
-    ax3 = fig.add_subplot(223)
-    ax4 = fig.add_subplot(224)
-    fig.tight_layout()
-
-    animation = mpy.VideoClip(make_frame_mpl, duration=len(frames))
-    animation.write_videofile(filename, fps=1)
-    animation.close()
-
-
-def detection(images, pix_per_um=1):
-    features = pd.DataFrame()
-
-    # subtract first frame and deal with negative results after the operation
-    nobkg = np.int32(images)
-    nobkg -= nobkg[0]
-    nobkg = nobkg[1:, :, :]
-    nobkg = np.uint16(nobkg.clip(0))
-
-    for num, im in enumerate(nobkg):
-        thr_lvl = filters.threshold_yen(im)
-        thresh = im >= thr_lvl
-        morphology.remove_small_objects(thresh, min_size=1 * pix_per_um, in_place=True)
-
-        labels = ndimage.label(thresh)[0]
-        # w, h = im.shape
-
-        for region in measure.regionprops(labels, coordinates='rc', cache=True):
-            # if region.eccentricity < 0.8: continue
-
-            rc, cc = region.centroid
-            l = region.major_axis_length / 2
-            if region.orientation > 0:
-                l_sint, l_cost = np.sin(region.orientation) * l, np.cos(region.orientation) * l
-                xx1, yy1 = cc + l_sint, rc + l_cost  # don't know why, but i had to interchange sin and cos
-                xx2, yy2 = cc - l_sint, rc - l_cost
-            elif region.orientation == 0:
-                # log.warning("orientation was zero!")
-                xx1, yy1 = cc + l, rc
-                xx2, yy2 = cc - l, rc
-            else:
-                l_sint, l_cost = np.sin(np.pi - region.orientation) * l, np.cos(np.pi - region.orientation) * l
-                xx1, yy1 = cc + l_sint, rc - l_cost  # don't know why, but i had to interchange sin and cos
-                xx2, yy2 = cc - l_sint, rc + l_cost
-
-            features = features.append([{'x': cc / pix_per_um, 'y': rc / pix_per_um,
-                                         'pt1': Point((xx1 / pix_per_um, yy1 / pix_per_um)),
-                                         'pt2': Point((xx2 / pix_per_um, yy2 / pix_per_um)),
-                                         'l': LineString([(xx1 / pix_per_um, yy1 / pix_per_um),
-                                                          (xx2 / pix_per_um, yy2 / pix_per_um)]),
-                                         'x1': xx1 / pix_per_um, 'y1': yy1 / pix_per_um,
-                                         'x2': xx2 / pix_per_um, 'y2': yy2 / pix_per_um,
-                                         'theta': region.orientation, 'frame': num}])
-
-    return features.reset_index(drop=True)
 
 
 def do_tracking(image_path, asters=None):
-    images, pix_per_um, dt = sp.load_tiff(image_path)
-    w, h = images[0].shape[0], images[0].shape[1]
-
     log.info("detecting points.")
-    f = detection(images, pix_per_um=pix_per_um)
-    # f.to_pickle('f.pandas')
-    # f = pd.read_pickle('f.pandas')
+    d = detection.Particles(image_path)
+    df = d.df
     log.info("detection step completed.")
 
     # Estimate centrosome asters automatically if not provided by parameter
-    wheel = Wheel(f, np.max(images, axis=0), radius=15)
+    wheel = Wheel(df, np.max(d.images, axis=0), radius=15)
     if asters is not None:
         for a in asters:
             wheel.add(a[0], a[1])
-    else:
-        x = np.arange(10, w / pix_per_um - 10, 5)
-        y = np.arange(10, h / pix_per_um - 10, 5)
-        xx, yy = np.meshgrid(x, y)
-        obj = np.zeros((x.size, y.size), dtype=np.float32)
-        tot = x.size * y.size - 1
-        printProgressBar(0, tot, prefix='Progress:', suffix='', length=50)
-        for i in range(x.size):
-            for j in range(y.size):
-                lines_per_cuadrant = wheel.count_lines_with_same_slope(xx[j, i], yy[j, i])
-                obj[j, i] = min(lines_per_cuadrant)
-                # Update Progress Bar
-                printProgressBar(i * x.size + j, tot, prefix='Progress:', suffix=' Fn=%d' % obj[j, i], length=50)
-        # np.savetxt('obj.csv', obj)
-        # obj = np.loadtxt('obj.csv')
 
-        p_high = np.percentile(obj.ravel(), 95)
-        log.debug("selecting Fn higher than %d" % p_high)
-        log.debug(scipy.stats.describe(obj.ravel()))
-        for i in range(x.size):
-            for j in range(y.size):
-                if obj[j, i] > p_high:
-                    wheel.add(xx[j, i], yy[j, i])
-                # Update Progress Bar
-                # printProgressBar(i * x.size + j, x.size * y.size, prefix='Progress:', suffix='Complete. Fn=%d' % obj[j, i],
-                #                  length=50)
-        log.debug("%d points selected" % len(wheel.best))
-
-    fig = plt.figure(dpi=150)
+    fig = plt.figure(dpi=300)
     ax = fig.gca()
-    ax.set_facecolor(sp.colors.sussex_cobalt_blue)
-    ext = [0, w / pix_per_um, h / pix_per_um, 0]
-    ax.imshow(np.max(images, axis=0), interpolation='none', extent=ext, cmap=cm.gray)
-    # ax.imshow(obj, interpolation='none', extent=ext, alpha=0.3)
-    # for ix, row in f.iterrows():
-    #     ax.plot([row['x1'], row['x2']], [row['y1'], row['y2']], lw=0.1, c='white', alpha=0.1)
-    # obj_function(f, 60, 65, ax=ax)
+
+    d.render_time_projection(ax)
+    d.render_detected_features(ax)
 
     linked = pd.DataFrame()
     for xb, yb in wheel.best:
-        try:
-            wheel.plot(xb, yb, ax=ax)
-            _fil = wheel.filter_wheel(xb, yb, ax=ax)
+        # wheel.plot(xb, yb, ax=ax)
+        _fil = wheel.filter_wheel(xb, yb, ax=ax)
+        if _fil.empty: continue
 
-            search_range = 0.2
-            pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.1)
-            # trackpy.linking.Linker.MAX_SUB_NET_SIZE=50
-            linked = linked.append(pred.link_df(_fil, search_range), sort=False)
-        except Exception as e:
-            pass
+        search_range = 1
+        pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.5)
+        linked = linked.append(pred.link_df(_fil, search_range), sort=False)
 
-    # print(linked)
-    print(linked.columns)
-
-    ax.set_aspect('equal')
-    ax.set_xlim([0, w / pix_per_um])
-    ax.set_ylim([0, h / pix_per_um])
     fig.savefig('%s_objfn.png' % image_path[:-4])
 
     if linked.empty: return linked
@@ -314,13 +130,13 @@ def do_tracking(image_path, asters=None):
     linked = linked[linked['particle'].isin(particles)]
     logging.info('filtered %d particles by track length' % linked['particle'].nunique())
 
-    # m = tp.imsd(linked, 1, 1, pos_columns=['xum', 'yum'])
+    # m = tp.imsd(linked, 1, 1)
     # mt = m.ix[15]
     # particles = mt[mt > 1].index
     # linked = linked[linked['particle'].isin(particles)]
     # logging.info('filtered %d particles msd' % linked['particle'].nunique())
 
-    movie(images, linked, wheel, filename='%s.mp4' % image_path[:-4], pix_per_um=pix_per_um)
+    movie(d.images, linked, wheel, filename='%s.mp4' % image_path[:-4], pix_per_um=d.pix_per_um)
 
     return linked
 
@@ -384,6 +200,7 @@ def process_dir(dir_base):
 
                     # vis_detection(mpath, filename='%s.mp4' % mpath[:-4])
                     tdf = do_tracking(mpath, asters=asters)
+                    if __debug__: exit()
                     if tdf.empty: continue
 
                     tdf['condition'] = os.path.basename(os.path.dirname(root))
