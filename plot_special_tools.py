@@ -19,29 +19,30 @@ from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
+import matplotlib.colors as colors
 
 import parameters
 from imagej_pandas import ImagejPandas
 
 # sussex colors
-SUSSEX_FLINT = '#013035'
-SUSSEX_COBALT_BLUE = '#1E428A'
-SUSSEX_MID_GREY = '#94A596'
-SUSSEX_FUSCHIA_PINK = '#EB6BB0'
-SUSSEX_CORAL_RED = '#DF465A'
-SUSSEX_TURQUOISE = '#00AFAA'
-SUSSEX_WARM_GREY = '#D6D2C4'
-SUSSEX_SUNSHINE_YELLOW = '#FFB81C'
-SUSSEX_BURNT_ORANGE = '#DC582A'
-SUSSEX_SKY_BLUE = '#40B4E5'
+SUSSEX_FLINT = colors.to_rgb('#013035')
+SUSSEX_COBALT_BLUE = colors.to_rgb('#1E428A')
+SUSSEX_MID_GREY = colors.to_rgb('#94A596')
+SUSSEX_FUSCHIA_PINK = colors.to_rgb('#EB6BB0')
+SUSSEX_CORAL_RED = colors.to_rgb('#DF465A')
+SUSSEX_TURQUOISE = colors.to_rgb('#00AFAA')
+SUSSEX_WARM_GREY = colors.to_rgb('#D6D2C4')
+SUSSEX_SUNSHINE_YELLOW = colors.to_rgb('#FFB81C')
+SUSSEX_BURNT_ORANGE = colors.to_rgb('#DC582A')
+SUSSEX_SKY_BLUE = colors.to_rgb('#40B4E5')
 
-SUSSEX_NAVY_BLUE = '#1B365D'
-SUSSEX_CHINA_ROSE = '#C284A3'
-SUSSEX_POWDER_BLUE = '#7DA1C4'
-SUSSEX_GRAPE = '#5D3754'
-SUSSEX_CORN_YELLOW = '#F2C75C'
-SUSSEX_COOL_GREY = '#D0D3D4'
-SUSSEX_DEEP_AQUAMARINE = '#487A7B'
+SUSSEX_NAVY_BLUE = colors.to_rgb('#1B365D')
+SUSSEX_CHINA_ROSE = colors.to_rgb('#C284A3')
+SUSSEX_POWDER_BLUE = colors.to_rgb('#7DA1C4')
+SUSSEX_GRAPE = colors.to_rgb('#5D3754')
+SUSSEX_CORN_YELLOW = colors.to_rgb('#F2C75C')
+SUSSEX_COOL_GREY = colors.to_rgb('#D0D3D4')
+SUSSEX_DEEP_AQUAMARINE = colors.to_rgb('#487A7B')
 
 
 # SUSSEX_NEON_BLUE=''
@@ -57,24 +58,24 @@ class colors():
     alexa_594 = [1., .61, 0]
     alexa_647 = [.83, .28, .28]
     hoechst_33342 = [0, .57, 1.]
-    sussex_flint = '#013035'
-    sussex_cobalt_blue = '#1e428a'
-    sussex_mid_grey = '#94a596'
-    sussex_fuschia_pink = '#eb6bb0'
-    sussex_coral_red = '#df465a'
-    sussex_turquoise = '#00afaa'
-    sussex_warm_grey = '#d6d2c4'
-    sussex_sunshine_yellow = '#ffb81c'
-    sussex_burnt_orange = '#dc582a'
-    sussex_sky_blue = '#40b4e5'
+    sussex_flint = colors.to_rgb('#013035')
+    sussex_cobalt_blue = colors.to_rgb('#1e428a')
+    sussex_mid_grey = colors.to_rgb('#94a596')
+    sussex_fuschia_pink = colors.to_rgb('#eb6bb0')
+    sussex_coral_red = colors.to_rgb('#df465a')
+    sussex_turquoise = colors.to_rgb('#00afaa')
+    sussex_warm_grey = colors.to_rgb('#d6d2c4')
+    sussex_sunshine_yellow = colors.to_rgb('#ffb81c')
+    sussex_burnt_orange = colors.to_rgb('#dc582a')
+    sussex_sky_blue = colors.to_rgb('#40b4e5')
 
-    sussex_navy_blue = '#1b365d'
-    sussex_china_rose = '#c284a3'
-    sussex_powder_blue = '#7da1c4'
-    sussex_grape = '#5d3754'
-    sussex_corn_yellow = '#f2c75c'
-    sussex_cool_grey = '#d0d3d4'
-    sussex_deep_aquamarine = '#487a7b'
+    sussex_navy_blue = colors.to_rgb('#1b365d')
+    sussex_china_rose = colors.to_rgb('#c284a3')
+    sussex_powder_blue = colors.to_rgb('#7da1c4')
+    sussex_grape = colors.to_rgb('#5d3754')
+    sussex_corn_yellow = colors.to_rgb('#f2c75c')
+    sussex_cool_grey = colors.to_rgb('#d0d3d4')
+    sussex_deep_aquamarine = colors.to_rgb('#487a7b')
 
 
 class MyAxes3D(axes3d.Axes3D):
