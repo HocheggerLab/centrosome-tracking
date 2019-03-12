@@ -8,6 +8,8 @@ from scipy import ndimage
 from shapely.geometry import LineString, Point
 import cv2
 from matplotlib import cm
+import trackpy as tp
+import skimage.color as skcolor
 
 import plot_special_tools as sp
 
@@ -17,10 +19,13 @@ log.setLevel(logging.DEBUG)
 
 class Particles():
     def __init__(self, image_file):
+        log.info("Initializing particles object")
         self.images, self.pix_per_um, self.dt = sp.load_tiff(image_file)
         self.w = self.images[0].shape[0]
         self.h = self.images[0].shape[1]
         self._df = None
+        self._linked = None
+        self.wheel = None
         self.segmented = None
 
         self._remove_backgound()
@@ -33,6 +38,7 @@ class Particles():
         self.nobkg = np.uint16(self.nobkg.clip(0))
 
     def _segmentation_step(self):
+        log.info("Segmenting images")
         thr_lvl = filters.threshold_otsu(self.nobkg)
         self.segmented = (self.nobkg >= thr_lvl).astype(bool)
         morphology.remove_small_objects(self.segmented, min_size=4 * self.pix_per_um, connectivity=1, in_place=True)
@@ -46,9 +52,18 @@ class Particles():
         x0, y0, we, he = np.array([x0, y0, we, he]) / self.pix_per_um
         angle_rad = np.deg2rad(angle_deg - 90)  # angle_rad goes from -pi/2 to pi/2
 
+        # fig = plt.figure(dpi=100)
+        # ax = fig.gca()
+        # ext = [0, self.w / self.pix_per_um, self.h / self.pix_per_um, 0]
+        # mask = np.zeros(self.images[frame].shape, np.uint8)
+        # cv2.drawContours(mask, [contour], 0, 255, -1)
+        # ax.imshow(mask, interpolation='none', extent=ext)
+        # plt.show()
+
         fig = plt.figure(dpi=100)
         ax = fig.gca()
         ext = [0, self.w / self.pix_per_um, self.h / self.pix_per_um, 0]
+        ax.set_facecolor(sp.colors.sussex_cobalt_blue)
         ax.imshow(self.images[frame], interpolation='none', extent=ext)
         ax.imshow(self.segmented[frame], interpolation='none', extent=ext, alpha=0.3)
 
@@ -65,6 +80,20 @@ class Particles():
         ax.plot((x0, x2), (y0, y2), '-r', linewidth=1, zorder=15)  # minor axis
         ax.plot(x0, y0, '.g', markersize=10, zorder=20)
 
+        # # compute centroid
+        # M = cv2.moments(contour)
+        # cx = int(M['m10'] / M['m00']) / self.pix_per_um
+        # cy = int(M['m01'] / M['m00']) / self.pix_per_um
+        (_x, _y), (_w, _h), _ang = cv2.minAreaRect(contour)
+        # cx = (_x + _w/2 * np.cos(np.deg2rad(_ang)))/ self.pix_per_um
+        # cy = (_y + _h/2 * np.sin(np.deg2rad(_ang)))/ self.pix_per_um
+        cx = _x / self.pix_per_um
+        cy = _y / self.pix_per_um
+        ax.plot(cx, cy, '.y', markersize=50, zorder=20)
+
+        cpts = np.array(contour.ravel()).reshape((len(contour), 2)) / self.pix_per_um
+        ax.plot(cpts[:, 0], cpts[:, 1], '--y', linewidth=1, zorder=15)  # contour
+
         l = he / 2
         l_sint, l_cost = np.sin(angle_rad) * l, np.cos(angle_rad) * l
         xx1, yy1 = x0 + l_cost, y0 + l_sint
@@ -75,10 +104,26 @@ class Particles():
         x, y, wbr, hbr = np.array(cv2.boundingRect(contour)) / self.pix_per_um
         bx = (x, x + wbr, x + wbr, x, x)
         by = (y, y, y + hbr, y + hbr, y)
-        ax.plot(bx, by, '-b', linewidth=1)
+        ax.plot(bx, by, '-.b', linewidth=1)
 
+        _txt_ppt = {'horizontalalignment': 'left', 'verticalalignment': 'center', 'transform': ax.transAxes,
+                    'color': "white"}
         ax.text(x + wbr, y + hbr, "orig: %0.2f" % angle_deg, color="white")
-        ax.text(x + wbr, y, "tran: %0.2f" % angle_rad, color="white")
+        ax.text(x + wbr, y, "trans: %0.2f" % angle_rad, color="white")
+
+        # area = cv2.contourArea(contour)
+        # hull = cv2.convexHull(contour)
+        # rect = cv2.minAreaRect(contour)
+        # box = cv2.boundingRect(contour)
+        # hull_area = cv2.contourArea(hull)
+        #
+        # rect_area = wbr * hbr * self.pix_per_um ** 2
+        # solidity = float(area) / hull_area
+        # extent = float(area) / rect_area
+        # ax.text(0.05, 0.90, 'area: %0.2f' % area, _txt_ppt)
+        # ax.text(0.05, 0.85, 'rect: %0.2f' % rect_area, _txt_ppt)
+        # ax.text(0.05, 0.80, 'extent: %0.2f' % extent, _txt_ppt)
+        # ax.text(0.05, 0.80, 'solidity: %0.2f' % solidity, _txt_ppt)
 
         ax.set_aspect('equal')
         ax.set_xlim([x - wbr, x + 2 * wbr])
@@ -92,6 +137,7 @@ class Particles():
 
         self._segmentation_step()
 
+        log.info("Extracting feature points")
         features = list()
         blackboard = np.zeros(shape=self.images[0].shape, dtype=np.uint8)
         for num, im in enumerate(self.segmented):
@@ -102,38 +148,105 @@ class Particles():
                 blackboard[labels == l] = 255
                 cnt = cv2.findContours(blackboard, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)[-2][0]
                 blackboard[labels == l] = 0
-                if cnt.shape[0] < 5: continue
-                # if region.eccentricity < 0.8: continue
-                ellipse = cv2.fitEllipse(cnt)
-                (x0, y0), (we, he), angle_deg = ellipse  # angle_rad goes from 0 to 180
-                x0, y0, we, he = np.array([x0, y0, we, he]) / self.pix_per_um
-                angle_rad = np.deg2rad(angle_deg - 90)  # angle_rad goes from -pi/2 to pi/2
 
+                if cnt.shape[0] < 5: continue
                 # self._debug_fitted_ellipse_plot(num, cnt)
 
-                l = he / 2
-                l_sint, l_cost = np.sin(angle_rad) * l, np.cos(angle_rad) * l
-                xx1, yy1 = x0 + l_cost, y0 + l_sint
-                xx2, yy2 = x0 - l_cost, y0 - l_sint
+                # if region.eccentricity < 0.8: continue
+                ellipse = cv2.fitEllipse(cnt)
+                (x0, y0), (we, he), angle_deg = ellipse  # angle_deg goes from 0 to 180
+                if angle_deg != 0 and angle_deg != 180:
+                    x0, y0, we, he = np.array([x0, y0, we, he]) / self.pix_per_um
+                    angle_rad = np.deg2rad(angle_deg - 90)  # angle_rad goes from -pi/2 to pi/2
 
-                features.append({'x': x0, 'y': y0,
-                                 'pt1': Point((xx1, yy1)), 'pt2': Point((xx2, yy2)),
-                                 'l': LineString([(xx1, yy1), (xx2, yy2)]),
-                                 'x1': xx1, 'y1': yy1, 'x2': xx2, 'y2': yy2,
-                                 'theta': angle_rad, 'frame': num})
+                    l = he / 2
+                    l_sint, l_cost = np.sin(angle_rad) * l, np.cos(angle_rad) * l
+                    xx1, yy1 = x0 + l_cost, y0 + l_sint
+                    xx2, yy2 = x0 - l_cost, y0 - l_sint
+
+                    features.append({'x': x0, 'y': y0,
+                                     'pt1': Point((xx1, yy1)), 'pt2': Point((xx2, yy2)),
+                                     'l': LineString([(xx1, yy1), (xx2, yy2)]),
+                                     'x1': xx1, 'y1': yy1, 'x2': xx2, 'y2': yy2,
+                                     'theta': angle_rad, 'frame': num})
+                else:
+                    # compute centroid
+                    M = cv2.moments(cnt)
+                    area = cv2.contourArea(cnt)
+                    if area == 0 or M['m00'] == 0:
+                        # box = cv2.boundingRect(cnt)
+                        (_x, _y), _sz, _ang = cv2.minAreaRect(cnt)
+                        # cx = _x + _w * np.cos(np.deg2rad(_ang))
+                        # cy = _y + _h * np.sin(np.deg2rad(_ang))
+                        cx = _x / self.pix_per_um
+                        cy = _y / self.pix_per_um
+                    else:
+                        cx = int(M['m10'] / M['m00']) / self.pix_per_um
+                        cy = int(M['m01'] / M['m00']) / self.pix_per_um
+                    features.append({'x': cx, 'y': cy,
+                                     'pt1': None, 'pt2': None,
+                                     'l': 0,
+                                     'x1': cx, 'y1': cy, 'x2': cx, 'y2': cy,
+                                     'theta': 0, 'frame': num})
         self._df = pd.DataFrame(features)
+        log.info("Extraction step completed")
         return self._df
 
-    def render_time_projection(self, ax):
+    @property
+    def linked(self):
+        if self._linked is not None: return self._linked
+        if self.wheel is None: return pd.DataFrame()
+
+        log.info("Linking particles")
+        linked = pd.DataFrame()
+        for xb, yb in self.wheel.best:
+            _fil = self.wheel.filter_wheel(xb, yb)
+            if _fil.empty: continue
+
+            search_range = 1
+            pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.5, span=3)
+            linked = linked.append(pred.link_df(_fil, search_range), sort=False)
+
+        self._linked = linked
+        log.info("Linking step completed")
+        return self._linked
+
+    def render_image(self, ax, frame=None, alpha=1):
         ext = [0, self.w / self.pix_per_um, self.h / self.pix_per_um, 0]
-        ax.imshow(np.max(self.images, axis=0), interpolation='none', extent=ext, cmap=cm.gray)
+        im = np.max(self.images, axis=0) if frame is None else self.images[frame]
+        ax.imshow(im, interpolation='none', extent=ext, cmap=cm.gray, alpha=alpha)
         ax.set_aspect('equal')
         ax.set_xlim([0, self.w / self.pix_per_um])
         ax.set_ylim([0, self.h / self.pix_per_um])
 
-    def render_detected_features(self, ax):
-        ax.scatter(self.df['x'], self.df['y'], s=1, marker='+', c='white')
-        # ax.scatter(lp.loc[lp['frame'] == fr, 'x1'], lp.loc[lp['frame'] == fr, 'y1'], s=1, c='magenta', zorder=10)
-        # ax.scatter(lp.loc[lp['frame'] == fr, 'x2'], lp.loc[lp['frame'] == fr, 'y2'], s=1, c='blue', zorder=10)
-        # ax.plot([lp.loc[lp['frame'] == fr, 'x1'], lp.loc[lp['frame'] == fr, 'x2']],
-        #         [lp.loc[lp['frame'] == fr, 'y1'], lp.loc[lp['frame'] == fr, 'y2']], lw=0.5, alpha=0.3, c='white')
+    def render_segmented_image(self, ax, frame=None, color=None, alpha=0.5):
+        ext = [0, self.w / self.pix_per_um, self.h / self.pix_per_um, 0]
+        im = np.max(self.segmented, axis=0) if frame is None else self.segmented[frame]
+        if color is None:
+            ax.imshow(im, interpolation='none', extent=ext, cmap=cm.gray, alpha=alpha)
+        else:
+            im = skcolor.gray2rgb(im)
+            im = im * color
+            ax.imshow(im, interpolation='none', extent=ext, alpha=alpha)
+
+        ax.set_aspect('equal')
+        ax.set_xlim([0, self.w / self.pix_per_um])
+        ax.set_ylim([0, self.h / self.pix_per_um])
+
+    def render_detected_features(self, ax, frame=None, alpha=1):
+        df = self.df if frame is None else self.df[self.df['frame'] == frame]
+        ax.scatter(df['x'], df['y'], s=1, marker='4', c='white', alpha=alpha)
+
+    def render_linked_features(self, ax, frame=None, wheel=False):
+        lnk = self.linked if frame is None else self.linked[self.linked['frame'] == frame]
+
+        if wheel:
+            for xb, yb in self.wheel.best:
+                self.wheel.plot(xb, yb, ax=ax)
+
+        ax.scatter(lnk['x'].values, lnk['y'].values, s=0.1, c='green', zorder=21)
+        ax.scatter(lnk['x1'].values, lnk['y1'].values, s=0.1, c='magenta', zorder=20)
+        ax.scatter(lnk['x2'].values, lnk['y2'].values, s=0.1, c='blue', zorder=20)
+        ax.plot([lnk['x1'].values, lnk['x2'].values],
+                [lnk['y1'].values, lnk['y2'].values],
+                lw=0.1, c='yellow')

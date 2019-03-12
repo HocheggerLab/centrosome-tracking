@@ -10,16 +10,10 @@ import numpy as np
 import tifffile as tf
 from moviepy.video.io.bindings import mplfig_to_npimage
 import moviepy.editor as mpy
-import skimage.filters as filters
-import skimage.morphology as morphology
-import skimage.color as color
-from matplotlib import cm
 
 import microtubules.eb3.detection as detection
-from tools.draggable import DraggableCircle
 from microtubules.eb3 import aster
 import parameters as p
-import plot_special_tools as sp
 from microtubules.eb3.filters import Wheel
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -31,63 +25,38 @@ log.setLevel(logging.DEBUG)
 tp.quiet()
 tp.linking.Linker.MAX_SUB_NET_SIZE = 50
 pd.set_option('display.width', 320)
+pd.set_option('display.max_columns', 50)
 
 
-def movie(frames, linked_particles, wheel, filename="movie.mp4", pix_per_um=1):
+def movie(particles, filename="movie.mp4"):
     def make_frame_mpl(t):
         fr = int(t)
 
         ax.cla()
 
-        ax.imshow(frames[fr], cmap=cm.gray, interpolation='none', extent=xtnt)
-        ax.imshow(nobkg[fr], interpolation='none', extent=xtnt, alpha=0.4)
         # for ix, gr in linked_particles.groupby('particle'):
         #     ax.plot(gr['xum'], gr['yum'], lw=1, c='white', alpha=0.5)
         #     ax.scatter(gr.loc[gr['frame'] == fr, 'xum'], gr.loc[gr['frame'] == fr, 'yum'], s=1, c='red')
-        lp = linked_particles
-        try:
-            ax.scatter(lp.loc[lp['frame'] == fr, 'x'], lp.loc[lp['frame'] == fr, 'y'], s=2, marker='+', c='green')
-            # ax.scatter(lp.loc[lp['frame'] == fr, 'x1'], lp.loc[lp['frame'] == fr, 'y1'], s=1, c='magenta', zorder=10)
-            # ax.scatter(lp.loc[lp['frame'] == fr, 'x2'], lp.loc[lp['frame'] == fr, 'y2'], s=1, c='blue', zorder=10)
-            ax.plot([lp.loc[lp['frame'] == fr, 'x1'], lp.loc[lp['frame'] == fr, 'x2']],
-                    [lp.loc[lp['frame'] == fr, 'y1'], lp.loc[lp['frame'] == fr, 'y2']], lw=0.5, alpha=0.3, c='white')
-        except Exception as e:
-            pass
-        for xb, yb in wheel.best:
-            wheel.plot(xb, yb, ax=ax)
+        particles.render_image(ax, frame=fr)
+        particles.render_segmented_image(ax, frame=fr, color=[1., 0., 0.])
+        particles.render_detected_features(ax, frame=fr, alpha=0.6)
+        particles.render_linked_features(ax, frame=fr)
+        for xb, yb in particles.wheel.best:
+            particles.wheel.plot(xb, yb, ax=ax)
 
         ax.set_xlabel("x [um]")
         ax.set_ylabel("y [um]")
-        ax.set_xlim([0, w / pix_per_um])
-        ax.set_ylim([0, h / pix_per_um])
+        ax.set_xlim([0, particles.w / particles.pix_per_um])
+        ax.set_ylim([0, particles.h / particles.pix_per_um])
 
         return mplfig_to_npimage(fig)  # RGB image of the figure
-
-    # subtract first frame and deal with negative results after the operation
-    nobkg = np.int32(frames)
-    nobkg -= nobkg[0]
-    nobkg = nobkg[1:, :, :]
-    nobkg = np.uint16(nobkg.clip(0))
-
-    w, h = frames.shape[1], frames.shape[2]
-    xtnt = [0, w / pix_per_um, h / pix_per_um, 0]
-
-    # path, fim = os.path.split(image_path)
-    # linked_particles['frame'] += 1
-
-    thr_lvl = filters.threshold_otsu(nobkg)
-    nobkg = (nobkg >= thr_lvl).astype(bool)
-    morphology.remove_small_objects(nobkg, min_size=4 * pix_per_um, connectivity=1, in_place=True)
-
-    nobkg = color.gray2rgb(nobkg)
-    nobkg = nobkg * [1., 0., 0.]
 
     logging.info("rendering movie %s" % filename)
     fig = plt.figure(20, dpi=300)
     ax = fig.gca()
     # fig.tight_layout()
 
-    animation = mpy.VideoClip(make_frame_mpl, duration=len(frames) - 1)
+    animation = mpy.VideoClip(make_frame_mpl, duration=len(particles.images) - 1)
     animation.write_videofile(filename, fps=1)
     animation.close()
 
@@ -95,30 +64,20 @@ def movie(frames, linked_particles, wheel, filename="movie.mp4", pix_per_um=1):
 def do_tracking(image_path, asters=None):
     log.info("detecting points.")
     d = detection.Particles(image_path)
-    df = d.df
-    log.info("detection step completed.")
 
     # Estimate centrosome asters automatically if not provided by parameter
-    wheel = Wheel(df, np.max(d.images, axis=0), radius=15)
+    wheel = Wheel(d.df, np.max(d.images, axis=0), radius=15)
     if asters is not None:
         for a in asters:
             wheel.add(a[0], a[1])
+    d.wheel = wheel
 
     fig = plt.figure(dpi=300)
     ax = fig.gca()
 
-    d.render_time_projection(ax)
+    d.render_image(ax)
     d.render_detected_features(ax)
-
-    linked = pd.DataFrame()
-    for xb, yb in wheel.best:
-        # wheel.plot(xb, yb, ax=ax)
-        _fil = wheel.filter_wheel(xb, yb, ax=ax)
-        if _fil.empty: continue
-
-        search_range = 1
-        pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.5)
-        linked = linked.append(pred.link_df(_fil, search_range), sort=False)
+    d.render_linked_features(ax, wheel=True)
 
     fig.savefig('%s_objfn.png' % image_path[:-4])
 
@@ -136,40 +95,9 @@ def do_tracking(image_path, asters=None):
     # linked = linked[linked['particle'].isin(particles)]
     # logging.info('filtered %d particles msd' % linked['particle'].nunique())
 
-    movie(d.images, linked, wheel, filename='%s.mp4' % image_path[:-4], pix_per_um=d.pix_per_um)
+    movie(d, filename='%s.mp4' % image_path[:-4])
 
-    return linked
-
-
-def select_asters(image_path):
-    def on_key(event):
-        print('press', event.key)
-        if event.key == 'c':
-            ci = DraggableCircle(plt.Circle(xy=orig, radius=2, fc='g', picker=5))
-            asters.append(ci)
-            ax.add_artist(ci.circle)
-            ci.connect()
-            fig.canvas.draw()
-
-    images, pix_per_um, dt = sp.load_tiff(image_path)
-    w, h = images[0].shape[0], images[0].shape[1]
-
-    fig = plt.figure()
-    ax = fig.gca()
-    ext = [0, w / pix_per_um, h / pix_per_um, 0]
-    ax.imshow(np.max(images, axis=0), interpolation='none', extent=ext, cmap=cm.gray)
-    orig = (w / 2 / pix_per_um, h / 2 / pix_per_um)
-
-    ci = DraggableCircle(plt.Circle(xy=orig, radius=2, fc='g', picker=5))
-    asters = [ci]
-    ax.add_artist(ci.circle)
-    ci.connect()
-
-    cidkeyboard = fig.canvas.mpl_connect('key_press_event', on_key)
-    fig.canvas.draw()
-    plt.show()
-
-    return [a.circle.center for a in asters]
+    return d.linked
 
 
 def process_dir(dir_base):
@@ -195,10 +123,9 @@ def process_dir(dir_base):
                     if os.path.exists(cfg_file):
                         asters = aster.read_aster_config(cfg_file)
                     else:
-                        asters = select_asters(mpath)
+                        asters = aster.select_asters(mpath)
                         aster.write_aster_config(cfg_file, asters)
 
-                    # vis_detection(mpath, filename='%s.mp4' % mpath[:-4])
                     tdf = do_tracking(mpath, asters=asters)
                     if __debug__: exit()
                     if tdf.empty: continue

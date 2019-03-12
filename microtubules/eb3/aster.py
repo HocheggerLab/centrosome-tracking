@@ -3,7 +3,10 @@ import configparser
 import ast
 
 import matplotlib.pyplot as plt
+from matplotlib import cm
+import numpy as np
 
+import plot_special_tools as sp
 from tools.draggable import DraggableCircle
 
 
@@ -51,3 +54,34 @@ def write_aster_config(fname, asters):
             config.set(section, 'center', a)
 
         config.write(configfile)
+
+
+def select_asters(image_path):
+    def on_key(event):
+        print('press', event.key)
+        if event.key == 'c':
+            ci = DraggableCircle(plt.Circle(xy=orig, radius=2, fc='g', picker=5))
+            asters.append(ci)
+            ax.add_artist(ci.circle)
+            ci.connect()
+            fig.canvas.draw()
+
+    images, pix_per_um, dt = sp.load_tiff(image_path)
+    w, h = images[0].shape[0], images[0].shape[1]
+
+    fig = plt.figure()
+    ax = fig.gca()
+    ext = [0, w / pix_per_um, h / pix_per_um, 0]
+    ax.imshow(np.max(images, axis=0), interpolation='none', extent=ext, cmap=cm.gray)
+    orig = (w / 2 / pix_per_um, h / 2 / pix_per_um)
+
+    ci = DraggableCircle(plt.Circle(xy=orig, radius=2, fc='g', picker=5))
+    asters = [ci]
+    ax.add_artist(ci.circle)
+    ci.connect()
+
+    cidkeyboard = fig.canvas.mpl_connect('key_press_event', on_key)
+    fig.canvas.draw()
+    plt.show()
+
+    return [a.circle.center for a in asters]

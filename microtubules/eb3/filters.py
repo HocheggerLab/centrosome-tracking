@@ -66,8 +66,9 @@ class Wheel:
                 # build triangle
                 tri = self.triangle(x, y, angle_start=ang_i + c_ang)
 
-                in_idx = dc['l'].apply(lambda l: l.length < 3) & (
-                        dc['pt1'].apply(lambda pt: pt.within(tri)) | dc['pt2'].apply(lambda pt: pt.within(tri)))
+                in_idx = dc['l'].apply(lambda l: l.length < 10) & (
+                        dc['pt1'].apply(lambda pt: pt.within(tri)) | dc['pt2'].apply(lambda pt: pt.within(tri)) |
+                        (dc['pt1']).isna() & dc['pt2'].isna())
                 dcc = dc[in_idx]
 
                 if cuadrant == 2 or cuadrant == 4:
@@ -131,7 +132,9 @@ class Wheel:
                 c_ang = (cuadrant - 1) / 2 * np.pi
                 tri = self.triangle(x, y, angle_start=ang_i + c_ang)
 
-                in_idx = dc['pt1'].apply(lambda pt: pt.within(tri)) & dc['pt2'].apply(lambda pt: pt.within(tri))
+                in_idx = dc['l'].apply(lambda l: l.length < 10) & (
+                        dc['pt1'].apply(lambda pt: pt.within(tri)) | dc['pt2'].apply(lambda pt: pt.within(tri)) |
+                        (dc['pt1']).isna() & dc['pt2'].isna())
                 if len(dc[in_idx]) == 0: continue
                 log.debug('- 3', dc[in_idx]['pt1'].count())
 
