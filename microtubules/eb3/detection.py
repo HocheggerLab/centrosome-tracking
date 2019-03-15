@@ -1,4 +1,5 @@
 import logging
+import os
 
 import pandas as pd
 import numpy as np
@@ -11,6 +12,7 @@ from matplotlib import cm
 import trackpy as tp
 import skimage.color as skcolor
 
+import parameters as p
 import plot_special_tools as sp
 
 log = logging.getLogger(__name__)
@@ -21,6 +23,8 @@ class Particles():
     def __init__(self, image_file):
         log.info("Initializing particles object")
         self.images, self.pix_per_um, self.dt = sp.load_tiff(image_file)
+        self.im_f = os.path.basename(image_file)
+        self.im_p = os.path.dirname(image_file)
         self.w = self.images[0].shape[0]
         self.h = self.images[0].shape[1]
         self._df = None
@@ -28,7 +32,20 @@ class Particles():
         self.wheel = None
         self.segmented = None
 
+        self._get_cal_excel()
         self._remove_backgound()
+
+    def _get_cal_excel(self):
+        # get calibration parameters from excel file
+        cal = pd.read_excel(p.experiments_dir + 'eb3/eb3_calibration.xls')
+
+        calp = cal[cal['filename'] == self.im_f].iloc[0]
+        self.dt = calp['dt']
+
+        # consider 1.6X magification of optivar system
+        if calp['optivar'] == 'yes':
+            # self.pix_per_um *= 1.6
+            self.pix_per_um = 4.5 * 1.6
 
     def _remove_backgound(self):
         # subtract first frame and deal with negative results after the operation
@@ -42,6 +59,8 @@ class Particles():
         thr_lvl = filters.threshold_otsu(self.nobkg)
         self.segmented = (self.nobkg >= thr_lvl).astype(bool)
         morphology.remove_small_objects(self.segmented, min_size=4 * self.pix_per_um, connectivity=1, in_place=True)
+        for i, im in enumerate(self.segmented):
+            self.segmented[i, :] = morphology.opening(im, selem=morphology.square(3))
 
     def _debug_fitted_ellipse_plot(self, frame, contour):
         import matplotlib.pyplot as plt
@@ -187,9 +206,10 @@ class Particles():
                                      'pt1': None, 'pt2': None,
                                      'l': 0,
                                      'x1': cx, 'y1': cy, 'x2': cx, 'y2': cy,
-                                     'theta': 0, 'frame': num})
+                                     'theta': np.nan, 'frame': num})
         self._df = pd.DataFrame(features)
-        log.info("Extraction step completed")
+        self._df['time'] = self._df['frame'] * self.dt
+        log.info("Extraction step completed with %d features detected." % len(self._df))
         return self._df
 
     @property
@@ -203,9 +223,25 @@ class Particles():
             _fil = self.wheel.filter_wheel(xb, yb)
             if _fil.empty: continue
 
-            search_range = 1
-            pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.5, span=3)
+            search_range = 5
+            pred = tp.predict.NearestVelocityPredict(initial_guess_vels=5)
             linked = linked.append(pred.link_df(_fil, search_range), sort=False)
+
+        #  filter spurious tracks
+        frames_per_particle = linked.groupby('particle')['frame'].nunique()
+        particles = frames_per_particle[frames_per_particle > 3].index
+        linked = linked[linked['particle'].isin(particles)]
+        logging.info('filtered %d particles by track length' % linked['particle'].nunique())
+
+        # m = tp.imsd(linked, 1, 1)
+        # mt = m.ix[15]
+        # particles = mt[mt > 1].index
+        # linked = linked[linked['particle'].isin(particles)]
+        # logging.info('filtered %d particles msd' % linked['particle'].nunique())
+
+        linked['particle'] = linked['particle'].astype('int32')
+        linked['frame'] = linked['frame'].astype('int32')
+        linked[['x', 'y', 'time']] = linked[['x', 'y', 'time']].astype('float64')
 
         self._linked = linked
         log.info("Linking step completed")
@@ -215,9 +251,7 @@ class Particles():
         ext = [0, self.w / self.pix_per_um, self.h / self.pix_per_um, 0]
         im = np.max(self.images, axis=0) if frame is None else self.images[frame]
         ax.imshow(im, interpolation='none', extent=ext, cmap=cm.gray, alpha=alpha)
-        ax.set_aspect('equal')
-        ax.set_xlim([0, self.w / self.pix_per_um])
-        ax.set_ylim([0, self.h / self.pix_per_um])
+        self._format_axes(ax)
 
     def render_segmented_image(self, ax, frame=None, color=None, alpha=0.5):
         ext = [0, self.w / self.pix_per_um, self.h / self.pix_per_um, 0]
@@ -228,14 +262,21 @@ class Particles():
             im = skcolor.gray2rgb(im)
             im = im * color
             ax.imshow(im, interpolation='none', extent=ext, alpha=alpha)
+        self._format_axes(ax)
 
+    def _format_axes(self, ax):
         ax.set_aspect('equal')
-        ax.set_xlim([0, self.w / self.pix_per_um])
-        ax.set_ylim([0, self.h / self.pix_per_um])
+        ax.set_xlim(0, self.w / self.pix_per_um)
+        ax.set_ylim(0, self.h / self.pix_per_um)
 
-    def render_detected_features(self, ax, frame=None, alpha=1):
+    def render_detected_features(self, ax, frame=None, lines=False, extr_pts=False, alpha=1):
         df = self.df if frame is None else self.df[self.df['frame'] == frame]
         ax.scatter(df['x'], df['y'], s=1, marker='4', c='white', alpha=alpha)
+        if lines:
+            ax.plot([df['x1'].values, df['x2'].values], [df['y1'].values, df['y2'].values], lw=0.1, c='yellow')
+        if extr_pts:
+            ax.scatter(df['x1'].values, df['y1'].values, s=0.1, c='magenta', zorder=20)
+            ax.scatter(df['x2'].values, df['y2'].values, s=0.1, c='blue', zorder=20)
 
     def render_linked_features(self, ax, frame=None, wheel=False):
         lnk = self.linked if frame is None else self.linked[self.linked['frame'] == frame]
@@ -244,9 +285,5 @@ class Particles():
             for xb, yb in self.wheel.best:
                 self.wheel.plot(xb, yb, ax=ax)
 
-        ax.scatter(lnk['x'].values, lnk['y'].values, s=0.1, c='green', zorder=21)
-        ax.scatter(lnk['x1'].values, lnk['y1'].values, s=0.1, c='magenta', zorder=20)
-        ax.scatter(lnk['x2'].values, lnk['y2'].values, s=0.1, c='blue', zorder=20)
-        ax.plot([lnk['x1'].values, lnk['x2'].values],
-                [lnk['y1'].values, lnk['y2'].values],
-                lw=0.1, c='yellow')
+        ax.scatter(lnk['x'].values, lnk['y'].values, s=1, marker='*', c='green', zorder=21)
+        # ax.plot([lnk['x1'].values, lnk['x2'].values], [lnk['y1'].values, lnk['y2'].values], lw=0.1, c='yellow')

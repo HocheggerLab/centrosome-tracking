@@ -42,13 +42,15 @@ class Wheel:
     def add(self, x, y):
         self.best.append((x, y))
 
-    def filter_wheel(self, x, y, ax=None):
+    def filter_wheel(self, x, y):
         inp = self.df
         in_idx = ((inp['x1'] > x - self.radius) | (inp['x2'] > x - self.radius)) & \
                  ((inp['x1'] < x + self.radius) | (inp['x2'] < x + self.radius)) & \
                  ((inp['y1'] > y - self.radius) | (inp['y2'] > y - self.radius)) & \
                  ((inp['y1'] < y + self.radius) | (inp['y2'] < y + self.radius))
         df = inp[in_idx]
+        # return  df.drop(columns=['x1', 'y1', 'x1', 'x2'])
+
         out = pd.DataFrame()
         if len(df) == 0: return out
 
@@ -66,9 +68,8 @@ class Wheel:
                 # build triangle
                 tri = self.triangle(x, y, angle_start=ang_i + c_ang)
 
-                in_idx = dc['l'].apply(lambda l: l.length < 10) & (
-                        dc['pt1'].apply(lambda pt: pt.within(tri)) | dc['pt2'].apply(lambda pt: pt.within(tri)) |
-                        (dc['pt1']).isna() & dc['pt2'].isna())
+                in_idx = dc['l'].apply(lambda l: l.length < 3) & (
+                        dc['pt1'].apply(lambda pt: pt.within(tri)) | dc['pt2'].apply(lambda pt: pt.within(tri)))
                 dcc = dc[in_idx]
 
                 if cuadrant == 2 or cuadrant == 4:
@@ -82,17 +83,12 @@ class Wheel:
                 if cuadrant == 2 or cuadrant == 3:
                     dcc.loc[:, 'x'] = dcc['x2']
                     dcc.loc[:, 'y'] = dcc['y2']
-                dcc.drop(columns=['x1', 'y1', 'x1', 'x2'])
-                out = out.append(dcc)
+                out = out.append(dcc.drop(columns=['x1', 'y1', 'x1', 'x2']), sort=False)
 
-                if ax is not None and not dcc.empty:
-                    ax.plot(tri.exterior.xy[0], tri.exterior.xy[1], lw=0.1, c='white')
-                    ax.scatter(dcc['x'].values, dcc['y'].values, s=0.1, c='green', zorder=21)
-                    ax.scatter(dcc['x1'].values, dcc['y1'].values, s=0.1, c='magenta', zorder=20)
-                    ax.scatter(dcc['x2'].values, dcc['y2'].values, s=0.1, c='blue', zorder=20)
-                    ax.plot([dcc['x1'].values, dcc['x2'].values],
-                            [dcc['y1'].values, dcc['y2'].values],
-                            lw=0.1, c='yellow')
+        # add point with no slope information
+        z_idx = df['theta'].isna()
+        dc = df[z_idx]
+        out = out.append(dc.drop(columns=['x1', 'y1', 'x1', 'x2']), sort=False)
 
         return out
 

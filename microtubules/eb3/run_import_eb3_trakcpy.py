@@ -39,22 +39,18 @@ def movie(particles, filename="movie.mp4"):
         #     ax.scatter(gr.loc[gr['frame'] == fr, 'xum'], gr.loc[gr['frame'] == fr, 'yum'], s=1, c='red')
         particles.render_image(ax, frame=fr)
         particles.render_segmented_image(ax, frame=fr, color=[1., 0., 0.])
-        particles.render_detected_features(ax, frame=fr, alpha=0.6)
+        particles.render_detected_features(ax, frame=fr, alpha=0.4, lines=True)
         particles.render_linked_features(ax, frame=fr)
         for xb, yb in particles.wheel.best:
             particles.wheel.plot(xb, yb, ax=ax)
-
-        ax.set_xlabel("x [um]")
-        ax.set_ylabel("y [um]")
-        ax.set_xlim([0, particles.w / particles.pix_per_um])
-        ax.set_ylim([0, particles.h / particles.pix_per_um])
 
         return mplfig_to_npimage(fig)  # RGB image of the figure
 
     logging.info("rendering movie %s" % filename)
     fig = plt.figure(20, dpi=300)
     ax = fig.gca()
-    # fig.tight_layout()
+    ax.set_xlabel("x [um]")
+    ax.set_ylabel("y [um]")
 
     animation = mpy.VideoClip(make_frame_mpl, duration=len(particles.images) - 1)
     animation.write_videofile(filename, fps=1)
@@ -74,26 +70,10 @@ def do_tracking(image_path, asters=None):
 
     fig = plt.figure(dpi=300)
     ax = fig.gca()
-
     d.render_image(ax)
     d.render_detected_features(ax)
     d.render_linked_features(ax, wheel=True)
-
     fig.savefig('%s_objfn.png' % image_path[:-4])
-
-    if linked.empty: return linked
-
-    #  filter spurious tracks
-    frames_per_particle = linked.groupby('particle')['frame'].nunique()
-    particles = frames_per_particle[frames_per_particle > 5].index
-    linked = linked[linked['particle'].isin(particles)]
-    logging.info('filtered %d particles by track length' % linked['particle'].nunique())
-
-    # m = tp.imsd(linked, 1, 1)
-    # mt = m.ix[15]
-    # particles = mt[mt > 1].index
-    # linked = linked[linked['particle'].isin(particles)]
-    # logging.info('filtered %d particles msd' % linked['particle'].nunique())
 
     movie(d, filename='%s.mp4' % image_path[:-4])
 
@@ -103,7 +83,7 @@ def do_tracking(image_path, asters=None):
 def process_dir(dir_base):
     logging.info('processing data from folder %s' % dir_base)
     df = pd.DataFrame()
-    cal = pd.read_excel(p.experiments_dir + 'eb3/eb3_calibration.xls')
+
     # Traverse through all subdirs looking for image files. When a file is found, assume folder structure of (cond/date)
     for root, directories, files in os.walk(dir_base):
         for f in files:
@@ -132,19 +112,6 @@ def process_dir(dir_base):
 
                     tdf['condition'] = os.path.basename(os.path.dirname(root))
                     tdf['tag'] = f[:-4]
-                    # tdf.drop(['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep'], axis=1, inplace=True)
-
-                    calp = cal[cal['filename'] == f].iloc[0]
-                    tdf['time'] = tdf['frame'] * calp['dt']
-
-                    tdf['particle'] = tdf['particle'].astype('int32')
-                    tdf['frame'] = tdf['frame'].astype('int32')
-                    tdf[['x', 'y', 'time']] = tdf[['x', 'y', 'time']].astype('float64')
-
-                    # consider 1.6X magification of optivar system
-                    if calp['optivar'] == 'yes':
-                        tdf['x'] /= 1.6
-                        tdf['y'] /= 1.6
 
                     tdf.to_csv(csv_file, index=False)
                     df = df.append(tdf)

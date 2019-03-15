@@ -142,47 +142,6 @@ def set_axis_size(w, h, ax=None):
     ax.figure.set_size_inches(figw, figh)
 
 
-def anotated_boxplot(data_grouped, var, point_size=5, fontsize=None, cat='condition',
-                     swarm=True, swarm_subcat=None, order=None, xlabels=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
-                zorder=100)
-
-    if swarm:
-        _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, hue=swarm_subcat, ax=ax,
-                            zorder=10)
-    else:
-        _ax = sns.stripplot(data=data_grouped, y=var, x=cat, jitter=True, size=point_size, hue=swarm_subcat,
-                            order=order, ax=ax, zorder=10)
-    for i, artist in enumerate(_ax.artists):
-        artist.set_facecolor('None')
-        artist.set_edgecolor('k')
-        artist.set_zorder(5000)
-    for i, artist in enumerate(_ax.lines):
-        artist.set_color('k')
-        artist.set_zorder(5000)
-
-    order = order if order is not None else data_grouped[cat].unique()
-    if fontsize != None:
-        for x, c in enumerate(order):
-            d = data_grouped[data_grouped[cat] == c][var]
-            _max_y = _ax.axis()[3]
-            count = d.count()
-            mean = d.mean()
-            median = d.median()
-            # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
-            _txt = '%0.2f\n%d' % (median, count)
-            _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
-    # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
-    if xlabels is not None:
-        _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
-                            rotation=45, multialignment='right')
-    else:
-        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
-    # ax.set_xlabel('')
-
-    return _ax
-
-
 def _compute_congression(cg):
     # compute congression signal
     cg['cgr'] = 0

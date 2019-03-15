@@ -16,7 +16,7 @@ from scipy import stats
 
 import parameters as p
 import mechanics as m
-import plot_special_tools as sp
+import plots as sp
 from tools import stats as st
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
@@ -197,8 +197,8 @@ def stats_plots(df, df_stats):
         ax1 = plt.gca()
 
         df_stats = df_stats[df_stats['speed'] > 1e-2]
-        with sns.color_palette(['grey', 'grey', 'grey', 'grey']):
-            sp.anotated_boxplot(df_stats, 'speed', swarm=False, point_size=1.5, ax=ax1)
+        with sns.color_palette([sp.SUSSEX_CORAL_RED, ] * 6):
+            sp.anotated_boxplot(df_stats, 'speed', swarm=False, stars=True, point_size=1.5, ax=ax1)
             ax1.set_xlabel('Condition')
             ax1.set_ylabel('Average Eb1 speed per particle $[\mu m \cdot s^{-1}]$')
 
@@ -217,7 +217,7 @@ def stats_plots(df, df_stats):
         ax4 = plt.subplot(gs[1, 1])
 
         ptsize = 0.5
-        with sns.color_palette(['grey', 'grey', 'grey', 'grey', 'grey', 'grey']):
+        with sns.color_palette(['grey', ] * 6):
             sp.anotated_boxplot(df_stats, 'speed', swarm=False, point_size=ptsize, ax=ax1)
             ax1.set_xlabel('Condition')
             ax1.set_ylabel('Average Eb1 speed per particle track $[\mu m \cdot s^{-1}]$')
@@ -390,7 +390,7 @@ def render_image_tracks(df_total, folder='.'):
 def batch_filter(df):
     logging.info('%d tracks prior to apply filters' % df.set_index(indiv_idx).index.unique().size)
 
-    df_flt = df_filter(df, k=5)
+    df_flt = df_filter(df, k=3)
     df_flt = m.get_msd(df_flt, group=indiv_idx)
 
     # filter dataframe based on track's displacement
@@ -424,8 +424,8 @@ def batch_filter(df):
 
 
 if __name__ == '__main__':
-    # do_filter_stats = True
-    do_filter_stats = False
+    do_filter_stats = True
+    # do_filter_stats = False
 
     _fig_size_A3 = (11.7, 16.5)
     _err_kws = {'alpha': 0.3, 'lw': 1}
@@ -446,8 +446,8 @@ if __name__ == '__main__':
             df_avg = pd.read_pickle(p.experiments_dir + 'eb3stats.pandas')
         logging.info('Loaded %d tracks after filters' % df_flt.set_index(indiv_idx).index.unique().size)
 
-    logging.info('rendering images.')
-    render_image_tracks(df_flt, folder=p.experiments_dir + 'eb3')
+    # # # logging.info('rendering images.')
+    # # # render_image_tracks(df_flt, folder=p.experiments_dir + 'eb3')
 
     logging.info('making indiv plots')
     df_flt['time'] = df_flt['time'].apply(np.round, decimals=3)
