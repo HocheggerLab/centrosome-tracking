@@ -3,7 +3,7 @@ import pandas as pd
 import scipy.io as sio
 
 import parameters
-import stats
+from tools import stats
 from imagej_pandas import ImagejPandas
 
 pd.set_option('display.width', 320)
@@ -72,7 +72,7 @@ for _, _df in df_matlab.groupby(['condition', 'run', 'Nuclei']):
     idx1 = (_df['CentrLabel'] == 'A') & (_df['Frame'] <= minframe1)
     _df.loc[idx1, 'SpeedCentr'] *= -1
     _df.loc[idx1, 'AccCentr'] *= -1
-    df_out = df_out.append(_df)
+    df_out = df_out.append(_df, sort=True)
 
 ordered_columns = ['condition', 'run', 'Nuclei', 'Centrosome', 'CentrLabel',
                    'Frame', 'Time', 'CentX', 'CentY', 'NuclX', 'NuclY', 'CNx', 'CNy',
@@ -83,7 +83,7 @@ df_out = df_out.assign(NuclBound=np.nan, CellX=np.nan, CellY=np.nan, DistCell=np
 df_out = df_out[ordered_columns]
 
 df_c = pd.read_pickle(parameters.data_dir + 'centrosomes.pandas')
-df_c = df_c.append(df_out)
+df_c = df_c.append(df_out, sort=True)
 df_c = df_c[ordered_columns]
 df_c.to_pickle(parameters.data_dir + 'merge.pandas')
 
