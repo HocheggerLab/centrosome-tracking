@@ -218,6 +218,7 @@ class Particles():
         if self.wheel is None: return pd.DataFrame()
 
         log.info("Linking particles")
+        # tp.linking.Linker.MAX_SUB_NET_SIZE = 50
         linked = pd.DataFrame()
         for xb, yb in self.wheel.best:
             _fil = self.wheel.filter_wheel(xb, yb)
@@ -225,7 +226,8 @@ class Particles():
 
             search_range = 5
             pred = tp.predict.NearestVelocityPredict(initial_guess_vels=5)
-            linked = linked.append(pred.link_df(_fil, search_range), sort=False)
+            linked = linked.append(
+                pred.link_df(_fil, search_range, memory=2, link_strategy='auto', adaptive_stop=0.5, ), sort=False)
 
         #  filter spurious tracks
         frames_per_particle = linked.groupby('particle')['frame'].nunique()

@@ -15,15 +15,15 @@ import microtubules.eb3.detection as detection
 from microtubules.eb3 import aster
 import parameters as p
 from microtubules.eb3.filters import Wheel
+import trackpy.diag
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 # coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
-# tp.diag.performance_report()
+trackpy.diag.performance_report()
 # logging.basicConfig(stream=sys.stderr, format='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 tp.quiet()
-tp.linking.Linker.MAX_SUB_NET_SIZE = 50
 pd.set_option('display.width', 320)
 pd.set_option('display.max_columns', 50)
 
