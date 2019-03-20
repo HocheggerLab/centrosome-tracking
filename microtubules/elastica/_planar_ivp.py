@@ -23,6 +23,7 @@ class PlanarElasticaIVP(PlanarElastica):
     def __init__(self, w=1.0, k0=1.0, alpha=np.pi / 2,
                  L=1.0, E=0.625, J=1.0, F=1.0, x0=0.0, y0=0.0, m0=0.01, phi=0.0, theta=3 * np.pi / 2):
         PlanarElastica.__init__(self, L=L, E=E, J=J, F=F, x0=x0, y0=y0, m0=m0, phi=phi, theta=theta)
+        self.phi = phi
         self._w = w
         self._k0 = k0
         self.alpha = alpha
@@ -180,18 +181,19 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
 
     def __init__(self, axes, radius=1.0,
                  w=1.0, k0=1.0, alpha=np.pi / 2,
-                 L=1.0, E=0.625, J=1.0, F=1.0, x0=0.0, y0=0.0, m0=0.01, phi=0.0, theta=3 * np.pi / 2):
+                 L=1.0, E=0.625, J=1.0, F=1.0, x0=0.0, y0=0.0, m0=0.01, phi=0.0, theta=3 * np.pi / 2,
+                 callback=None):
         plt.Artist.__init__(self)
         PlanarElasticaIVP.__init__(self, w=w, k0=k0, alpha=alpha, L=L, E=E, J=J, F=F, x0=x0, y0=y0, m0=m0, theta=theta)
         self.ini_angle_pick = False
         self.end_angle_pick = False
+        self.selected = False
 
         self.r = radius
+        self.phi = phi
 
-        self.phi = np.arctan2(1.0, 0.0)
-
-        self.ini_pt = Vec2(self.x0, self.y0)
-        self.end_pt = Vec2(self.endX, self.endY)
+        self._ini_pt = Vec2(self.x0, self.y0)
+        self._end_pt = Vec2(self.endX, self.endY)
         # coordinates for the angle picker points at initial and end points
         self.phi_angle_pt = Vec2(np.cos(self.phi), np.sin(self.phi))
         self.theta_angle_pt = Vec2(np.cos(self.theta0), np.sin(self.theta0))
@@ -202,73 +204,107 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
         self.R = Affine.rotation(np.rad2deg(self.phi))
         self.Rt = self.R * self.t
 
+        self.callback = callback
+
         self._initial_plot()
         self.update_picker_point()
         self._connect()
 
+    @property
+    def x0(self):
+        return self._x0
+
+    @x0.setter
+    def x0(self, value):
+        self._x0 = value
+        self._ini_pt = Vec2(self.x0, self.y0)
+        self.ini_angle_circle.center = (self.x0, self.y0)
+
+    @property
+    def y0(self):
+        return self._y0
+
+    @y0.setter
+    def y0(self, value):
+        self._y0 = value
+        self._ini_pt = Vec2(self.x0, self.y0)
+        self.ini_angle_circle.center = (self.x0, self.y0)
+
     def __str__(self):
         return "PlanarElastica draw object: %s" % (super().__str__())
 
+    def select(self):
+        self.selected = True
+        self._show_picker()
+
+    def unselect(self):
+        self.selected = False
+        self._hide_picker()
+
     def on_pick(self, event):
-        logging.debug(event.artist)
+        if not self.selected: return
+        logger.debug(event.artist)
+        # if self.curve == event.artist and not (self.ini_angle_pick or self.end_angle_pick):
+        #     self.select()
         if self.ini_angle_circle == event.artist and not self.ini_angle_pick:
             self.ini_angle_pick = True
             mevent = event.mouseevent
-            logging.debug('initial angle pick: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
-                          (mevent.xdata, mevent.ydata, self.x0, self.y0))
+            logger.debug('initial angle pick: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
+                         (mevent.xdata, mevent.ydata, self.x0, self.y0))
 
         if self.end_picker_perimeter == event.artist and not self.end_angle_pick:
             self.end_angle_pick = True
             mevent = event.mouseevent
-            logging.debug('final angle pick: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
-                          (mevent.xdata, mevent.ydata, self.x0, self.y0))
+            logger.debug('final angle pick: xdata=%f, ydata=%f, x0=%f, y0=%f ' %
+                         (mevent.xdata, mevent.ydata, self.x0, self.y0))
 
     def on_motion(self, event):
+        if not self.selected: return
         if event.xdata is None: return
 
         if self.ini_angle_pick:
             xmouse = Vec2(event.xdata, event.ydata)
-            self.phi_angle_pt = xmouse - self.ini_pt
+            self.phi_angle_pt = xmouse - self._ini_pt
 
         if self.end_angle_pick:
             xmouse = Vec2(event.xdata, event.ydata)
-            self.theta_angle_pt = (xmouse - self.end_pt) * self.R.__invert__()
+            self.theta_angle_pt = (xmouse - self._end_pt) * self.R.__invert__()
 
         self.update_picker_point()
         return
 
     def on_release(self, event):
-        logging.info('on_release {} {}'.format(self.ini_angle_pick, self.end_angle_pick))
+        if not self.selected: return
+        logger.info('on_release {} {}'.format(self.ini_angle_pick, self.end_angle_pick))
         if not (self.ini_angle_pick or self.end_angle_pick): return
 
-        logging.debug('x0={: .2f} y0={: .2f} xe={: .2f} ye={: .2f}'.format(self.x0, self.y0, self.endX, self.endY))
+        logger.debug('x0={: .2f} y0={: .2f} xe={: .2f} ye={: .2f}'.format(self.x0, self.y0, self.endX, self.endY))
 
         if self.ini_angle_pick:
             xmouse = Vec2(event.xdata, event.ydata)
-            self.phi_angle_pt = xmouse - self.ini_pt
-            logging.debug('ini_angle_pick')
+            self.phi_angle_pt = xmouse - self._ini_pt
+            self.phi = np.arctan2(self.phi_angle_pt.y, self.phi_angle_pt.x)
+            self.phi_angle_pt = Vec2(np.cos(self.phi) * self.r, np.sin(self.phi) * self.r)
+            logger.debug('ini_angle_release')
 
         if self.end_angle_pick:
             xmouse = Vec2(event.xdata, event.ydata)
-            self.theta_angle_pt = (xmouse - self.end_pt) * self.R.__invert__()
-
-            logging.debug('end_angle_pick')
+            self.theta_angle_pt = (xmouse - self._end_pt) * self.R.__invert__()
+            logger.debug('end_angle_release')
 
         self.eval()
         self.plot(self.ax)
         self.update_picker_point()
         self.ini_angle_pick = False
         self.end_angle_pick = False
-        logging.debug('angle_pt={:s} theta={: .2f}'.format(str(self.theta_angle_pt), self.theta0))
+        logger.debug('angle_pt={:s} theta={: .2f}'.format(str(self.theta_angle_pt), self.theta0))
+
+        if self.callback is not None: self.callback()
 
     def update_picker_point(self):
         # update initial picker point
-        self.ini_pt = Vec2(self.x0, self.y0)
-        self.phi = np.arctan2(self.phi_angle_pt.y, self.phi_angle_pt.x)
-        self.phi_angle_pt = Vec2(np.cos(self.phi) * self.r, np.sin(self.phi) * self.r)
-        phi_ang_pt = self.phi_angle_pt + self.ini_pt
+        phi_ang_pt = self.phi_angle_pt + self._ini_pt
 
-        self.ini_angle_circle.center = (self.x0, self.y0)
         self.ini_angle_circle.radius = self.r
         self.ini_angle_point.center = (phi_ang_pt.x, phi_ang_pt.y)
         self.ini_angle_point.radius = self.r / 5.0
@@ -278,10 +314,10 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
         self.theta0 = np.arctan2(self.theta_angle_pt.y, self.theta_angle_pt.x)  # +np.pi
 
         # deal with rotations and translations
-        self.end_pt = Vec2(self.endX, self.endY)
-        pc = self.end_pt
+        self._end_pt = Vec2(self.endX, self.endY)
+        pc = self._end_pt
         pick_e = Vec2(np.cos(self.theta0) * self.r, np.sin(self.theta0) * self.r)
-        pe = pick_e * self.R * Affine.translation(self.end_pt)
+        pe = pick_e * self.R * Affine.translation(self._end_pt)
 
         self.end_pick_point.center = (pc.x, pc.y)
         self.end_picker_perimeter.center = (pc.x, pc.y)
@@ -297,18 +333,19 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
     def _initial_plot(self):
         drx = np.cos(self.theta0) * self.r
         dry = np.sin(self.theta0) * self.r
-        self.end_pick_point = plt.Circle((self.endX, self.endY), radius=self.r / 10.0, fc='b')
-        self.end_picker_perimeter = plt.Circle((self.endX, self.endY), radius=self.r, fc='none', ec='k', lw=1,
-                                               linestyle='--', picker=5)
-        self.end_angle_point = plt.Circle((self.endX + drx, self.endY - dry), radius=self.r / 5.0, fc='w', picker=5)
+        self.end_pick_point = plt.Circle((self.endX, self.endY), radius=self.r / 5.0, fc='b', zorder=10)
+        self.end_picker_perimeter = plt.Circle((self.endX, self.endY), radius=self.r, fc='none', ec='k', lw=0.5,
+                                               linestyle='--', picker=1, zorder=10)
+        self.end_angle_point = plt.Circle((self.endX + drx, self.endY - dry), radius=self.r / 2.0, fc='w', picker=1)
         self.end_angle_line = plt.Line2D((self.endX, self.endX + drx), (self.endY, self.endY - dry), color='k')
 
         irx = np.cos(self.phi) * self.r
         iry = np.sin(self.phi) * self.r
-        self.ini_angle_point = plt.Circle((self.x0 + irx, self.y0 - iry), radius=self.r / 5.0, fc='w', picker=5)
+        self.ini_angle_point = plt.Circle((self.x0 + irx, self.y0 - iry), radius=self.r / 2.0, fc='w', picker=1,
+                                          zorder=10)
         self.ini_angle_line = plt.Line2D((self.x0, self.x0 + irx), (self.y0, self.y0 - iry), color='k')
-        self.ini_angle_circle = plt.Circle((self.x0, self.y0), radius=self.r, fc='none', ec='k', lw=1, linestyle='--',
-                                           picker=5)
+        self.ini_angle_circle = plt.Circle((self.x0, self.y0), radius=self.r, fc='none', ec='k', lw=0.5,
+                                           linestyle='--', picker=1, zorder=10)
 
         self.ax.add_artist(self.end_pick_point)
         self.ax.add_artist(self.end_picker_perimeter)
@@ -317,11 +354,11 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
         self.ax.add_artist(self.ini_angle_circle)
         self.ax.add_artist(self.ini_angle_point)
         self.ax.add_artist(self.ini_angle_line)
-        self.eval()
 
         self.ax.set_xlabel('$x [\mu m]$')
         self.ax.set_ylabel('$y [\mu m]$')
 
+        self.eval()
         self.plot(self.ax)
 
     def _hide_picker(self):

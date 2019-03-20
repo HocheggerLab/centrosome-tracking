@@ -1,174 +1,138 @@
+import ast
+import configparser
+import os
 import logging
 
+from planar import Vec2
+import tifffile
 import matplotlib.pyplot as plt
-import numpy as np
+from lmfit import Parameters
+
+from tools.draggable import DraggableCircle
+from microtubules import elastica as e
+
+log = logging.getLogger(__name__)
 
 
 class Aster:
-    def __init__(self, axes, x0=0.0, y0=0.0):
-        self.picking = False
-        self.moving_fit = False
+    """
+        Implements an aster where microtubules are placed.
+        All the length variables are in micrometers
+    """
+    centrosome_radius = 0.5
+
+    def __init__(self, axes: plt.Axes, image: tifffile.TiffPage, x0=0.0, y0=0.0, filename=None):
         self.ax = axes
+        self._img = image
         self.fibers = []
+        self.selected_fiber = None
 
-        self._whmax = 0.0  # width height
-        self.xa = x0
-        self.ya = y0
-        self.fit_pt = (x0 + 4, y0 + 1)
+        self.pt = Vec2(x0, y0)
 
-        ax_size_x = np.diff(self.ax.get_xticks())[0]
-        self.r = ax_size_x
-
-        self._init_graph()
+        crcl = plt.Circle((x0, y0), radius=self.centrosome_radius, fc='y', picker=self.centrosome_radius, zorder=100)
+        axes.add_artist(crcl)
+        self._o = DraggableCircle(crcl, on_pick_callback=self._cleanup,
+                                  on_release_callback=self._update_fibers)  # o for origin
+        self._o.connect()
         self._connect()
 
-    def _init_graph(self):
-        self.pick_ini_point = plt.Circle((self.xa, self.ya), radius=self.r / 5.0, fc='w', picker=5)
-        self.fit_point = plt.Circle(self.fit_pt, radius=self.r / 6.0, fc='g', picker=5)
-        self.ax.add_artist(self.pick_ini_point)
-        self.ax.add_artist(self.fit_point)
-
-    def _hide_picker(self):
-        self.pick_ini_point.set_visible(False)
-        self.fit_point.set_visible(False)
-
-    def _show_picker(self):
-        self.pick_ini_point.set_visible(True)
-        self.fit_point.set_visible(True)
-
     def add_fiber(self, fiber):
-        fiber.x0 = self.xa
-        fiber.y0 = self.ya
+        assert type(fiber) == e.PlanarImageMinimizerIVP, 'argument is not a fiber that we like'
+
+        fiber.callback = self._update_fibers
+        fiber.x0 = self.pt.x
+        fiber.y0 = self.pt.y
+        fiber.unselect()
         self.fibers.append(fiber)
-        self._reframe()
 
-    def _update_picker_point(self):
-        self.pick_ini_point.center = (self.xa, self.ya)
-        self.pick_ini_point.radius = (self.r / 5.0)
-        self.fit_point.center = self.fit_pt
-        self.fit_point.radius = (self.r / 6.0)
-        self.ax.figure.canvas.draw()
-
-    def _reframe(self):
-        # computing radius for picker elements
-        print(self.ax.get_xticks())
-        ax_size_x = np.diff(self.ax.get_xticks())[0]
-        self.r = ax_size_x / 4.0
+    def _cleanup(self):
+        log.debug('cleanup')
         for f in self.fibers:
-            f.r = ax_size_x
+            f.unselect()
+
+    def _update_fibers(self):
+        log.debug('update fibers')
+        x0, y0 = self._o.circle.center
+        self.pt = Vec2(x0, y0)
+
+        self.clear()
+        f: e.PlanarImageMinimizerIVP
+        for f in self.fibers:
+            f.x0 = x0
+            f.y0 = y0
             f.update_picker_point()
-
+            f.eval()
+            f.plot(self.ax)
         return
-        maxx, maxy = 0, 0
-        for fib in self.fibers:
-            maxx = np.abs(fib.endX) if np.abs(fib.endX) > maxx else maxx
-            maxy = np.abs(fib.endY) if np.abs(fib.endY) > maxy else maxy
-        maxx *= 1.5
-        maxy *= 1.5
-
-        self._whmax = np.max([maxx, maxy, self._whmax])
-        xi, xe = -self._whmax + self.xa, self._whmax + self.xa
-        yi, ye = -self._whmax + self.ya, self._whmax + self.ya
-
-        self.ax.set_xlim([xi, xe])
-        self.ax.set_ylim([yi, ye])
-        self.ax.set_aspect('equal')
-
-        self._update_picker_point()
-        self.ax.figure.canvas.draw()
-
-    def _connect(self):
-        self.cidpress = self.ax.figure.canvas.mpl_connect('pick_event', self.on_pick)
-        self.cidrelease = self.ax.figure.canvas.mpl_connect('button_release_event', self.on_release)
-        self.cidmotion = self.ax.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
-        self.cidkeyboard = self.ax.figure.canvas.mpl_connect('key_press_event', self.on_key)
-
-    def _disconnect(self):
-        self.ax.figure.canvas.mpl_disconnect(self.cidpress)
-        self.ax.figure.canvas.mpl_disconnect(self.cidrelease)
-        self.ax.figure.canvas.mpl_disconnect(self.cidmotion)
-        self.ax.figure.canvas.mpl_disconnect(self.cidkeyboard)
 
     def clear(self):
         self.ax.lines = []
         self.ax.collections = []
 
-    def on_key(self, event):
-        # TODO: move out of class
-        print('press', event.key)
-        if event.key == 'r':
-            self.clear()
-            for f in self.fibers:
-                f.plot(self.ax, alpha=1, lw_curve=1)
-                f._show_picker()
-            self._show_picker()
-            self.ax.figure.canvas.draw()
-        elif event.key == 'w':
-            for f in self.fibers:
-                f.parameters.pretty_print()
-        elif event.key == 'd':
-            f = self.fibers[0]
-            logger.debug(f.get_line_integral_over_image())
-            f.paint_line_integral_over_image(self.ax)
-            self.ax.figure.canvas.draw()
-        elif event.key == 'f':
-            f = self.fibers[0]
-            result = f.fit(pt=self.fit_pt)
-            f.plot_fit()
+    def save(self, path):
+        with open(path, 'w') as configfile:
+            config = configparser.RawConfigParser()
+            config.add_section('General')
+            config.set('General', 'Version', 'v0.1')
 
-            self.clear()
-            f.parameters = result.params
-            f.parameters.pretty_print()
-            f.eval()
-            f.plot(self.ax)
-            f.forces()
+            section = 'Aster'
+            config.add_section(section)
+            config.set(section, 'fiber number', len(self.fibers))
+            config.set(section, 'unit', 'micrometer')
+            config.set(section, 'center', (self.pt.x, self.pt.y))
 
-            self.ax.figure.canvas.draw()
-        elif event.key == 'h':
-            f = self.fibers[0]
-            f._hide_picker()
-            self._hide_picker()
+            f: e.PlanarImageMinimizerIVP
+            for i, f in enumerate(self.fibers):
+                section = 'Fiber %d' % i
+                config.add_section(section)
+                config.set(section, 'center', (f.x0, f.y0))
+                config.set(section, 'fitting_pt', f.fit_pt)
+                config.set(section, 'parameters', f.parameters.dumps())
 
-            self.ax.figure.canvas.draw()
+            log.info('saving aster into %s' % path)
+            config.write(configfile)
+
+    @staticmethod
+    def from_file(filename, ax, img):
+        if os.path.isfile(filename):
+            with open(filename, 'r') as configfile:
+                log.info('loading aster from %s' % filename)
+                config = configparser.ConfigParser()
+                config.read_file(configfile)
+
+                section = 'Aster'
+                if config.has_section(section):
+                    fnumber = config.getint(section, 'fiber number')
+                    unit = config.get(section, 'unit')
+                    assert unit == 'micrometer', 'units are currently accepted in micrometers only'
+                    x0, y0 = ast.literal_eval(config.get(section, 'center'))
+
+                    aster = Aster(ax, img, x0=x0, y0=y0)
+                    for i in range(fnumber):
+                        section = 'Fiber %d' % i
+                        if config.has_section(section):
+                            x0, y0 = ast.literal_eval(config.get(section, 'center'))
+                            fiber = e.PlanarImageMinimizerIVP(ax, x0=x0, y0=y0, image=img)
+                            fiber.fit_pt = ast.literal_eval(config.get(section, 'fitting_pt'))
+                            params = Parameters().loads(config.get(section, 'parameters'))
+                            fiber.parameters = params
+                            fiber.eval()
+                            fiber.plot(ax)
+                            aster.add_fiber(fiber)
+                    return aster
 
     def on_pick(self, event):
-        if self.pick_ini_point == event.artist:
-            self.picking = True
-            mevent = event.mouseevent
-            logging.debug('aster pick: xdata=%f, ydata=%f' % (mevent.xdata, mevent.ydata))
-            self.xa = mevent.xdata
-            self.ya = mevent.ydata
-        if self.fit_point == event.artist:
-            self.moving_fit = True
-            mevent = event.mouseevent
-            self.fit_pt = (mevent.xdata, mevent.ydata)
+        f: e.PlanarImageMinimizerIVP
+        if type(event.artist) == plt.Line2D:
+            for f in self.fibers:
+                if f.curve == event.artist:
+                    self.selected_fiber = f
+                    f.select()
+                else:
+                    f.unselect()
 
-    def on_motion(self, event):
-        if not (self.picking or self.moving_fit): return
-        # logging.debug('aster motion: xdata=%f, ydata=%f' % (event.xdata, event.ydata))
-        if self.picking:
-            self.xa = event.xdata
-            self.ya = event.ydata
-        if self.moving_fit:
-            self.fit_pt = (event.xdata, event.ydata)
+    def _connect(self):
+        self.cidpress = self.ax.figure.canvas.mpl_connect('pick_event', self.on_pick)
 
-        self._update_picker_point()
-
-    def on_release(self, event):
-        if not (self.picking or self.moving_fit): return
-        logging.debug('aster release: xdata=%f, ydata=%f' % (event.xdata, event.ydata))
-        if self.picking:
-            self.picking = False
-            self.xa = event.xdata
-            self.ya = event.ydata
-            for i, f in enumerate(self.fibers):
-                f.r = self.r
-                f.x0 = self.xa
-                f.y0 = self.ya
-                f.update_picker_point()
-        if self.moving_fit:
-            self.moving_fit = False
-            self.fit_pt = (event.xdata, event.ydata)
-
-        self._update_picker_point()
-        self._reframe()
+    def _disconnect(self):
+        self.ax.figure.canvas.mpl_disconnect(self.cidpress)

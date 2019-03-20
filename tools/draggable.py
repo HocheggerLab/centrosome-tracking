@@ -1,16 +1,14 @@
-import logging
-
-import matplotlib
-
-log = logging.getLogger('elastica')
+import matplotlib.patches
 
 
 class DraggableCircle:
-    def __init__(self, circle, callback=None):
+    def __init__(self, circle, on_pick_callback=None, on_release_callback=None):
         if type(circle) != matplotlib.patches.Circle: raise Exception('not a circle')
         self.circle = circle
         self.press = None
-        self.callfn = callback
+        self._on_pick_call = on_pick_callback
+        self._on_rel_call = on_release_callback
+        self._hidden = False
 
     def connect(self):
         'connect to all the events we need'
@@ -26,6 +24,8 @@ class DraggableCircle:
 
     def on_press(self, event):
         'on button press we will see if the mouse is over us and store some data'
+        if self._hidden: return
+        if self.press is not None: return
         if event.inaxes != self.circle.axes: return
 
         contains, attrd = self.circle.contains(event)
@@ -33,6 +33,9 @@ class DraggableCircle:
         print('event contains', self.circle.center)
         x0, y0 = self.circle.center
         self.press = x0, y0, self.circle.radius, event.xdata, event.ydata
+
+        if self._on_pick_call is not None:
+            self._on_pick_call()
 
     def on_motion(self, event):
         'on motion we will move the circle if the mouse is over us'
@@ -49,8 +52,21 @@ class DraggableCircle:
 
     def on_release(self, event):
         'on release we reset the press data'
+        if self.press is None: return
         self.press = None
         self.circle.figure.canvas.draw()
 
-        if self.callfn is not None:
-            self.callfn()
+        self.picked = False
+
+        if self._on_rel_call is not None:
+            self._on_rel_call()
+
+    def hide(self):
+        self.press = None
+        self._hidden = True
+        self.circle.set_visible(False)
+
+    def show(self):
+        self.press = None
+        self._hidden = False
+        self.circle.set_visible(True)

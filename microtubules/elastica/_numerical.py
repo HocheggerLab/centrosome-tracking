@@ -136,36 +136,35 @@ def obj_minimize(p, yn, Np=100):
 def planar_elastica_ivp_numeric(s, w=1.0, g=0.0, k0=1.0, alpha=np.pi / 2):
     """
 
-        | x0' |   |  x'    |   |      cos(phi)      |
-        | x1' | = |  y'    | = |      sin(phi)      |
-        | x2' |   | phi'   |   |          k         |
-        | x3' |   |  k'    |   |  -w^2 sin(phi + g) |
+        | x0' |   |  x'    |   |      cos(theta)      |
+        | x1' | = |  y'    | = |      sin(theta)      |
+        | x2' |   | theta' |   |          k           |
+        | x3' |   |  k'    |   |  -w^2 sin(theta + g) |
 
         s in [0, 1]
 
-        Variables: x, y, phi, k
-        Parameters:
-            - w is the load parameter defined as w^2=FL^2/(EI)
-            - g is the angle between the x-axis and the direction of force
-        Constants: E, J
-        Initial value conditions:
-            x(0) = y(0) = 0
-            phi(0) = 0
-            k(0) = k1
+    Variables: x, y, theta, k
+
+    :param s: Arc length variable, s in [0, 1].
+    :param w: Load parameter defined as w^2=FL^2/(EI).
+    :param g: Angle between the x-axis and the direction of force.
+    :param k0: Initial contiditon (s=0) for k.
+    :param alpha: #TODO: figure it out
+    :return:
     """
 
     def fun1(s, x):
         """
-            | x0' | = | phi' | = |       -k       |
-            | x1' |   |  k'  |   |  -w^2 sin(phi) |
+            | x0' | = | theta' | = |       -k         |
+            | x1' |   |  k'    |   |  -w^2 sin(theta) |
 
         """
-        phi, k = x
-        return np.array([-k, w ** 2 * np.sin(phi)])
+        theta, k = x
+        return np.array([-k, w ** 2 * np.sin(theta)])
 
     def fun2(s, x):
-        x, y, phi, k = x
-        return np.array([np.cos(phi), np.sin(phi), k, -w ** 2 * np.sin(phi + g)])
+        x, y, theta, k = x
+        return np.array([np.cos(theta), np.sin(theta), k, -w ** 2 * np.sin(theta + g)])
 
     # logger.debug('solving ivp elastica: w={:04.2e} g={:04.2e} k1={:04.2e} alpha={:04.2e}'.format(w, g, k0, alpha))
 

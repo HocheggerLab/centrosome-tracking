@@ -5,28 +5,56 @@ import pandas as pd
 from lmfit import Minimizer
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+import matplotlib.pyplot as plt
 
 from ._imageplanar import ImagePlanarElastica
+from tools.draggable import DraggableCircle
 
 logger = logging.getLogger(__name__)
 
 
 class PlanarImageMinimizerIVP(ImagePlanarElastica):
+    def __init__(self, axes,
+                 w=1.0, k0=1.0, alpha=np.pi / 2, phi=0.0,
+                 L=1.0, E=0.625, J=1.0, F=1.0, x0=0.0, y0=0.0, m0=0.01, theta=3 * np.pi / 2,
+                 image=None, callback=None):
+        super().__init__(axes, w=w, k0=k0, alpha=alpha, phi=phi, L=L, E=E, J=J, F=F, x0=x0, y0=y0, m0=m0, theta=theta,
+                         image=image, callback=callback)
 
-    def fit(self, pt=None):
+        self._pt_fit = None  # point for doing the fit
+        self.fit_pt = (x0 + 2, y0)
+
+    def select(self):
+        super().select()
+        self._pt_fit.show()
+
+    def unselect(self):
+        super().unselect()
+        self._pt_fit.hide()
+
+    @property
+    def fit_pt(self):
+        return self._pt_fit.circle.center
+
+    @fit_pt.setter
+    def fit_pt(self, value):
+        x, y = value
+        ftc = plt.Circle((x, y), radius=0.5, fc='magenta', picker=1, zorder=100)
+        self.ax.add_artist(ftc)
+        self._pt_fit = DraggableCircle(ftc)
+        self._pt_fit.connect()
+        if not self.selected: self._pt_fit.hide()
+
+    def fit(self):
         def objective(params):
             self.parameters = params
 
             lineintegral, number_of_pixels = self.get_line_integral_over_image()
-            max_intensity = self.tiffimage.asarray().max()
 
-            if pt is not None:
-                p = Point(pt)
-                c = Polygon([(x, y) for x, y in zip(self.curve_x, self.curve_y)])
-                obj = 1 / lineintegral + p.distance(c)
-                # obj = p.distance(c)
-            else:
-                obj = max_intensity * number_of_pixels - lineintegral
+            p = Point(self._pt_fit)
+            c = Polygon([(x, y) for x, y in zip(self.curve_x, self.curve_y)])
+            obj = 1 / lineintegral + p.distance(c)
+            # obj = p.distance(c)
 
             params.add('f_obj', value=obj)
             self._param_exploration.append(params.copy())
