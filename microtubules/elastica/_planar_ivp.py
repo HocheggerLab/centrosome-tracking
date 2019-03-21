@@ -105,7 +105,7 @@ class PlanarElasticaIVP(PlanarElastica):
         # logger.debug('w={:04.2e} k0={:04.2e}'.format(self.w, self.k0))
 
         # Now we are ready to run the solver.
-        r = planar_elastica_ivp_numeric(s, w=self.w, g=self.theta0, k0=self.k0, alpha=self.alpha)
+        r = planar_elastica_ivp_numeric(s, w=self.w, theta0=self._theta0, k0=self.k0, alpha=self.alpha)
         self.res = r
         xo = r.y[0:2, :]
 
@@ -194,21 +194,40 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
 
         self._ini_pt = Vec2(self.x0, self.y0)
         self._end_pt = Vec2(self.endX, self.endY)
-        # coordinates for the angle picker points at initial and end points
-        self.phi_angle_pt = Vec2(np.cos(self.phi), np.sin(self.phi))
-        self.theta_angle_pt = Vec2(np.cos(self.theta0), np.sin(self.theta0))
+        # rigid transformations based on phi
+        self.t = Affine.translation(Vec2(x0, y0))
 
         self.ax = axes
-
-        self.t = Affine.translation(Vec2(x0, y0))
-        self.R = Affine.rotation(np.rad2deg(self.phi))
-        self.Rt = self.R * self.t
 
         self.callback = callback
 
         self._initial_plot()
         self.update_picker_point()
         self._connect()
+
+    @property
+    def theta0(self):
+        return self._theta0
+
+    @theta0.setter
+    def theta0(self, value):
+        self._theta0 = value
+        self.theta_angle_pt = Vec2(np.cos(value), np.sin(value))
+
+    @property
+    def phi(self):
+        return self._phi
+
+    @phi.setter
+    def phi(self, value):
+        self._phi = value
+        # vectors and rigid transformations based on phi
+        self.phi_angle_pt = Vec2(np.cos(self.phi), np.sin(self.phi))
+        self.R = Affine.rotation(np.rad2deg(self.phi))
+
+    @property
+    def Rt(self):
+        return self.R * self.t
 
     @property
     def x0(self):

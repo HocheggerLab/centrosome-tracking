@@ -19,6 +19,7 @@ class ImagePlanarElastica(PlanarElasticaIVPArtist):
         try:
             self.eval(num_points=100)
         except Exception:
+            print('exception in line_integral')
             return min_value
 
         if self.res.status == 2:

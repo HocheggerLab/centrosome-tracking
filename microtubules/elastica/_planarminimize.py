@@ -55,6 +55,7 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         params.add('x0', value=self.x0, vary=False)
         params.add('y0', value=self.y0, vary=False)
         params.add('phi', value=self.phi)
+        params.add('theta0', value=self.theta0)
 
         params.add('w', value=self.w)
         params.add('k0', value=self.k0)
@@ -70,7 +71,7 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         self.x0 = vals['x0']
         self.y0 = vals['y0']
         self.phi = vals['phi']
-        self.phi_angle_pt = Vec2(np.cos(self.phi) * self.r, np.sin(self.phi) * self.r)
+        self.theta0 = vals['theta0']
 
         self._w = vals['w']
         self._k0 = vals['k0']
@@ -93,8 +94,7 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
             params.add('f_obj', value=obj)
             self._param_exploration.append(params.copy())
 
-            logger.debug(
-                'objective function = {:06.4e} + {:06.4e} = {:06.4e}'.format(o0, o1, obj))
+            logger.debug('objective function = {:06.4e} + {:06.4e} = {:06.4e}'.format(o0, o1, obj))
             return obj
 
         inip = self.parameters
@@ -109,6 +109,8 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
 
         inip['alpha'].min = 0
         inip['alpha'].max = 2 * np.pi
+        inip['theta0'].min = 0
+        inip['theta0'].max = 2 * np.pi
         inip['w'].min = 0
         inip['w'].max = 20
         inip['k0'].min = -1

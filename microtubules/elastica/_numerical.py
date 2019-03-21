@@ -133,7 +133,7 @@ def obj_minimize(p, yn, Np=100):
         return np.finfo('float64').max
 
 
-def planar_elastica_ivp_numeric(s, w=1.0, g=0.0, k0=1.0, alpha=np.pi / 2):
+def planar_elastica_ivp_numeric(s, w=1.0, theta0=0.0, k0=1.0, alpha=np.pi / 2):
     """
 
         | x0' |   |  x'    |   |      cos(theta)      |
@@ -147,7 +147,7 @@ def planar_elastica_ivp_numeric(s, w=1.0, g=0.0, k0=1.0, alpha=np.pi / 2):
 
     :param s: Arc length variable, s in [0, 1].
     :param w: Load parameter defined as w^2=FL^2/(EI).
-    :param g: Angle between the x-axis and the direction of force.
+    :param theta0: Angle between the x-axis and the direction of force.
     :param k0: Initial contiditon (s=0) for k.
     :param alpha: #TODO: figure it out
     :return:
@@ -164,7 +164,7 @@ def planar_elastica_ivp_numeric(s, w=1.0, g=0.0, k0=1.0, alpha=np.pi / 2):
 
     def fun2(s, x):
         x, y, theta, k = x
-        return np.array([np.cos(theta), np.sin(theta), k, -w ** 2 * np.sin(theta + g)])
+        return np.array([np.cos(theta), np.sin(theta), k, -w ** 2 * np.sin(theta + theta0)])
 
     # logger.debug('solving ivp elastica: w={:04.2e} g={:04.2e} k1={:04.2e} alpha={:04.2e}'.format(w, g, k0, alpha))
 
