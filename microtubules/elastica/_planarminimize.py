@@ -1,12 +1,10 @@
 import logging
 
-from planar import Vec2
 import numpy as np
 from lmfit import Parameters
 import pandas as pd
 from lmfit import Minimizer
-from shapely.geometry import Point
-from shapely.geometry.polygon import Polygon
+from shapely.geometry import LineString, Point
 import matplotlib.pyplot as plt
 
 from ._imageplanar import ImagePlanarElastica
@@ -23,30 +21,44 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         super().__init__(axes, w=w, k0=k0, alpha=alpha, phi=phi, L=L, E=E, J=J, F=F, x0=x0, y0=y0, m0=m0, theta=theta,
                          image=image, callback=callback)
 
-        self._pt_fit = None  # point for doing the fit
         self.fit_pt = (x0 + 2, y0)
         self._param_exploration = []
 
     def select(self):
         super().select()
-        self._pt_fit.show()
+        for pt in self._pt_fit: pt.show()
 
     def unselect(self):
         super().unselect()
-        self._pt_fit.hide()
+        for pt in self._pt_fit: pt.hide()
 
     @property
     def fit_pt(self):
-        return self._pt_fit.circle.center
+        if type(self._pt_fit) == DraggableCircle:
+            return [self._pt_fit.circle.center]
+        elif type(self._pt_fit) == list:
+            return [pt.circle.center for pt in self._pt_fit]
 
     @fit_pt.setter
     def fit_pt(self, value):
-        x, y = value
-        ftc = plt.Circle((x, y), radius=0.25, fc='magenta', picker=.25, zorder=100)
-        self.ax.add_artist(ftc)
-        self._pt_fit = DraggableCircle(ftc)
-        self._pt_fit.connect()
-        if not self.selected: self._pt_fit.hide()
+        if type(value) == tuple:
+            x, y = value
+            ftc = plt.Circle((x, y), radius=0.25, fc='magenta', picker=.25, zorder=100)
+            self.ax.add_artist(ftc)
+            ptf = DraggableCircle(ftc)
+            ptf.connect()
+            self._pt_fit = [ptf]
+            if not self.selected: ptf.hide()
+        elif type(value) == list:
+            self._pt_fit = list()
+            for pt in value:
+                x, y = pt
+                ftc = plt.Circle((x, y), radius=0.25, fc='magenta', picker=.25, zorder=100)
+                self.ax.add_artist(ftc)
+                ptf = DraggableCircle(ftc)
+                ptf.connect()
+                self._pt_fit.append(ptf)
+                if not self.selected: ptf.hide()
 
     @property
     def parameters(self):
@@ -54,7 +66,7 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         params.add('L', value=self.L, vary=False)
         params.add('x0', value=self.x0, vary=False)
         params.add('y0', value=self.y0, vary=False)
-        params.add('phi', value=self.phi)
+        params.add('phi', value=self.phi, vary=False)
         params.add('theta0', value=self.theta0)
 
         params.add('w', value=self.w)
@@ -83,12 +95,15 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         def objective(params):
             self.parameters = params
 
+            self.eval(num_points=100)
             lineintegral, number_of_pixels = self.get_line_integral_over_image()
+            c = LineString([(x, y) for x, y in zip(self.curve_x, self.curve_y)])
 
-            p = Point(self.fit_pt)
-            c = Polygon([(x, y) for x, y in zip(self.curve_x, self.curve_y)])
-            o0 = 1e3 / lineintegral
-            o1 = p.distance(c)
+            o0 = 1 / lineintegral
+            # o0 = 0
+            o1 = 0
+            for pt in self.fit_pt:
+                o1 += Point(pt).distance(c)
             obj = o0 + o1
 
             params.add('f_obj', value=obj)
@@ -102,10 +117,10 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         # inip['x0'].max = inip['x0'].value + 0.2
         # inip['y0'].min = inip['y0'].value - 0.2
         # inip['y0'].max = inip['y0'].value + 0.2
-        inip['phi'].min = inip['phi'].value * 0.99
-        inip['phi'].max = inip['phi'].value * 1.01
-        # inip['L'].min = inip['L'].value * 0.8
-        # inip['L'].max = inip['L'].value * 1.2
+        inip['phi'].min = inip['phi'].value * 0.9
+        inip['phi'].max = inip['phi'].value * 1.1
+        # inip['theta0'].min = inip['theta0'].value * 0.8
+        # inip['theta0'].max = inip['theta0'].value * 1.2
 
         inip['alpha'].min = 0
         inip['alpha'].max = 2 * np.pi
@@ -120,9 +135,8 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         self._param_exploration = []
 
         fitter = Minimizer(objective, inip)
-        # result = fitter.minimize(method='bgfs', params=inip)
-        result = fitter.minimize(method='basinhopping', params=inip)
-        # niter=10 ** 4, niter_success=10 ** 2)
+        result = fitter.minimize(method='bgfs', params=inip)
+        # result = fitter.minimize(method='basinhopping', params=inip)#, niter=10 ** 4, niter_success=1000)
         print(len(self._param_exploration))
 
         return result
@@ -138,6 +152,7 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         df = pd.DataFrame([p.valuesdict() for p in self._param_exploration])
         df = df.set_index('f_obj').sort_index(ascending=False).reset_index()
         # print(df)
+        print(df['f_obj'].describe())
         # print(df.set_index('f_obj').sort_index().iloc[0])
 
         fig = plt.figure()
@@ -151,7 +166,10 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         for p in self._param_exploration:
             self.parameters = p
             self.eval()
-            ax.plot(self.curve_x, self.curve_y, lw=1, c=color.to_rgba(p["f_obj"]))
+            ax.plot(self.curve_x, self.curve_y, lw=1, c=color.to_rgba(p["f_obj"]), zorder=10)
         # fig.colorbar(color)
+        for pt in self.fit_pt:
+            ax.scatter(pt[0], pt[1], marker='o', s=10, c='r', zorder=100)
 
+        plt.savefig('fitting.pdf')
         plt.show(block=False)

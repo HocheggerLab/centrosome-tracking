@@ -2,6 +2,7 @@ import os
 import logging
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import numpy as np
 from matplotlib import cm
 
@@ -14,9 +15,9 @@ np.set_printoptions(1)
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger('matplotlib').setLevel(logging.INFO)
 log = logging.getLogger(__name__)
-
-
 # log.setLevel(logging.DEBUG)
+pd.set_option('display.width', 320)
+pd.set_option('display.max_columns', 50)
 
 
 def on_key(event):
@@ -55,7 +56,12 @@ def on_key(event):
         f: e.PlanarImageMinimizerIVP = c1.selected_fiber
         f.parameters.pretty_print()
         f.plot_fit()
-        f.forces()
+        # f.forces()
+
+    elif event.key == '+':
+        log.info('adding another fitting point to selected fibre')
+        f: e.PlanarImageMinimizerIVP = c1.selected_fiber
+        f.fit_pt = f.fit_pt + [(c1.pt.x + 2, c1.pt.y)]
 
     elif event.key == 'a':
         log.info('data fitting process taking place. This can take long!')
@@ -71,9 +77,15 @@ def on_key(event):
 
         c1.ax.figure.canvas.draw()
 
+    elif event.key == 'r':
+        log.info('report of fiber parameters')
+        f: e.PlanarImageMinimizerIVP
+        pr = pd.DataFrame([f.parameters.valuesdict() for f in c1.fibers])
+        print(pr)
+
 
 if __name__ == '__main__':
-    fig = plt.figure(dpi=100)
+    fig = plt.figure(dpi=200)
     ax = fig.gca()
     ax.set_aspect('equal')
 

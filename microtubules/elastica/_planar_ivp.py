@@ -105,7 +105,7 @@ class PlanarElasticaIVP(PlanarElastica):
         # logger.debug('w={:04.2e} k0={:04.2e}'.format(self.w, self.k0))
 
         # Now we are ready to run the solver.
-        r = planar_elastica_ivp_numeric(s, w=self.w, theta0=self._theta0, k0=self.k0, alpha=self.alpha)
+        r = planar_elastica_ivp_numeric(s, w=self.w, gamma=self.theta0, k0=self.k0, alpha=self.alpha)
         self.res = r
         xo = r.y[0:2, :]
 
@@ -267,7 +267,7 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
     def on_pick(self, event):
         if not self.selected: return
         if type(event.artist) == plt.Line2D: return
-        logger.debug(event.artist)
+        logger.debug('on pick %s' % event.artist)
         # if self.curve == event.artist and not (self.ini_angle_pick or self.end_angle_pick):
         #     self.select()
         if self.ini_angle_circle == event.artist and not self.ini_angle_pick:
@@ -295,6 +295,7 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
             self.theta_angle_pt = (xmouse - self._end_pt) * self.R.__invert__()
 
         self.update_picker_point()
+        self.ax.figure.canvas.draw()
         return
 
     def on_release(self, event):
@@ -324,6 +325,7 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
         logger.debug('angle_pt={:s} theta={: .2f}'.format(str(self.theta_angle_pt), self.theta0))
 
         if self.callback is not None: self.callback()
+        self.ax.figure.canvas.draw()
 
     def update_picker_point(self):
         # update initial picker point
@@ -346,8 +348,6 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
         self.end_picker_perimeter.center = (pc.x, pc.y)
         self.end_angle_point.center = (pe.x, pe.y)
         self.end_angle_line.set_data((pe.x, pc.x), (pe.y, pc.y))
-
-        self.ax.figure.canvas.draw()
 
     def _initial_plot(self):
         ps = 0.2

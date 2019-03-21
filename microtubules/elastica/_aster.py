@@ -117,9 +117,9 @@ class Aster:
                             fiber = e.PlanarImageMinimizerIVP(ax, x0=x0, y0=y0, image=img)
                             fiber.fit_pt = ast.literal_eval(config.get(section, 'fitting_pt'))
                             fiber.parameters = params
-                            fiber.eval()
-                            fiber.plot(ax)
+                            fiber.unselect()
                             aster.add_fiber(fiber)
+                    aster._update_fibers()
                     return aster
 
     def on_pick(self, event):
@@ -127,12 +127,14 @@ class Aster:
         if np.any([f.picked for f in self.fibers]): return
         if type(event.artist) == plt.Line2D:
             if self.selected_fiber is not None and self.selected_fiber.curve == event.artist: return
-            for f in self.fibers:
+            for k, f in enumerate(self.fibers):
                 if f.curve == event.artist:
                     self.selected_fiber = f
                     f.select()
+                    print('fiber %d, index %d' % (k, self.fibers.index(f)))
                 else:
                     f.unselect()
+            self.ax.figure.canvas.draw()
 
     def _connect(self):
         self.cidpress = self.ax.figure.canvas.mpl_connect('pick_event', self.on_pick)

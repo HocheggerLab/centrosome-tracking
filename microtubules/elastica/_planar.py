@@ -173,7 +173,7 @@ class PlanarElastica():
             raise Exception("NaNs in computed curves, can't plot")
 
         self.curve = ax.plot(self.curve_x, self.curve_y, lw=lw_curve, c='r', alpha=alpha,
-                             label='%0.1e' % (self.E * self.J), zorder=1, picker=4)[0]
+                             label='%0.1e' % (self.E * self.J), zorder=1, picker=lw_curve)[0]
 
         L = np.sqrt(np.diff(self.curve_x) ** 2 + np.diff(self.curve_y) ** 2).sum()
 

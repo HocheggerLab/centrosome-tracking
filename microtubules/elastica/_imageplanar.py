@@ -16,11 +16,11 @@ class ImagePlanarElastica(PlanarElasticaIVPArtist):
 
     def get_line_integral_over_image(self, pix_per_um=4.5):
         min_value = np.finfo(self.image.dtype).min, np.finfo(self.image.dtype).min
-        try:
-            self.eval(num_points=100)
-        except Exception:
-            print('exception in line_integral')
-            return min_value
+        # try:
+        #     self.eval(num_points=100)
+        # except Exception:
+        #     print('exception in line_integral')
+        #     return min_value
 
         if self.res.status == 2:
             return min_value
