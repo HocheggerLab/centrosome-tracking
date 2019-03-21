@@ -177,5 +177,6 @@ class PlanarElastica():
 
         L = np.sqrt(np.diff(self.curve_x) ** 2 + np.diff(self.curve_y) ** 2).sum()
 
-        logger.debug('first ({:04.2f},{:04.2f}) last ({:04.2f},{:04.2f}) phi {:04.2f} length {:04.2f}'.
-                     format(self.curve_x[0], self.curve_y[0], self.curve_x[-1], self.curve_y[-1], self.phi, L))
+        logger.debug(
+            'first ({:04.2f},{:04.2f}) last ({:04.2f},{:04.2f}) phi {:04.2f} length {:04.2f} curve length {:04.2f}'.
+            format(self.curve_x[0], self.curve_y[0], self.curve_x[-1], self.curve_y[-1], self.phi, self.L, L))

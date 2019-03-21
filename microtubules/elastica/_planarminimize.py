@@ -1,6 +1,8 @@
 import logging
 
+from planar import Vec2
 import numpy as np
+from lmfit import Parameters
 import pandas as pd
 from lmfit import Minimizer
 from shapely.geometry import Point
@@ -23,6 +25,7 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
 
         self._pt_fit = None  # point for doing the fit
         self.fit_pt = (x0 + 2, y0)
+        self._param_exploration = []
 
     def select(self):
         super().select()
@@ -39,11 +42,41 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
     @fit_pt.setter
     def fit_pt(self, value):
         x, y = value
-        ftc = plt.Circle((x, y), radius=0.5, fc='magenta', picker=1, zorder=100)
+        ftc = plt.Circle((x, y), radius=0.25, fc='magenta', picker=.25, zorder=100)
         self.ax.add_artist(ftc)
         self._pt_fit = DraggableCircle(ftc)
         self._pt_fit.connect()
         if not self.selected: self._pt_fit.hide()
+
+    @property
+    def parameters(self):
+        params = Parameters()
+        params.add('L', value=self.L, vary=False)
+        params.add('x0', value=self.x0, vary=False)
+        params.add('y0', value=self.y0, vary=False)
+        params.add('phi', value=self.phi)
+
+        params.add('w', value=self.w)
+        params.add('k0', value=self.k0)
+        params.add('alpha', value=self.alpha)
+
+        return params
+
+    @parameters.setter
+    def parameters(self, value):
+        vals = value.valuesdict()
+
+        self.L = vals['L']
+        self.x0 = vals['x0']
+        self.y0 = vals['y0']
+        self.phi = vals['phi']
+        self.phi_angle_pt = Vec2(np.cos(self.phi) * self.r, np.sin(self.phi) * self.r)
+
+        self._w = vals['w']
+        self._k0 = vals['k0']
+        self.alpha = vals['alpha']
+        self.w_was_calculated = False
+        self.k0_was_calculated = False
 
     def fit(self):
         def objective(params):
@@ -51,26 +84,28 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
 
             lineintegral, number_of_pixels = self.get_line_integral_over_image()
 
-            p = Point(self._pt_fit)
+            p = Point(self.fit_pt)
             c = Polygon([(x, y) for x, y in zip(self.curve_x, self.curve_y)])
-            obj = 1 / lineintegral + p.distance(c)
-            # obj = p.distance(c)
+            o0 = 1e3 / lineintegral
+            o1 = p.distance(c)
+            obj = o0 + o1
 
             params.add('f_obj', value=obj)
             self._param_exploration.append(params.copy())
 
-            # logger.debug('objective function = {:06.4e}'.format(obj))
+            logger.debug(
+                'objective function = {:06.4e} + {:06.4e} = {:06.4e}'.format(o0, o1, obj))
             return obj
 
         inip = self.parameters
-        inip['x0'].min = inip['x0'].value - 0.2
-        inip['x0'].max = inip['x0'].value + 0.2
-        inip['y0'].min = inip['y0'].value - 0.2
-        inip['y0'].max = inip['y0'].value + 0.2
-        inip['phi'].min = inip['phi'].value * 0.8
-        inip['phi'].max = inip['phi'].value * 1.2
-        inip['L'].min = inip['L'].value * 0.8
-        inip['L'].max = inip['L'].value * 1.2
+        # inip['x0'].min = inip['x0'].value - 0.2
+        # inip['x0'].max = inip['x0'].value + 0.2
+        # inip['y0'].min = inip['y0'].value - 0.2
+        # inip['y0'].max = inip['y0'].value + 0.2
+        inip['phi'].min = inip['phi'].value * 0.99
+        inip['phi'].max = inip['phi'].value * 1.01
+        # inip['L'].min = inip['L'].value * 0.8
+        # inip['L'].max = inip['L'].value * 1.2
 
         inip['alpha'].min = 0
         inip['alpha'].max = 2 * np.pi
@@ -80,17 +115,18 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
         inip['k0'].max = 1
 
         logger.info(inip)
-
         self._param_exploration = []
 
         fitter = Minimizer(objective, inip)
         # result = fitter.minimize(method='bgfs', params=inip)
         result = fitter.minimize(method='basinhopping', params=inip)
         # niter=10 ** 4, niter_success=10 ** 2)
+        print(len(self._param_exploration))
 
         return result
 
     def plot_fit(self):
+        if len(self._param_exploration) == 0: return
         import matplotlib.pyplot as plt
         import matplotlib as mpl
         from matplotlib import cm
@@ -99,8 +135,8 @@ class PlanarImageMinimizerIVP(ImagePlanarElastica):
 
         df = pd.DataFrame([p.valuesdict() for p in self._param_exploration])
         df = df.set_index('f_obj').sort_index(ascending=False).reset_index()
-        print(df)
-        print(df.set_index('f_obj').sort_index().iloc[0])
+        # print(df)
+        # print(df.set_index('f_obj').sort_index().iloc[0])
 
         fig = plt.figure()
         ax = fig.gca(projection='3d')

@@ -4,6 +4,7 @@ import os
 import logging
 
 from planar import Vec2
+import numpy as np
 import tifffile
 import matplotlib.pyplot as plt
 from lmfit import Parameters
@@ -19,7 +20,7 @@ class Aster:
         Implements an aster where microtubules are placed.
         All the length variables are in micrometers
     """
-    centrosome_radius = 0.5
+    centrosome_radius = 0.2
 
     def __init__(self, axes: plt.Axes, image: tifffile.TiffPage, x0=0.0, y0=0.0, filename=None):
         self.ax = axes
@@ -112,9 +113,9 @@ class Aster:
                         section = 'Fiber %d' % i
                         if config.has_section(section):
                             x0, y0 = ast.literal_eval(config.get(section, 'center'))
+                            params = Parameters().loads(config.get(section, 'parameters'))
                             fiber = e.PlanarImageMinimizerIVP(ax, x0=x0, y0=y0, image=img)
                             fiber.fit_pt = ast.literal_eval(config.get(section, 'fitting_pt'))
-                            params = Parameters().loads(config.get(section, 'parameters'))
                             fiber.parameters = params
                             fiber.eval()
                             fiber.plot(ax)
@@ -123,7 +124,9 @@ class Aster:
 
     def on_pick(self, event):
         f: e.PlanarImageMinimizerIVP
+        if np.any([f.picked for f in self.fibers]): return
         if type(event.artist) == plt.Line2D:
+            if self.selected_fiber is not None and self.selected_fiber.curve == event.artist: return
             for f in self.fibers:
                 if f.curve == event.artist:
                     self.selected_fiber = f

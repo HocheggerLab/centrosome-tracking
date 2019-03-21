@@ -125,10 +125,10 @@ class PlanarElasticaIVP(PlanarElastica):
     def forces(self):
         I = ur.pi / 4 * ((12 * ur.nm) ** 4 - (8 * ur.nm) ** 4)
         I.ito(ur.um ** 4)
-        print('I = %s' % str(I))
 
         is_force_dominant = sin(self.alpha / 2) ** 2 + (self._k0 / 2 / self.w) ** 2 < 1
-        logger.info('The solution %s force dominant.' % ('is' if is_force_dominant else 'is not'))
+        print('The solution %s force dominant.' % ('is' if is_force_dominant else 'is not'))
+        print('I = %s' % str(I))
 
         EI = 10e-24 * ur.N * ur.m ** 2
         # EI.ito(ur.pN * ur.um ** 2)
@@ -230,6 +230,10 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
         self._ini_pt = Vec2(self.x0, self.y0)
         self.ini_angle_circle.center = (self.x0, self.y0)
 
+    @property
+    def picked(self):
+        return self.ini_angle_pick or self.end_angle_pick
+
     def __str__(self):
         return "PlanarElastica draw object: %s" % (super().__str__())
 
@@ -243,6 +247,7 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
 
     def on_pick(self, event):
         if not self.selected: return
+        if type(event.artist) == plt.Line2D: return
         logger.debug(event.artist)
         # if self.curve == event.artist and not (self.ini_angle_pick or self.end_angle_pick):
         #     self.select()
@@ -307,7 +312,6 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
 
         self.ini_angle_circle.radius = self.r
         self.ini_angle_point.center = (phi_ang_pt.x, phi_ang_pt.y)
-        self.ini_angle_point.radius = self.r / 5.0
         self.ini_angle_line.set_data((self.x0, phi_ang_pt.x), (self.y0, phi_ang_pt.y))
 
         # update final picker point
@@ -324,28 +328,24 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
         self.end_angle_point.center = (pe.x, pe.y)
         self.end_angle_line.set_data((pe.x, pc.x), (pe.y, pc.y))
 
-        self.end_picker_perimeter.radius = self.r
-        self.end_pick_point.radius = self.r / 5.0
-        self.end_angle_point.radius = self.r / 5.0
-
         self.ax.figure.canvas.draw()
 
     def _initial_plot(self):
+        ps = 0.2
         drx = np.cos(self.theta0) * self.r
         dry = np.sin(self.theta0) * self.r
-        self.end_pick_point = plt.Circle((self.endX, self.endY), radius=self.r / 5.0, fc='b', zorder=10)
-        self.end_picker_perimeter = plt.Circle((self.endX, self.endY), radius=self.r, fc='none', ec='k', lw=0.5,
-                                               linestyle='--', picker=1, zorder=10)
-        self.end_angle_point = plt.Circle((self.endX + drx, self.endY - dry), radius=self.r / 2.0, fc='w', picker=1)
+        self.end_pick_point = plt.Circle((self.endX, self.endY), radius=ps, fc='b', zorder=10)
+        self.end_picker_perimeter = plt.Circle((self.endX, self.endY), picker=1, radius=1, fc='none', ec='k', lw=0.5,
+                                               linestyle='--', zorder=10)
+        self.end_angle_point = plt.Circle((self.endX + drx, self.endY - dry), picker=ps, radius=ps, fc='w')
         self.end_angle_line = plt.Line2D((self.endX, self.endX + drx), (self.endY, self.endY - dry), color='k')
 
         irx = np.cos(self.phi) * self.r
         iry = np.sin(self.phi) * self.r
-        self.ini_angle_point = plt.Circle((self.x0 + irx, self.y0 - iry), radius=self.r / 2.0, fc='w', picker=1,
-                                          zorder=10)
+        self.ini_angle_point = plt.Circle((self.x0 + irx, self.y0 - iry), picker=ps, radius=ps, fc='w', zorder=10)
         self.ini_angle_line = plt.Line2D((self.x0, self.x0 + irx), (self.y0, self.y0 - iry), color='k')
-        self.ini_angle_circle = plt.Circle((self.x0, self.y0), radius=self.r, fc='none', ec='k', lw=0.5,
-                                           linestyle='--', picker=1, zorder=10)
+        self.ini_angle_circle = plt.Circle((self.x0, self.y0), picker=1, radius=1, fc='none', ec='k', lw=0.5,
+                                           linestyle='--', zorder=10)
 
         self.ax.add_artist(self.end_pick_point)
         self.ax.add_artist(self.end_picker_perimeter)
@@ -372,6 +372,7 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
         self.ini_angle_circle.set_visible(False)
 
     def _show_picker(self):
+        self.update_picker_point()
         self.end_pick_point.set_visible(True)
         self.end_picker_perimeter.set_visible(True)
         self.end_angle_point.set_visible(True)
