@@ -8,6 +8,7 @@ import numpy as np
 import tifffile
 import matplotlib.pyplot as plt
 from lmfit import Parameters
+from matplotlib.patches import Arrow
 
 from tools.draggable import DraggableCircle
 from microtubules import elastica as e
@@ -37,7 +38,7 @@ class Aster:
         self._o.connect()
         self._connect()
 
-    def add_fiber(self, fiber):
+    def add_fiber(self, fiber: e.PlanarImageMinimizerIVP):
         assert type(fiber) == e.PlanarImageMinimizerIVP, 'argument is not a fiber that we like'
 
         fiber.callback = self._update_fibers
@@ -57,8 +58,8 @@ class Aster:
         self.pt = Vec2(x0, y0)
 
         self.clear()
-        f: e.PlanarImageMinimizerIVP
         for f in self.fibers:
+            f: e.PlanarImageMinimizerIVP
             f.x0 = x0
             f.y0 = y0
             f.update_picker_point()
@@ -82,8 +83,8 @@ class Aster:
             config.set(section, 'unit', 'micrometer')
             config.set(section, 'center', (self.pt.x, self.pt.y))
 
-            f: e.PlanarImageMinimizerIVP
             for i, f in enumerate(self.fibers):
+                f: e.PlanarImageMinimizerIVP
                 section = 'Fiber %d' % i
                 config.add_section(section)
                 config.set(section, 'center', (f.x0, f.y0))
@@ -123,11 +124,11 @@ class Aster:
                     return aster
 
     def on_pick(self, event):
-        f: e.PlanarImageMinimizerIVP
         if np.any([f.picked for f in self.fibers]): return
         if type(event.artist) == plt.Line2D:
             if self.selected_fiber is not None and self.selected_fiber.curve == event.artist: return
             for k, f in enumerate(self.fibers):
+                f: e.PlanarImageMinimizerIVP
                 if f.curve == event.artist:
                     self.selected_fiber = f
                     f.select()
@@ -141,3 +142,29 @@ class Aster:
 
     def _disconnect(self):
         self.ax.figure.canvas.mpl_disconnect(self.cidpress)
+
+    def render(self, ax=None):
+        if ax is None:
+            ax = plt.figure().gca()
+
+        for f in self.fibers:
+            f: e.PlanarImageMinimizerIVP
+
+            drx = np.cos(f.theta0) * f.r
+            dry = np.sin(f.theta0) * f.r
+            end_angle_arrow = Arrow(f.endX, f.endY, drx, dry, color='w', width=0.5, zorder=100)
+            # a_x = f.endX + (-drx if 0 < f.phi < np.pi else 0)
+            # a_y = f.endY
+            # end_angle_arrow = Arrow(a_x, a_y, drx, dry, color='w', width=0.5, zorder=100)
+            txtX = f.endX + (-2 if np.pi / 2 < f.phi < 3 / 2 * np.pi else 1)
+            txtY = f.endY + (0.5 if 0 < f.phi < np.pi else -0.5)
+            txt = plt.Text(txtX, txtY, '%0.1f[pN]' % f.force(), color='w', fontsize=7, zorder=100)
+
+            self.ax.add_artist(txt)
+            self.ax.add_patch(end_angle_arrow)
+
+            f.eval()
+            f.plot(ax)
+
+        ax.set_xlabel('$x [\mu m]$')
+        ax.set_ylabel('$y [\mu m]$')

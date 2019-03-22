@@ -58,6 +58,9 @@ class colors():
     alexa_594 = [1., .61, 0]
     alexa_647 = [.83, .28, .28]
     hoechst_33342 = [0, .57, 1.]
+    red = [1, 0, 0]
+    green = [0, 1, 0]
+    blue = [0, 0, 1]
     sussex_flint = colors.to_rgb('#013035')
     sussex_cobalt_blue = colors.to_rgb('#1e428a')
     sussex_mid_grey = colors.to_rgb('#94a596')

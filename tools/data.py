@@ -73,7 +73,7 @@ class Data():
         dfcntr = df_mc[df_mc['CentrLabel'] == 'A']
         dfcntr.loc[:, 'indiv'] = dfcntr['condition'] + '-' + dfcntr['run'] + '-' + dfcntr['Nuclei'].map(int).map(str)
         dfcntr.drop(
-            ['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY', 'Speed', 'Acc'],
+            ['CentrLabel', 'Centrosome', 'NuclBound', 'CentX', 'CentY', 'NuclX', 'NuclY', 'Speed', 'Acc'],
             axis=1, inplace=True)
 
         df_m.loc[:, 'indiv'] = df_m['condition'] + '|' + df_m['run'] + '|' + df_m['Nuclei'].map(int).map(str)
@@ -121,7 +121,7 @@ def image_reader(path):
                 xr = tif.pages[0].tags['XResolution'].value
                 res = float(xr[0]) / float(xr[1])  # pixels per um
 
-        return tif.asarray(), images, channels, dt, res, (sizeZ, sizeX, sizeY)
+        return tif.asarray().astype(np.int16), images, channels, dt, res, (sizeZ, sizeX, sizeY)
 
 
 def images_iterator(path, channel=1):

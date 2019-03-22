@@ -122,16 +122,38 @@ class PlanarElasticaIVP(PlanarElastica):
         self.angle_phi = r.y[2, :]
         self.curvature_k = r.y[3, :]
 
-    def forces(self):
+    def force(self, EI=10e-24 * ur.N * ur.m ** 2, num_fibers=10):
+        I = ur.pi / 4 * ((12 * ur.nm) ** 4 - (8 * ur.nm) ** 4)
+        I.ito(ur.um ** 4)
+
+        # is_force_dominant = sin(self.alpha / 2) ** 2 + (self._k0 / 2 / self.w) ** 2 < 1
+        # print('The solution %s force dominant.' % ('is' if is_force_dominant else 'is not'))
+        # print('I = %s' % str(I))
+
+        M = EI * self.curvature_k * self.L / ur.um
+        M.ito(ur.N * ur.m)
+
+        w, F, L, E, _I, B = symbols('w F L E I B')
+        N = Symbol('N', integer=True)
+        eq = Eq(w ** 2, F * L ** 2 / (B * N ** 2))
+        sol_EI = solve(eq.subs({L: self.L, w: self.w}), B)[0]
+        # logger.debug('EI = ' + str(EI) + ' = ' + str(sol_EI))
+
+        slope = sol_EI.subs({F: 1, N: 1}) * ur.um ** 2
+        slope.ito(ur.m ** 2)
+        # logger.debug('slope = ' + str(slope))
+
+        F = EI * num_fibers ** 2 / slope
+        F.ito(ur.pN)
+        return F.m
+
+    def forces(self, EI=10e-24 * ur.N * ur.m ** 2, num_fibers=10):
         I = ur.pi / 4 * ((12 * ur.nm) ** 4 - (8 * ur.nm) ** 4)
         I.ito(ur.um ** 4)
 
         is_force_dominant = sin(self.alpha / 2) ** 2 + (self._k0 / 2 / self.w) ** 2 < 1
         print('The solution %s force dominant.' % ('is' if is_force_dominant else 'is not'))
         print('I = %s' % str(I))
-
-        EI = 10e-24 * ur.N * ur.m ** 2
-        # EI.ito(ur.pN * ur.um ** 2)
 
         fig = plt.figure()
         ax = fig.gca()
@@ -144,11 +166,11 @@ class PlanarElasticaIVP(PlanarElastica):
         N = Symbol('N', integer=True)
         eq = Eq(w ** 2, F * L ** 2 / (B * N ** 2))
         sol_EI = solve(eq.subs({L: self.L, w: self.w}), B)[0]
+        print('number of fibers = %d' % num_fibers)
         print('EI = ' + str(EI) + ' = ' + str(sol_EI))
 
         fig = plt.figure()
         ax = fig.gca()
-        num_fibers = 15
         norm = mpl.colors.Normalize(vmin=0, vmax=num_fibers)
         color = cm.ScalarMappable(norm=norm, cmap='PiYG')
         slope = sol_EI.subs({F: 1, N: 1}) * ur.um ** 2
@@ -222,8 +244,11 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
     def phi(self, value):
         self._phi = value
         # vectors and rigid transformations based on phi
-        self.phi_angle_pt = Vec2(np.cos(self.phi), np.sin(self.phi))
-        self.R = Affine.rotation(np.rad2deg(self.phi))
+        self.phi_angle_pt = Vec2(np.cos(self._phi), np.sin(self._phi))
+        self.R = Affine.rotation(np.rad2deg(self._phi))
+        logger.debug(self.R.is_degenerate)
+        self.R.__invert__()
+        # print("coudn't invert R for phi=%0.4f"%value)
 
     @property
     def Rt(self):
@@ -284,6 +309,7 @@ class PlanarElasticaIVPArtist(PlanarElasticaIVP, plt.Artist):
 
     def on_motion(self, event):
         if not self.selected: return
+        if not (self.ini_angle_pick or self.end_angle_pick): return
         if event.xdata is None: return
 
         if self.ini_angle_pick:
