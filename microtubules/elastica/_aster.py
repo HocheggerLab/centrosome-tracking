@@ -112,6 +112,7 @@ class Aster:
                     aster = Aster(ax, img, x0=x0, y0=y0)
                     for i in range(fnumber):
                         section = 'Fiber %d' % i
+                        log.info(section)
                         if config.has_section(section):
                             x0, y0 = ast.literal_eval(config.get(section, 'center'))
                             params = Parameters().loads(config.get(section, 'parameters'))
@@ -150,9 +151,10 @@ class Aster:
         for f in self.fibers:
             f: e.PlanarImageMinimizerIVP
 
-            drx = np.cos(f.theta0) * f.r
-            dry = np.sin(f.theta0) * f.r
-            end_angle_arrow = Arrow(f.endX, f.endY, drx, dry, color='w', width=0.5, zorder=100)
+            _ang = f.theta0 + f.phi
+            drx = np.cos(_ang) * f.r
+            dry = np.sin(_ang) * f.r
+            end_angle_arrow = Arrow(f.endX + drx, f.endY + dry, -drx, -dry, color='w', width=0.5, zorder=100)
             # a_x = f.endX + (-drx if 0 < f.phi < np.pi else 0)
             # a_y = f.endY
             # end_angle_arrow = Arrow(a_x, a_y, drx, dry, color='w', width=0.5, zorder=100)
