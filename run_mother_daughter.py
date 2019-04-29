@@ -54,7 +54,7 @@ def sorted_conditions(df, original_conds):
 
 def mother_daughter_msd(df, dfc):
     _conds = ['mother-daughter']
-    with PdfPages('/Users/Fabio/mother-daughter.pdf') as pdf:
+    with PdfPages('mother-daughter.pdf') as pdf:
         df, conds, colors = sorted_conditions(df, _conds)
 
         # -----------

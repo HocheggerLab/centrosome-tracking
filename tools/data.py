@@ -1,7 +1,6 @@
 from collections import OrderedDict
 
 import seaborn as sns
-import tifffile as tf
 
 import parameters
 import plot_special_tools as sp
@@ -11,7 +10,6 @@ log = logging.getLogger(__name__)
 
 names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_P.C.', '+STLC'),
-                     ('mother-daughter', 'mother-daughter'),
                      ('1_DIC', 'DIC+STLC'),
                      ('1_Dynei', 'DHC+STLC'),
                      ('1_ASUND', 'Asunder+STLC'),
@@ -27,6 +25,7 @@ names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_CyDT', 'Cytochalsin D+STLC'),
                      ('1_Bleb', 'Blebbistatin+STLC'),
                      ('1_FAKI', 'FAKi+STLC'),
+                     ('pc', '+STLC(2)'),
                      ('hset', 'Hset+STLC'),
                      ('kif25', 'Kif25+STLC'),
                      ('hset+kif25', 'Hset&Kif25+STLC'),
@@ -100,33 +99,3 @@ class Data():
             df, conds = sorted_conditions(self.df_mc, conditions_list)
 
         return df, conds
-
-
-def image_reader(path):
-    with tf.TiffFile(path) as tif:
-        assert tif.is_imagej, 'imagej is the only format supported'
-        images, channels = tif.imagej_metadata['images'], tif.imagej_metadata['channels']
-        sizeZ, sizeX, sizeY = 1, tif.pages[0].imagewidth, tif.pages[0].imagelength
-
-        dt = tif.imagej_metadata['finterval'] if 'finterval' in tif.imagej_metadata else None
-        res = None
-        if 'unit' in tif.imagej_metadata and 'XResolution' in tif.pages[0].tags:
-            if tif.imagej_metadata['unit'] == 'centimeter':
-                # asuming square pixels
-                xr = tif.pages[0].tags['XResolution'].value
-                res = float(xr[0]) / float(xr[1])  # pixels per cm
-                res = res / 1e4  # pixels per um
-            elif tif.imagej_metadata['unit'] == 'micron':
-                # asuming square pixels
-                xr = tif.pages[0].tags['XResolution'].value
-                res = float(xr[0]) / float(xr[1])  # pixels per um
-
-        return tif.asarray().astype(np.int16), images, channels, dt, res, (sizeZ, sizeX, sizeY)
-
-
-def images_iterator(path, channel=1):
-    tif, frames, channels, dt, res, _ = image_reader(path)
-    for i in range(frames):
-        p = tif.pages[i * channels + channel - 1]
-        im = p.asarray()
-        yield im
