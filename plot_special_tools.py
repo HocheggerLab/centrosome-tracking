@@ -19,29 +19,30 @@ from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
+import matplotlib.colors as colors
 
 import parameters
 from imagej_pandas import ImagejPandas
 
 # sussex colors
-SUSSEX_FLINT = '#013035'
-SUSSEX_COBALT_BLUE = '#1E428A'
-SUSSEX_MID_GREY = '#94A596'
-SUSSEX_FUSCHIA_PINK = '#EB6BB0'
-SUSSEX_CORAL_RED = '#DF465A'
-SUSSEX_TURQUOISE = '#00AFAA'
-SUSSEX_WARM_GREY = '#D6D2C4'
-SUSSEX_SUNSHINE_YELLOW = '#FFB81C'
-SUSSEX_BURNT_ORANGE = '#DC582A'
-SUSSEX_SKY_BLUE = '#40B4E5'
+SUSSEX_FLINT = colors.to_rgb('#013035')
+SUSSEX_COBALT_BLUE = colors.to_rgb('#1E428A')
+SUSSEX_MID_GREY = colors.to_rgb('#94A596')
+SUSSEX_FUSCHIA_PINK = colors.to_rgb('#EB6BB0')
+SUSSEX_CORAL_RED = colors.to_rgb('#DF465A')
+SUSSEX_TURQUOISE = colors.to_rgb('#00AFAA')
+SUSSEX_WARM_GREY = colors.to_rgb('#D6D2C4')
+SUSSEX_SUNSHINE_YELLOW = colors.to_rgb('#FFB81C')
+SUSSEX_BURNT_ORANGE = colors.to_rgb('#DC582A')
+SUSSEX_SKY_BLUE = colors.to_rgb('#40B4E5')
 
-SUSSEX_NAVY_BLUE = '#1B365D'
-SUSSEX_CHINA_ROSE = '#C284A3'
-SUSSEX_POWDER_BLUE = '#7DA1C4'
-SUSSEX_GRAPE = '#5D3754'
-SUSSEX_CORN_YELLOW = '#F2C75C'
-SUSSEX_COOL_GREY = '#D0D3D4'
-SUSSEX_DEEP_AQUAMARINE = '#487A7B'
+SUSSEX_NAVY_BLUE = colors.to_rgb('#1B365D')
+SUSSEX_CHINA_ROSE = colors.to_rgb('#C284A3')
+SUSSEX_POWDER_BLUE = colors.to_rgb('#7DA1C4')
+SUSSEX_GRAPE = colors.to_rgb('#5D3754')
+SUSSEX_CORN_YELLOW = colors.to_rgb('#F2C75C')
+SUSSEX_COOL_GREY = colors.to_rgb('#D0D3D4')
+SUSSEX_DEEP_AQUAMARINE = colors.to_rgb('#487A7B')
 
 
 # SUSSEX_NEON_BLUE=''
@@ -51,6 +52,33 @@ SUSSEX_DEEP_AQUAMARINE = '#487A7B'
 # SUSSEX_NEON_YELLOW=''
 # SUSSEX_NEON_SALMON=''
 # SUSSEX_NEON_PINK=''
+
+class colors():
+    alexa_488 = [.29, 1., 0]
+    alexa_594 = [1., .61, 0]
+    alexa_647 = [.83, .28, .28]
+    hoechst_33342 = [0, .57, 1.]
+    red = [1, 0, 0]
+    green = [0, 1, 0]
+    blue = [0, 0, 1]
+    sussex_flint = colors.to_rgb('#013035')
+    sussex_cobalt_blue = colors.to_rgb('#1e428a')
+    sussex_mid_grey = colors.to_rgb('#94a596')
+    sussex_fuschia_pink = colors.to_rgb('#eb6bb0')
+    sussex_coral_red = colors.to_rgb('#df465a')
+    sussex_turquoise = colors.to_rgb('#00afaa')
+    sussex_warm_grey = colors.to_rgb('#d6d2c4')
+    sussex_sunshine_yellow = colors.to_rgb('#ffb81c')
+    sussex_burnt_orange = colors.to_rgb('#dc582a')
+    sussex_sky_blue = colors.to_rgb('#40b4e5')
+
+    sussex_navy_blue = colors.to_rgb('#1b365d')
+    sussex_china_rose = colors.to_rgb('#c284a3')
+    sussex_powder_blue = colors.to_rgb('#7da1c4')
+    sussex_grape = colors.to_rgb('#5d3754')
+    sussex_corn_yellow = colors.to_rgb('#f2c75c')
+    sussex_cool_grey = colors.to_rgb('#d0d3d4')
+    sussex_deep_aquamarine = colors.to_rgb('#487a7b')
 
 
 class MyAxes3D(axes3d.Axes3D):
@@ -115,47 +143,6 @@ def set_axis_size(w, h, ax=None):
     figw = float(w) / (r - l)
     figh = float(h) / (t - b)
     ax.figure.set_size_inches(figw, figh)
-
-
-def anotated_boxplot(data_grouped, var, point_size=5, fontsize=None, cat='condition',
-                     swarm=True, swarm_subcat=None, order=None, xlabels=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
-                zorder=100)
-
-    if swarm:
-        _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, hue=swarm_subcat, ax=ax,
-                            zorder=10)
-    else:
-        _ax = sns.stripplot(data=data_grouped, y=var, x=cat, jitter=True, size=point_size, hue=swarm_subcat,
-                            order=order, ax=ax, zorder=10)
-    for i, artist in enumerate(_ax.artists):
-        artist.set_facecolor('None')
-        artist.set_edgecolor('k')
-        artist.set_zorder(5000)
-    for i, artist in enumerate(_ax.lines):
-        artist.set_color('k')
-        artist.set_zorder(5000)
-
-    order = order if order is not None else data_grouped[cat].unique()
-    if fontsize != None:
-        for x, c in enumerate(order):
-            d = data_grouped[data_grouped[cat] == c][var]
-            _max_y = _ax.axis()[3]
-            count = d.count()
-            mean = d.mean()
-            median = d.median()
-            # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
-            _txt = '%0.2f\n%d' % (median, count)
-            _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
-    # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
-    if xlabels is not None:
-        _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
-                            rotation=45, multialignment='right')
-    else:
-        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
-    # ax.set_xlabel('')
-
-    return _ax
 
 
 def _compute_congression(cg):
@@ -279,7 +266,6 @@ def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8), z_max=None
     ax.set_zlim3d(0, zmax)
     ax.set_zticks(zticks)
     ax.set_zticklabels(['%d' % t for t in zticks])
-
 
 
 def msd_indivs(df, ax, time='Time', ylim=None):
@@ -553,46 +539,50 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
     ax.set_ylabel('Acceleration between\ncentrosomes $\\left[\\frac{\mu m}{min^2} \\right]$')
 
 
+def load_tiff(path):
+    _, img_name = os.path.split(path)
+    with tf.TiffFile(path) as tif:
+        if tif.is_imagej is not None:
+            metadata = tif.pages[0].imagej_tags
+            dt = metadata['finterval'] if 'finterval' in metadata else 1
+
+            # asuming square pixels
+            xr = tif.pages[0].tags['x_resolution'].value
+            res = float(xr[0]) / float(xr[1])  # pixels per um
+            if metadata['unit'] == 'centimeter':
+                res = res / 1e4
+
+            if os.path.exists(parameters.experiments_dir + 'eb3/eb3_calibration.xls'):
+                cal = pd.read_excel(parameters.experiments_dir + 'eb3/eb3_calibration.xls')
+                calp = cal[cal['filename'] == img_name]
+                if not calp.empty:
+                    calp = calp.iloc[0]
+                    if calp['optivar'] == 'yes':
+                        logging.info('file with optivar configuration selected!')
+                        res *= 1.6
+
+            frames = None
+            if len(tif.pages) == 1:
+                if ('slices' in metadata and metadata['slices'] > 1) or (
+                        'frames' in metadata and metadata['frames'] > 1):
+                    frames = tif.pages[0].asarray()
+                else:
+                    frames = [tif.pages[0].asarray()]
+            elif len(tif.pages) > 1:
+                # frames = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width), dtype=np.int32)
+                frames = list()
+                for i, page in enumerate(tif.pages):
+                    frames.append(page.asarray())
+
+            return frames, res, dt
+
+
 def find_image(img_name, folder):
     for root, directories, filenames in os.walk(folder):
         for file in filenames:
             joinf = os.path.abspath(os.path.join(root, file))
             if os.path.isfile(joinf) and joinf[-4:] == '.tif' and file == img_name:
-                with tf.TiffFile(joinf) as tif:
-                    dt = None
-                    if tif.is_imagej is not None:
-                        dt = tif.imagej_metadata['finterval']
-                        res = 'n/a'
-                        if tif.imagej_metadata['unit'] == 'centimeter':
-                            # asuming square pixels
-                            xr = tif.pages[0].x_resolution
-                            res = float(xr[0]) / float(xr[1])  # pixels per cm
-                            res = res / 1e4  # pixels per um
-                        elif tif.imagej_metadata['unit'] == 'micron':
-                            # asuming square pixels
-                            xr = tif.pages[0].tags['XResolution'].value
-                            res = float(xr[0]) / float(xr[1])  # pixels per um
-
-                    if os.path.exists(parameters.data_dir + 'eb3/eb3_calibration.xls'):
-                        cal = pd.read_excel(parameters.data_dir + 'eb3/eb3_calibration.xls')
-                        calp = cal[cal['filename'] == img_name]
-                        if not calp.empty:
-                            calp = calp.iloc[0]
-                            if calp['optivar'] == 'yes':
-                                logging.info('file with optivar configuration selected!')
-                                res *= 1.6
-
-                    images = None
-                    # construct images array based on tif file structure:
-                    if len(tif.pages) == 1:
-                        images = np.int32(tif.pages[0].asarray())
-                    elif len(tif.pages) > 1:
-                        images = np.ndarray((len(tif.pages), tif.pages[0].imagelength, tif.pages[0].imagewidth),
-                                            dtype=np.int32)
-                        for i, page in enumerate(tif.pages):
-                            images[i] = np.int32(page.asarray())
-
-                    return (images, res, dt)
+                return load_tiff(joinf)
 
 
 def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):

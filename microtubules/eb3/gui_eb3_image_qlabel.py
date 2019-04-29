@@ -40,7 +40,7 @@ class Eb3ImageQLabel(QtGui.QLabel):
         self.ix = None
         self.selected = set()
         self.fname = parameters.data_dir + '/eb3/eb3trk.selec.txt'
-        self.cal = pd.read_excel(parameters.data_dir + '/eb3/eb3_calibration.xls')
+        self.cal = pd.read_excel(parameters.data_dir + 'eb3/eb3_calibration.xls')
 
         if not os.path.isfile(self.fname):
             with open(self.fname, 'w') as configfile:
