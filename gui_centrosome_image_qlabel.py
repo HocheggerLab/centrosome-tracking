@@ -34,9 +34,9 @@ class CentrosomeImageQLabel(QtGui.QLabel):
             print('Setting value')
             self._hdf5file = hdf_file
             with h5py.File(hdf_file, 'r') as f:
-                self.condition = f.keys()[0]
-                self.run = f[self.condition].keys()[0]
-                self.frame = int(f['%s/%s/raw' % (self.condition, self.run)].keys()[0])
+                self.condition = list(f.keys())[0]
+                self.run = list(f[self.condition].keys())[0]
+                self.frame = int(list(f['%s/%s/raw' % (self.condition, self.run)].keys())[0])
 
     def clear(self):
         imgarr = np.zeros(shape=(512, 512), dtype=np.uint32)

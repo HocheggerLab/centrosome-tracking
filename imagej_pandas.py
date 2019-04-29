@@ -4,7 +4,6 @@ import re
 
 import numpy as np
 import pandas as pd
-from sklearn import linear_model
 
 import mechanics as m
 
@@ -106,31 +105,14 @@ class ImagejPandas(object):
         return df.reset_index(drop=True)
 
     @staticmethod
-    def msd_particles(df, particle_x='CentX', particle_y='CentY'):
+    def msd_particles(df):
         """
             Computes Mean Square Displacement as defined by:
 
             {\rm {MSD}}\equiv \langle (x-x_{0})^{2}\rangle ={\frac {1}{N}}\sum _{n=1}^{N}(x_{n}(t)-x_{n}(0))^{2}
         """
-        dfout = pd.DataFrame()
-        for id, _df in df.groupby(ImagejPandas.CENTROSOME_INDIV_INDEX):
-            _df = _df.set_index('Time').sort_index()
-            x0, y0 = _df[particle_x].iloc[0], _df[particle_y].iloc[0]
-            _msdx = _df.loc[:, particle_x].apply(lambda x: (x - x0) ** 2)
-            _msdy = _df.loc[:, particle_y].apply(lambda y: (y - y0) ** 2)
-            _df.loc[:, 'msd'] = _msdx + _msdy
-
-            # do linear regression of both tracks to see which has higher slope
-            x = _df.index.values
-            y = _df['msd'].values
-            length = len(x)
-            x = x.reshape(length, 1)
-            y = y.reshape(length, 1)
-            regr = linear_model.LinearRegression()
-            regr.fit(x, y)
-            _df.loc[:, 'msd_lfit_a'] = regr.coef_[0][0]
-
-            dfout = dfout.append(_df.reset_index())
+        dfout = m.get_msd(df, x='CentX', y='CentY', time='Time', frame='Frame', group='trk')
+        dfout = m._msd_tag(dfout, centrosome_label='CentrLabel', time='Time')
         return dfout
 
     @staticmethod
