@@ -150,67 +150,6 @@ def set_axis_size(w, h, ax=None):
     ax.figure.set_size_inches(figw, figh)
 
 
-def anotated_boxplot(data_grouped, var, point_size=5, fontsize=None, cat='condition',
-                     swarm=True, swarm_subcat=None, order=None, xlabels=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
-                zorder=100)
-
-    if swarm:
-        _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, hue=swarm_subcat, ax=ax,
-                            zorder=10)
-    else:
-        _ax = sns.stripplot(data=data_grouped, y=var, x=cat, jitter=True, size=point_size, hue=swarm_subcat,
-                            order=order, ax=ax, zorder=10)
-    for i, artist in enumerate(_ax.artists):
-        artist.set_facecolor('None')
-        artist.set_edgecolor('k')
-        artist.set_zorder(5000)
-    for i, artist in enumerate(_ax.lines):
-        artist.set_color('k')
-        artist.set_zorder(5000)
-
-    order = order if order is not None else data_grouped[cat].unique()
-    if fontsize != None:
-        for x, c in enumerate(order):
-            d = data_grouped[data_grouped[cat] == c][var]
-            _max_y = _ax.axis()[3]
-            count = d.count()
-            mean = d.mean()
-            median = d.median()
-            # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
-            _txt = '%0.2f\n%d' % (median, count)
-            _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
-    # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
-    if xlabels is not None:
-        _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
-                            rotation=0, multialignment='right')
-    else:
-        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=0, multialignment='right')
-    _ax.xaxis.set_major_locator(ticker.NullLocator())
-
-    # plot pvalues
-    signals = data_grouped[cat].unique()
-    maxy = _ax.get_ylim()[1]
-    ypos = np.flip(_ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
-    dy = np.diff(ypos)[0] * -4
-    k = 0
-    for i, s11 in enumerate(signals):
-        for j, s12 in enumerate(signals):
-            if i < j:
-                sig1 = data_grouped[data_grouped[cat] == s11][var]
-                sig2 = data_grouped[data_grouped[cat] == s12][var]
-                st, p = scipy.stats.ttest_ind(sig1, sig2)
-                # st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
-                if p <= 0.05:
-                    ypos = maxy - dy * k
-                    _ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
-                    _ax.text(j, ypos - dy * 0.1, stats.star_system(p), ha='right', va='bottom', zorder=20)
-                    k += 1
-    # ax.set_xlabel('')
-
-    return _ax
-
-
 def _compute_congression(cg):
     # compute congression signal
     cg['cgr'] = 0
@@ -605,97 +544,50 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
     ax.set_ylabel('Acceleration between\ncentrosomes $\\left[\\frac{\mu m}{min^2} \\right]$')
 
 
+def load_tiff(path):
+    _, img_name = os.path.split(path)
+    with tf.TiffFile(path) as tif:
+        if tif.is_imagej is not None:
+            metadata = tif.pages[0].imagej_tags
+            dt = metadata['finterval'] if 'finterval' in metadata else 1
+
+            # asuming square pixels
+            xr = tif.pages[0].tags['x_resolution'].value
+            res = float(xr[0]) / float(xr[1])  # pixels per um
+            if metadata['unit'] == 'centimeter':
+                res = res / 1e4
+
+            if os.path.exists(parameters.experiments_dir + 'eb3/eb3_calibration.xls'):
+                cal = pd.read_excel(parameters.experiments_dir + 'eb3/eb3_calibration.xls')
+                calp = cal[cal['filename'] == img_name]
+                if not calp.empty:
+                    calp = calp.iloc[0]
+                    if calp['optivar'] == 'yes':
+                        logging.info('file with optivar configuration selected!')
+                        res *= 1.6
+
+            frames = None
+            if len(tif.pages) == 1:
+                if ('slices' in metadata and metadata['slices'] > 1) or (
+                        'frames' in metadata and metadata['frames'] > 1):
+                    frames = tif.pages[0].asarray()
+                else:
+                    frames = [tif.pages[0].asarray()]
+            elif len(tif.pages) > 1:
+                # frames = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width), dtype=np.int32)
+                frames = list()
+                for i, page in enumerate(tif.pages):
+                    frames.append(page.asarray())
+
+            return frames, res, dt
+
+
 def find_image(img_name, folder):
     for root, directories, filenames in os.walk(folder):
         for file in filenames:
             joinf = os.path.abspath(os.path.join(root, file))
             if os.path.isfile(joinf) and joinf[-4:] == '.tif' and file == img_name:
-                with tf.TiffFile(joinf) as tif:
-                    dt = None
-                    if tif.is_imagej is not None:
-                        dt = tif.imagej_metadata['finterval']
-                        res = 'n/a'
-                        if tif.imagej_metadata['unit'] == 'centimeter':
-                            # asuming square pixels
-                            xr = tif.pages[0].x_resolution
-                            res = float(xr[0]) / float(xr[1])  # pixels per cm
-                            res = res / 1e4  # pixels per um
-                        elif tif.imagej_metadata['unit'] == 'micron':
-                            # asuming square pixels
-                            xr = tif.pages[0].tags['XResolution'].value
-                            res = float(xr[0]) / float(xr[1])  # pixels per um
-
-                    if os.path.exists(parameters.data_dir + 'eb3/eb3_calibration.xls'):
-                        cal = pd.read_excel(parameters.data_dir + 'eb3/eb3_calibration.xls')
-                        calp = cal[cal['filename'] == img_name]
-                        if not calp.empty:
-                            calp = calp.iloc[0]
-                            if calp['optivar'] == 'yes':
-                                logging.info('file with optivar configuration selected!')
-                                res *= 1.6
-
-                    images = None
-                    # construct images array based on tif file structure:
-                    if len(tif.pages) == 1:
-                        images = np.int32(tif.pages[0].asarray())
-                    elif len(tif.pages) > 1:
-                        images = np.ndarray((len(tif.pages), tif.pages[0].imagelength, tif.pages[0].imagewidth),
-                                            dtype=np.int32)
-                        for i, page in enumerate(tif.pages):
-                            images[i] = np.int32(page.asarray())
-
-                    return (images, res, dt)
-
-
-def render_cell(df, ax, img=None, res=4.5, w=50, h=50):
-    """
-    Render an individual cell with all its measured features
-    """
-    from skimage import exposure
-
-    # plot image
-    if img is not None:
-        img = exposure.equalize_hist(img)
-        img = exposure.adjust_gamma(img, gamma=3)
-        ax.imshow(img, cmap='gray', extent=(0, img.shape[0] / res, img.shape[1] / res, 0))
-    # if img is not None: ax.imshow(img, cmap='gray')
-
-    _ca = df[df['CentrLabel'] == 'A']
-    _cb = df[df['CentrLabel'] == 'B']
-
-    if not _ca['NuclBound'].empty:
-        nucleus = Polygon(eval(_ca['NuclBound'].values[0][1:-1]))
-
-        nuc_center = nucleus.centroid
-        x, y = nucleus.exterior.xy
-        ax.plot(x, y, color=SUSSEX_CORN_YELLOW, linewidth=1, solid_capstyle='round')
-        ax.plot(nuc_center.x, nuc_center.y, color=SUSSEX_CORN_YELLOW, marker='+', linewidth=1, solid_capstyle='round',
-                zorder=1)
-
-    if not _ca['CellBound'].empty:
-        cell = Polygon(eval(_ca['CellBound'].values[0])) if not _ca['CellBound'].empty > 0 else None
-
-        cll_center = cell.centroid
-        x, y = cell.exterior.xy
-        ax.plot(x, y, color='w', linewidth=1, solid_capstyle='round')
-        ax.plot(cll_center.x, cll_center.y, color='w', marker='o', linewidth=1, solid_capstyle='round')
-
-    if not _ca['CentX'].empty:
-        c_a = Point(_ca['CentX'], _ca['CentY'])
-        ca = plt.Circle((c_a.x, c_a.y), radius=1, edgecolor=SUSSEX_NAVY_BLUE, facecolor='none', linewidth=2, zorder=10)
-        ax.add_artist(ca)
-
-        if not _cb['CentX'].empty:
-            c_b = Point(_cb['CentX'], _cb['CentY'])
-            cb = plt.Circle((c_b.x, c_b.y), radius=1, edgecolor=SUSSEX_CORAL_RED, facecolor='none', linewidth=2,
-                            zorder=10)
-            ax.plot((c_a.x, c_b.x), (c_a.y, c_b.y), color=SUSSEX_WARM_GREY, linewidth=1, zorder=10)
-            ax.add_artist(cb)
-
-    ax.set_xlim(c_a.x - w / 2, c_a.x + w / 2)
-    ax.set_ylim(c_a.y - h / 2 + 10, c_a.y + h / 2 + 10)
-    # ax.set_xlim(nuc_center.x - w / 2, nuc_center.x + w / 2)
-    # ax.set_ylim(nuc_center.y - h / 2, nuc_center.y + h / 2)
+                return load_tiff(joinf)
 
 
 def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
