@@ -66,7 +66,7 @@ def select_asters(image_path):
             ci.connect()
             fig.canvas.draw()
 
-    images, pix_per_um, dt = sp.load_tiff(image_path)
+    images, pix_per_um, dt, n_frames = sp.load_tiff(image_path)
     w, h = images[0].shape[0], images[0].shape[1]
 
     fig = plt.figure()
