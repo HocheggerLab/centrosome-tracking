@@ -4,8 +4,10 @@ import pandas as pd
 import numpy as np
 import cv2
 from shapely import affinity
+from matplotlib import cm
+import trackpy as tp
 
-from ._segment import keypoint_surf, segment
+from ._segment import optical_flow_lk_match, segment
 from ._common import _DEBUG, logger
 import plot_special_tools as sp
 
@@ -28,7 +30,7 @@ def _df_to_polar(df):
 
     df["th_"] = df["th1"] - df["th0"]
     df["th"] = np.rad2deg(df["th1"] - df["th0"])
-    df["a"] = np.rad2deg(df["a1"] - df["a0"])
+    # df["a"] = np.rad2deg(df["a1"] - df["a0"])
 
     return df
 
@@ -49,12 +51,12 @@ class Track():
         self._nucleus_rotation = None
 
     @property
-    def segmented_nuclei(self):
+    def boundary(self):
         if self._segmented_nuclei is not None: return self._segmented_nuclei
 
         logger.info("Segmenting nuclear boundary")
         self._segmented_nuclei = pd.DataFrame()
-        for k, im in enumerate(self.images):
+        for k, im in enumerate(sp.image_iterator(self.images, channel=self._ch, number_of_frames=self.n_frames)):
             if _DEBUG and k > 5: break
 
             img_lbl, detected = segment(im, radius=10 * self.pix_per_um)
@@ -63,7 +65,22 @@ class Track():
             _df = pd.DataFrame(detected)
             _df.loc[:, "frame"] = k
             self._segmented_nuclei = self._segmented_nuclei.append(_df, sort=False, ignore_index=True)
+
+        self._segmented_nuclei.loc[:, "frame"] = self._segmented_nuclei["frame"].astype(int)
+
         # TODO: convert everything to um space for dataframe construction
+        # self._segmented_nuclei.loc[:, ["x", "y"]] *= self.um_per_pix
+        # self._segmented_nuclei.loc[:, "boundary"] = affinity.scale(self._segmented_nuclei["boundary"],
+        #                                                            xfact=self.um_per_pix, yfact=self.um_per_pix,
+        #                                                            origin=(0, 0, 0))
+
+        logger.info("Linking nuclei particles")
+        self._segmented_nuclei.drop("id", axis=1, inplace=True)
+        search_range = 1.5 * self.pix_per_um
+        pred = tp.predict.NearestVelocityPredict(initial_guess_vels=0.5 * self.pix_per_um)
+        self._segmented_nuclei = pred.link_df(self._segmented_nuclei, search_range, memory=2, link_strategy='auto',
+                                              adaptive_stop=0.5)
+
         return self._segmented_nuclei
 
     @property
@@ -71,17 +88,26 @@ class Track():
         if self._nucleus_rotation is not None: return self._nucleus_rotation
 
         logger.info("Estimating nuclear rotation")
-        dst = cv2.normalize(self.images, None, 0, 255, cv2.NORM_MINMAX)
-        matches = keypoint_surf(sp.image_iterator(np.uint8(dst), channel=self._ch, number_of_frames=self.n_frames))
+        nrm = np.uint8(cv2.normalize(self.images, None, 0, 255, cv2.NORM_MINMAX))
+        # matches = keypoint_surf(sp.image_iterator(nrm, channel=self._ch, number_of_frames=self.n_frames))
+        matches = optical_flow_lk_match(sp.image_iterator(-nrm, channel=self._ch, number_of_frames=self.n_frames))
+        # matches = pd.DataFrame()
+        # for _pi, _sn in self.boundary.groupby("particle"):
+        #     if len(_sn) < 2: continue
+        #     print(_pi, _sn)
+        #     _m = keypoint_surf(sp.image_iterator(np.uint8(nrm), channel=self._ch, number_of_frames=self.n_frames),
+        #                        mask_polygons=_sn)
+        #     matches = matches.append(_m, ignore_index=True, sort=False)
         # matches.loc[:, ['x0', 'y0', 'x1', 'y1']] /= self.pix_per_um
 
-        # print(matches)
-        for f in range(1, max(self.segmented_nuclei["frame"].max(), matches["frame"].max()) + 1):
+        print(matches)
+        for f in range(1, max(self.boundary["frame"].max(), matches["frame"].max()) + 1):
             if _DEBUG and f > 5: break
-            for _n, nuc in self.segmented_nuclei[self.segmented_nuclei["frame"] == f].iterrows():
+            for _n, nuc in self.boundary[self.boundary["frame"] == f].iterrows():
                 ix = matches.apply(lambda r: r['frame'] == f and nuc['boundary'].contains(r['pt0']), axis=1)
                 if not ix.any(): continue
                 matches.loc[ix, 'nucleus'] = nuc['boundary']
+                matches.loc[ix, 'particle'] = nuc['particle']
 
         matches.dropna(subset=['nucleus'], inplace=True)
         # matches.drop([['pt0', 'a0']], inplace=True)
@@ -91,10 +117,11 @@ class Track():
         return self._nucleus_rotation
 
     def render(self, ax, frame, alpha=1):
-        # ext = [0, self.w / self.pix_per_um, self.h / self.pix_per_um, 0]
-        # im = np.max(self.images, axis=0) if frame is None else self.images[frame]
-        # ax.imshow(im, interpolation='none', extent=ext, cmap=cm.gray, alpha=alpha)
-        for _n, nuc in self.segmented_nuclei[self.segmented_nuclei["frame"] == frame].iterrows():
+        ext = [0, self.w / self.pix_per_um, self.h / self.pix_per_um, 0]
+        im = sp.retrieve_image(self.images, frame, channel=2, number_of_frames=self.n_frames)
+        ax.imshow(im, interpolation='none', extent=ext, cmap=cm.gray, alpha=alpha)
+
+        for _n, nuc in self.boundary[self.boundary["frame"] == frame].iterrows():
             # TODO: move conversion to where it should be
             n_bum = affinity.scale(nuc['boundary'], xfact=self.um_per_pix, yfact=self.um_per_pix, origin=(0, 0, 0))
 
@@ -107,9 +134,9 @@ class Track():
             # TODO: move conversion to where it should be
             pt0 = r["pt0"]
             pt1 = r["pt1"]
-            ax.annotate("", xy=(pt0.x * self.um_per_pix, pt0.y * self.um_per_pix),
-                        xytext=(pt1.x * self.um_per_pix, pt1.y * self.um_per_pix),
-                        arrowprops=dict(arrowstyle="->", facecolor='blue'))
+            ax.annotate("", xy=(pt1.x * self.um_per_pix, pt1.y * self.um_per_pix),
+                        xytext=(pt0.x * self.um_per_pix, pt0.y * self.um_per_pix),
+                        arrowprops=dict(arrowstyle="->", color='yellow'))
 
         self._format_axes(ax)
 

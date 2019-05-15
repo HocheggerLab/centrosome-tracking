@@ -3,11 +3,10 @@ import logging
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
-from matplotlib import cm
 
 from nucleus._track import Track
 from nucleus._common import _DEBUG
-from plot_special_tools import canvas_to_pil, retrieve_image
+from plot_special_tools import canvas_to_pil
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -37,9 +36,6 @@ if __name__ == '__main__':
 
     for f in t.nucleus_rotation["frame"].unique():
         ax.cla()
-        ext = [0, w_um, h_um, 0]
-        im = retrieve_image(t.images, f, channel=2, number_of_frames=t.n_frames)
-        ax.imshow(im, interpolation='none', extent=ext, cmap=cm.gray)
         t.render(ax, frame=f)
 
         pil = canvas_to_pil(canvas_g)
