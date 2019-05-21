@@ -172,8 +172,10 @@ def optical_flow_lk_match(image_it):
     # Create a mask image for drawing purposes
     # mask = np.zeros_like(old_gray)
 
-    dfmatch = pd.DataFrame()
+    matches = dict()
+    mkey = 0
     for fr, gray in enumerate(image_it):
+        if _DEBUG and fr > 5: break
         gray = exposure.rescale_intensity(gray)
         # calculate optical flow
         p1, st, err = cv2.calcOpticalFlowPyrLK(old_gray, gray, p0, None, **lk_params)
@@ -190,16 +192,36 @@ def optical_flow_lk_match(image_it):
             # plt.plot((x1, x0), (y1, y0), color=color[i])
             # plt.plot(x1, y1, marker='o', markersize=5, color='green')
             # plt.plot(x0, y0, marker='+', markersize=5, color='blue')
-            y0 = pd.DataFrame(data={
-                'frame': [fr + 1],
-                'pt0': [Point(x0, y0)],
-                'pt1': [Point(x1, y1)],
-            })
-            dfmatch = dfmatch.append(y0, ignore_index=True, sort=False)
+
+            # search old point in lists
+            pt0 = Point(x0, y0)
+            found = False
+            for _mk, md in matches.items():
+                if pt0 == md['pts'][-1]:
+                    found = True
+                    matches[_mk]['pts'].append(Point(x1, y1))
+                    matches[_mk]['frames'].append(fr + 1)
+            if not found:
+                matches[mkey] = {'pts': [], 'frames': []}
+                matches[mkey]['frames'].append(fr)
+                matches[mkey]['pts'].append(pt0)
+                matches[mkey]['pts'].append(Point(x1, y1))
+                matches[mkey]['frames'].append(fr + 1)
+                mkey += 1
+
         # plt.show()
 
         # Now update the previous frame and previous points
         old_gray = gray.copy()
         p0 = good_new.reshape(-1, 1, 2)
+
+    dfmatch = pd.DataFrame()
+    for mkey, md in matches.items():
+        y0 = pd.DataFrame(data={
+            'frame': [fr for fr in md['frames']],
+            'pt': [pt for pt in md['pts']],
+            'particle': [mkey] * len(md['frames']),
+        })
+        dfmatch = dfmatch.append(y0, ignore_index=True, sort=False)
 
     return dfmatch

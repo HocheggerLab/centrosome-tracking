@@ -1,6 +1,7 @@
 import os
 import logging
 
+import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 
@@ -33,7 +34,6 @@ if __name__ == '__main__':
     fig = Figure((width * 4 / 150, width * 4 / 150), dpi=150)
     canvas_g = FigureCanvas(fig)
     ax = fig.gca()
-
     for f in t.nucleus_rotation["frame"].unique():
         ax.cla()
         t.render(ax, frame=f)
@@ -44,9 +44,18 @@ if __name__ == '__main__':
 
     fig = Figure((width * 4 / 150, width * 4 / 150), dpi=150)
     canvas_g = FigureCanvas(fig)
-    ax = fig.gca()
-    rot = Rotation(t.nucleus_rotation)
-    rot.angle_over_time(ax)
+    ax1 = fig.add_subplot(211)
+    ax2 = fig.add_subplot(212)
+    r = t.nucleus_rotation
+    # filter one set
+    r = r[r['nucleus'] == 0]
+    r = r[~r['particle'].isin(r[np.abs(r['th_dev']) > 1.5]['particle'].unique())]
+
+    rot = Rotation(r)
+    # rot.angle_over_time(ax1)
+    rot.angle_corrected_over_time(ax1)
+    rot.angle_displacement_over_time(ax2)
+    # rot.angular_speed_over_time(ax2)
 
     pil = canvas_to_pil(canvas_g)
     fpath = os.path.abspath(os.path.join('_grph', 'angle.png'))

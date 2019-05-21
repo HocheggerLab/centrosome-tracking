@@ -14,21 +14,39 @@ import plot_special_tools as sp
 
 def df_to_polar(df):
     # FIXME: each (r, th) must be computed from their respective origin. Currently there are calculated from first nucleus reference frame
-    nuc = df["nucleus"].centroid
-    dx = df["pt0"].x - nuc.x
-    dy = df["pt0"].y - nuc.y
-    df["r0"] = np.sqrt(dx ** 2 + dy ** 2)
-    # df["th0"] = np.arctan2(dy, dx)
+    nuc = df["nuc_bnd"].centroid
+    dx = df["pt"].x - nuc.x
+    dy = df["pt"].y - nuc.y
+    df["r"] = np.sqrt(dx ** 2 + dy ** 2)
     th = np.arctan(dy / dx)
-    df["th0"] = th + np.pi if (dx < 0) else th + 2 * np.pi if (dx > 0 and dy < 0) else th
+    df["th"] = th + np.pi if (dx < 0) else th + 2 * np.pi if (dx > 0 and dy < 0) else th
+
+    return df
+
+
+def angle_correction(df):
+    df['th+'] = df['th']
+    # from zero to 2*pi
+    _ixd = (df['th+'].shift(-1) >= 3 * np.pi / 2) & (df['th+'] <= np.pi / 2)
+    while _ixd.sum() > 0:
+        df.loc[_ixd, 'th+'] += np.pi * 2
+        _ixd = (df['th+'].shift(-1) >= 3 * np.pi / 2) & (df['th+'] <= np.pi / 2)
+    # from 2*pi to zero
+    _ixd = (df['th+'].shift(-1) <= np.pi / 2) & (df['th+'] >= 3 * np.pi / 2)
+    while _ixd.sum() > 0:
+        df.loc[_ixd, 'th+'] -= np.pi * 2
+        _ixd = (df['th+'].shift(-1) <= np.pi / 2) & (df['th+'] >= 3 * np.pi / 2)
+
+    df.loc[:, 'th_dev'] = df['th+'] - df['th+'].iloc[0]
+    # df.loc[:, 'th_dev'] = np.abs(df['th+'] - df['th+'].iloc[0])
 
     return df
 
 
 def velocity(df, time='time', frame='frame'):
     df = df.set_index(frame).sort_index()
-    dx = df["pt0"].apply(lambda p: p.x).diff()
-    dy = df["pt0"].apply(lambda p: p.y).diff()
+    dx = df["pt"].apply(lambda p: p.x).diff()
+    dy = df["pt"].apply(lambda p: p.y).diff()
     dt = df[time].diff()
     df.loc[:, 'Vx'] = dx / dt
     df.loc[:, 'Vy'] = dy / dt
@@ -103,20 +121,24 @@ class Track():
         for f in range(1, max(self.boundary["frame"].max(), matches["frame"].max()) + 1):
             if _DEBUG and f > 5: break
             for _n, nuc in self.boundary[self.boundary["frame"] == f].iterrows():
-                ix = matches.apply(lambda r: r['frame'] == f and nuc['boundary'].contains(r['pt0']), axis=1)
+                ix = matches.apply(lambda r: r['frame'] == f and nuc['boundary'].contains(r['pt']), axis=1)
                 if not ix.any(): continue
-                matches.loc[ix, 'nucleus'] = nuc['boundary']
-                matches.loc[ix, 'particle'] = nuc['particle']  # FIXME: particle labeling is wrong!
+                matches.loc[ix, 'nucleus'] = nuc['particle']
+                matches.loc[ix, 'nuc_bnd'] = nuc['boundary']
                 matches.loc[ix, 'frame'] = f
 
         print(matches.columns)
         matches.dropna(subset=['nucleus'], inplace=True)
-        # matches.drop([['pt0', 'a0']], inplace=True)
+        matches.loc[:, 'nucleus'] = matches['nucleus'].astype(int)
+
         matches = matches.apply(df_to_polar, axis=1)
+        # deal with angle jumps
+        matches = matches.groupby(["nucleus", "particle"]).apply(angle_correction).reset_index(drop=True)
+        # compute angular speed
+        matches.loc[:, 'omega'] = matches['th+'].diff()
+
         matches.loc[:, "time"] = matches["frame"] * self.dt
-        # kwargs = {'x': x, 'y': y, 'time': time, 'frame': frame}
-        kwargs = {}
-        matches = matches.groupby('particle').apply(velocity, **kwargs).reset_index(drop=True)
+        matches = matches.groupby('particle').apply(velocity).reset_index(drop=True)
         # matches.drop(['nucleus', 'pt1'], axis=1, inplace=True)
 
         print(matches)
@@ -129,6 +151,9 @@ class Track():
         im = sp.retrieve_image(self.images, frame, channel=2, number_of_frames=self.n_frames)
         ax.imshow(im, interpolation='none', extent=ext, cmap=cm.gray, alpha=alpha)
 
+        # Create some random colors
+        # color = sns.color_palette('bright', p0.shape[0])
+
         for _n, nuc in self.boundary[self.boundary["frame"] == frame].iterrows():
             # TODO: move conversion to where it should be
             n_bum = affinity.scale(nuc['boundary'], xfact=self.um_per_pix, yfact=self.um_per_pix, origin=(0, 0, 0))
@@ -138,10 +163,14 @@ class Track():
             cenc = n_bum.centroid
             ax.plot(cenc.x, cenc.y, color='red', marker='+', linewidth=1, solid_capstyle='round', zorder=2)
 
-        for _i, r in self.nucleus_rotation[self.nucleus_rotation["frame"] == frame].iterrows():
+        for _in, nucp in self.nucleus_rotation.groupby(["nucleus", "particle"]):
+            pt0 = nucp.loc[nucp["frame"] == frame, "pt"].values
+            pt1 = nucp.loc[nucp["frame"] == frame + 1, "pt"].values
+            if pt0.size == 0 or pt1.size == 0: continue
+
             # TODO: move conversion to where it should be
-            pt0 = r["pt0"]
-            pt1 = r["pt1"]
+            pt0 = pt0[0]
+            pt1 = pt1[0]
             ax.annotate("", xy=(pt1.x * self.um_per_pix, pt1.y * self.um_per_pix),
                         xytext=(pt0.x * self.um_per_pix, pt0.y * self.um_per_pix),
                         arrowprops=dict(arrowstyle="->", color='yellow'))
