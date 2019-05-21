@@ -12,7 +12,7 @@ from ._common import _DEBUG, logger
 import plot_special_tools as sp
 
 
-def _df_to_polar(df):
+def df_to_polar(df):
     # FIXME: each (r, th) must be computed from their respective origin. Currently there are calculated from first nucleus reference frame
     nuc = df["nucleus"].centroid
     dx = df["pt0"].x - nuc.x
@@ -22,17 +22,17 @@ def _df_to_polar(df):
     th = np.arctan(dy / dx)
     df["th0"] = th + np.pi if (dx < 0) else th + 2 * np.pi if (dx > 0 and dy < 0) else th
 
-    dx = df["pt1"].x - nuc.x
-    dy = df["pt1"].y - nuc.y
-    df["r1"] = np.sqrt(dx ** 2 + dy ** 2)
-    th = np.arctan(dy / dx)
-    df["th1"] = th + np.pi if (dx < 0) else th + 2 * np.pi if (dx > 0 and dy < 0) else th
-
-    df["th_"] = df["th1"] - df["th0"]
-    df["th"] = np.rad2deg(df["th1"] - df["th0"])
-    # df["a"] = np.rad2deg(df["a1"] - df["a0"])
-
     return df
+
+
+def velocity(df, time='time', frame='frame'):
+    df = df.set_index(frame).sort_index()
+    dx = df["pt0"].apply(lambda p: p.x).diff()
+    dy = df["pt0"].apply(lambda p: p.y).diff()
+    dt = df[time].diff()
+    df.loc[:, 'Vx'] = dx / dt
+    df.loc[:, 'Vy'] = dy / dt
+    return df.reset_index()
 
 
 class Track():
@@ -100,18 +100,26 @@ class Track():
         #     matches = matches.append(_m, ignore_index=True, sort=False)
         # matches.loc[:, ['x0', 'y0', 'x1', 'y1']] /= self.pix_per_um
 
-        print(matches)
         for f in range(1, max(self.boundary["frame"].max(), matches["frame"].max()) + 1):
             if _DEBUG and f > 5: break
             for _n, nuc in self.boundary[self.boundary["frame"] == f].iterrows():
                 ix = matches.apply(lambda r: r['frame'] == f and nuc['boundary'].contains(r['pt0']), axis=1)
                 if not ix.any(): continue
                 matches.loc[ix, 'nucleus'] = nuc['boundary']
-                matches.loc[ix, 'particle'] = nuc['particle']
+                matches.loc[ix, 'particle'] = nuc['particle']  # FIXME: particle labeling is wrong!
+                matches.loc[ix, 'frame'] = f
 
+        print(matches.columns)
         matches.dropna(subset=['nucleus'], inplace=True)
         # matches.drop([['pt0', 'a0']], inplace=True)
-        matches = matches.apply(_df_to_polar, axis=1)
+        matches = matches.apply(df_to_polar, axis=1)
+        matches.loc[:, "time"] = matches["frame"] * self.dt
+        # kwargs = {'x': x, 'y': y, 'time': time, 'frame': frame}
+        kwargs = {}
+        matches = matches.groupby('particle').apply(velocity, **kwargs).reset_index(drop=True)
+        # matches.drop(['nucleus', 'pt1'], axis=1, inplace=True)
+
+        print(matches)
         self._nucleus_rotation = matches
         # TODO: convert everything to um space for dataframe construction
         return self._nucleus_rotation
