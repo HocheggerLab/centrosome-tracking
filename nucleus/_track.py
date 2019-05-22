@@ -6,10 +6,13 @@ import cv2
 from shapely import affinity
 from matplotlib import cm
 import trackpy as tp
+import seaborn as sns
+import pysketcher as ps
 
 from ._segment import optical_flow_lk_match, segment
 from ._common import _DEBUG, logger
 import plot_special_tools as sp
+import mechanics as m
 
 
 def df_to_polar(df):
@@ -107,16 +110,7 @@ class Track():
 
         logger.info("Estimating nuclear rotation")
         nrm = np.uint8(cv2.normalize(self.images, None, 0, 255, cv2.NORM_MINMAX))
-        # matches = keypoint_surf(sp.image_iterator(nrm, channel=self._ch, number_of_frames=self.n_frames))
         matches = optical_flow_lk_match(sp.image_iterator(-nrm, channel=self._ch, number_of_frames=self.n_frames))
-        # matches = pd.DataFrame()
-        # for _pi, _sn in self.boundary.groupby("particle"):
-        #     if len(_sn) < 2: continue
-        #     print(_pi, _sn)
-        #     _m = keypoint_surf(sp.image_iterator(np.uint8(nrm), channel=self._ch, number_of_frames=self.n_frames),
-        #                        mask_polygons=_sn)
-        #     matches = matches.append(_m, ignore_index=True, sort=False)
-        # matches.loc[:, ['x0', 'y0', 'x1', 'y1']] /= self.pix_per_um
 
         for f in range(1, max(self.boundary["frame"].max(), matches["frame"].max()) + 1):
             if _DEBUG and f > 5: break
@@ -139,9 +133,11 @@ class Track():
 
         matches.loc[:, "time"] = matches["frame"] * self.dt
         matches = matches.groupby('particle').apply(velocity).reset_index(drop=True)
+        # compute MSD
+        matches = m.get_msd(matches, group=["nucleus", "particle"])
+
         # matches.drop(['nucleus', 'pt1'], axis=1, inplace=True)
 
-        print(matches)
         self._nucleus_rotation = matches
         # TODO: convert everything to um space for dataframe construction
         return self._nucleus_rotation
@@ -150,9 +146,6 @@ class Track():
         ext = [0, self.w / self.pix_per_um, self.h / self.pix_per_um, 0]
         im = sp.retrieve_image(self.images, frame, channel=2, number_of_frames=self.n_frames)
         ax.imshow(im, interpolation='none', extent=ext, cmap=cm.gray, alpha=alpha)
-
-        # Create some random colors
-        # color = sns.color_palette('bright', p0.shape[0])
 
         for _n, nuc in self.boundary[self.boundary["frame"] == frame].iterrows():
             # TODO: move conversion to where it should be
@@ -163,7 +156,31 @@ class Track():
             cenc = n_bum.centroid
             ax.plot(cenc.x, cenc.y, color='red', marker='+', linewidth=1, solid_capstyle='round', zorder=2)
 
-        for _in, nucp in self.nucleus_rotation.groupby(["nucleus", "particle"]):
+        # filter data
+        df = self.nucleus_rotation
+        df = df[(df['nucleus'] == 0) & (~df['particle'].isin(df[df['msd'].diff() > 500]['particle'].unique()))]
+        df = df[~df['particle'].isin(df.loc[(df['r'].diff() > 5) & (df['frame'] > 15), 'particle'].unique())]
+
+        # plot frame reference for nucleus
+        for _in, nucp in df.groupby(["nucleus"]):
+            centroid = nucp[nucp["frame"] == frame].iloc[0]["nuc_bnd"].centroid
+            c_pt = (centroid.x * self.um_per_pix, centroid.y * self.um_per_pix)
+            # c_pt = (0, 0)
+            rotation = df.loc[df["frame"] == frame, "th+"].mean()
+            x_axis = ps.Axis(c_pt, 10, 'Nx', rotation_angle=0)
+            y_axis = ps.Axis(c_pt, 10, 'Ny', rotation_angle=90)
+            x_axis.shapes['label'].fgcolor = 'white'
+            y_axis.shapes['label'].fgcolor = 'white'
+            system = ps.Composition({'x_axis': x_axis, 'y_axis': y_axis})
+            system.set_linecolor('white')
+            system.set_linecolor('white')
+            system.rotate(np.rad2deg(rotation), c_pt)
+            system.draw()
+
+        particle_group = df.groupby(["nucleus", "particle"])
+        # Create some random colors
+        trace_colors = sns.color_palette('bright', len(particle_group))
+        for pk, (_in, nucp) in enumerate(particle_group):
             pt0 = nucp.loc[nucp["frame"] == frame, "pt"].values
             pt1 = nucp.loc[nucp["frame"] == frame + 1, "pt"].values
             if pt0.size == 0 or pt1.size == 0: continue
@@ -175,6 +192,10 @@ class Track():
                         xytext=(pt0.x * self.um_per_pix, pt0.y * self.um_per_pix),
                         arrowprops=dict(arrowstyle="->", color='yellow'))
 
+            # plot a path line up to frame
+            pts = nucp.loc[nucp["frame"] <= frame, "pt"].values
+            ax.plot([p.x * self.um_per_pix for p in pts], [p.y * self.um_per_pix for p in pts], color=trace_colors[pk],
+                    alpha=0.5)
         self._format_axes(ax)
 
     def _format_axes(self, ax):

@@ -47,3 +47,29 @@ class Rotation:
 
     def angular_speed_over_time(self, ax):
         self._lineplot(self.data, 'omega', ax)
+
+    def radius_over_time(self, ax):
+        self._lineplot(self.data, 'r', ax)
+
+    def radius_change_over_time(self, ax):
+        self.data.loc[:, "dr/dt"] = self.data["r"].diff()
+        self._lineplot(self.data, 'dr/dt', ax)
+
+    def msd_over_time(self, ax):
+        # sp.set_axis_size(4, 2, ax=ax)
+        sns.lineplot(data=self.data, x='frame', y='msd', estimator=np.nanmean, ax=ax)
+        sns.lineplot(data=self.data, x='frame', y='msd',
+                     estimator=None, units='indv',
+                     lw=0.2, alpha=1, ax=ax)
+        ax.text(0.5, 0, 'Ns=%d' % self.data['particle'].nunique(), backgroundcolor='yellow')
+        ax.set_title('MSD of particles in nucleus')
+
+    def msd_change_over_time(self, ax):
+        # sp.set_axis_size(4, 2, ax=ax)
+        self.data.loc[:, "dmsd/dt"] = self.data["msd"].diff()
+        sns.lineplot(data=self.data, x='frame', y='dmsd/dt', estimator=np.nanmean, ax=ax)
+        sns.lineplot(data=self.data, x='frame', y='dmsd/dt',
+                     estimator=None, units='indv',
+                     lw=0.2, alpha=1, ax=ax)
+        ax.text(0.5, 0, 'Ns=%d' % self.data['particle'].nunique(), backgroundcolor='yellow')
+        ax.set_title('MSD of particles in nucleus')

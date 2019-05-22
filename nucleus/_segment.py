@@ -220,6 +220,8 @@ def optical_flow_lk_match(image_it):
         y0 = pd.DataFrame(data={
             'frame': [fr for fr in md['frames']],
             'pt': [pt for pt in md['pts']],
+            'x': [pt.x for pt in md['pts']],
+            'y': [pt.y for pt in md['pts']],
             'particle': [mkey] * len(md['frames']),
         })
         dfmatch = dfmatch.append(y0, ignore_index=True, sort=False)
