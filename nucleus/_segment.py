@@ -4,7 +4,6 @@ import itertools
 import cv2
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import scipy.ndimage as ndi
 import skimage.exposure as exposure
 import skimage.feature as feature
@@ -93,7 +92,7 @@ def segment(image, radius=10):
     return labels, exclude_contained(_list)
 
 
-def keypoint_surf(image_it):
+def keypoint_surf_match(image_it):
     _im = image_it.__next__()
     _im = exposure.rescale_intensity(_im)
 
@@ -102,7 +101,8 @@ def keypoint_surf(image_it):
     # BFMatcher with default params
     bf = cv2.BFMatcher()
 
-    dfmatch = pd.DataFrame()
+    matches = dict()
+    mkey = 0
     for fr, im in enumerate(image_it):
         if _DEBUG and fr > 5: break
         im = exposure.rescale_intensity(im)
@@ -113,11 +113,11 @@ def keypoint_surf(image_it):
 
         #  match descriptors using Brute-Force Matching
         if des1 is None or des2 is None: continue
-        matches = bf.knnMatch(des1, des2, k=2)
+        knnmatches = bf.knnMatch(des1, des2, k=2)
 
         # Apply ratio test and add match to dataframe is successful
         # good = []
-        for _m, n in matches:
+        for _m, n in knnmatches:
             if _m.distance < 0.75 * n.distance:
                 # good.append([m])
                 img2_idx = _m.trainIdx
@@ -125,20 +125,37 @@ def keypoint_surf(image_it):
                 (x0, y0) = kp1[img1_idx].pt
                 (x1, y1) = kp2[img2_idx].pt
 
-                d = pd.DataFrame(data={
-                    'frame': [fr + 1],
-                    'pt0': [Point(x0, y0)],
-                    'a0': [kp1[img1_idx].angle],
-                    'pt1': [Point(x1, y1)],
-                    'a1': [kp2[img2_idx].angle]
-                })
-                dfmatch = dfmatch.append(d, ignore_index=True, sort=False)
+                pt0 = Point(x0, y0)
+                found = False
+                for _mk, md in matches.items():
+                    if pt0 == md['pts'][-1]:
+                        found = True
+                        matches[_mk]['pts'].append(Point(x1, y1))
+                        matches[_mk]['frames'].append(fr + 1)
+                if not found:
+                    matches[mkey] = {'pts': [], 'frames': []}
+                    matches[mkey]['frames'].append(fr)
+                    matches[mkey]['pts'].append(pt0)
+                    matches[mkey]['pts'].append(Point(x1, y1))
+                    matches[mkey]['frames'].append(fr + 1)
+                    mkey += 1
 
         # # cv2.drawMatchesKnn expects list of lists as matches.
         # import matplotlib.pyplot as plt
         # img3 = cv2.drawMatchesKnn(_im, kp1, im, kp2, good, None, flags=2)
         # plt.imshow(img3), plt.show()
         _im = im
+
+    dfmatch = pd.DataFrame()
+    for mkey, md in matches.items():
+        y0 = pd.DataFrame(data={
+            'frame': [fr for fr in md['frames']],
+            'pt': [pt for pt in md['pts']],
+            'x': [pt.x for pt in md['pts']],
+            'y': [pt.y for pt in md['pts']],
+            'particle': [mkey] * len(md['frames']),
+        })
+        dfmatch = dfmatch.append(y0, ignore_index=True, sort=False)
     return dfmatch
 
 
@@ -158,9 +175,6 @@ def optical_flow_lk_match(image_it):
     old_gray = image_it.__next__()
     old_gray = exposure.rescale_intensity(old_gray)
     p0 = cv2.goodFeaturesToTrack(old_gray, mask=None, **feature_params)
-
-    # Create some random colors
-    color = sns.color_palette('bright', p0.shape[0])
 
     # print(p0.shape)
     # plt.imshow(old_gray)

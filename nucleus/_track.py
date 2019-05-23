@@ -110,7 +110,8 @@ class Track():
 
         logger.info("Estimating nuclear rotation")
         nrm = np.uint8(cv2.normalize(self.images, None, 0, 255, cv2.NORM_MINMAX))
-        matches = optical_flow_lk_match(sp.image_iterator(-nrm, channel=self._ch, number_of_frames=self.n_frames))
+        # matches = keypoint_surf_match(sp.image_iterator(nrm, channel=self._ch, number_of_frames=self.n_frames))
+        matches = optical_flow_lk_match(sp.image_iterator(nrm, channel=self._ch, number_of_frames=self.n_frames))
 
         for f in range(1, max(self.boundary["frame"].max(), matches["frame"].max()) + 1):
             if _DEBUG and f > 5: break
@@ -163,7 +164,9 @@ class Track():
 
         # plot frame reference for nucleus
         for _in, nucp in df.groupby(["nucleus"]):
-            centroid = nucp[nucp["frame"] == frame].iloc[0]["nuc_bnd"].centroid
+            foi = nucp[nucp["frame"] == frame]
+            if foi.empty: continue
+            centroid = foi.iloc[0]["nuc_bnd"].centroid
             c_pt = (centroid.x * self.um_per_pix, centroid.y * self.um_per_pix)
             # c_pt = (0, 0)
             rotation = df.loc[df["frame"] == frame, "th+"].mean()
