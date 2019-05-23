@@ -578,7 +578,7 @@ def load_tiff(path):
                 for i, page in enumerate(tif.pages):
                     frames.append(page.asarray())
 
-    return frames, res, dt, metadata['frames']
+    return frames, res, dt, metadata['frames'], metadata['channels']
 
 
 def find_image(img_name, folder):

@@ -136,7 +136,7 @@ class Eb3ImageQLabel(QtGui.QLabel):
             self.frame = frame
             self.dataHasChanged = True
 
-            img, res, dt = sp.find_image(run, os.path.join(self.exp_folder, condition))
+            img, res, dt, _, _ = sp.find_image(run, os.path.join(self.exp_folder, condition))
             img = img[frame]
             self.dwidth, self.dheight = img.shape
 
