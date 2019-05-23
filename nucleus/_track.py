@@ -57,7 +57,7 @@ def velocity(df, time='time', frame='frame'):
 
 
 class Track():
-    def __init__(self, image_file, nucleus_channel=0):
+    def __init__(self, image_file, nucleus_channel=0, skip_frames=0):
         logger.info("Initializing nucleus track object")
         self.images, self.pix_per_um, self.dt, self.n_frames, self.n_channels = sp.load_tiff(image_file)
         self.um_per_pix = 1 / self.pix_per_um
@@ -70,6 +70,10 @@ class Track():
         self._linked = None
         self._segmented_nuclei = None
         self._nucleus_rotation = None
+
+        # skip first skip_frames frames
+        self.images = self.images[self.n_channels * skip_frames:, :]
+        self.n_frames -= skip_frames
 
     @property
     def boundary(self):
@@ -111,7 +115,15 @@ class Track():
         logger.info("Estimating nuclear rotation")
         nrm = np.uint8(cv2.normalize(self.images, None, 0, 255, cv2.NORM_MINMAX))
         # matches = keypoint_surf_match(sp.image_iterator(nrm, channel=self._ch, number_of_frames=self.n_frames))
-        matches = optical_flow_lk_match(sp.image_iterator(nrm, channel=self._ch, number_of_frames=self.n_frames))
+        # matches = optical_flow_lk_match(sp.image_iterator(nrm, channel=self._ch, number_of_frames=self.n_frames))
+        # FIXME: iterate through all nuclei particles.
+        nuc = self.boundary.loc[self.boundary["particle"] == 0, :].set_index("frame")
+        matches = optical_flow_lk_match(
+            sp.mask_iterator(
+                sp.image_iterator(nrm, channel=self._ch, number_of_frames=self.n_frames),
+                list(nuc["boundary"].items())
+            )
+        )
 
         for f in range(1, max(self.boundary["frame"].max(), matches["frame"].max()) + 1):
             if _DEBUG and f > 5: break
@@ -160,7 +172,9 @@ class Track():
         # filter data
         df = self.nucleus_rotation
         df = df[(df['nucleus'] == 0) & (~df['particle'].isin(df[df['msd'].diff() > 500]['particle'].unique()))]
-        df = df[~df['particle'].isin(df.loc[(df['r'].diff() > 5) & (df['frame'] > 15), 'particle'].unique())]
+        df = df[~df['particle'].isin(
+            df.loc[(df['r'].diff() < 0) & (df['frame'] > 2) & (df['frame'] < 5), 'particle'].unique())]
+        df = df[~df['particle'].isin(df.loc[(df['r'].diff() > 5) & (df['frame'] > 5), 'particle'].unique())]
 
         # plot frame reference for nucleus
         for _in, nucp in df.groupby(["nucleus"]):

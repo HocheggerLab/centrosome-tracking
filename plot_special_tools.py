@@ -24,6 +24,8 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
 import parameters
+import tools.measurements as meas
+import mechanics as m
 from imagej_pandas import ImagejPandas
 
 logger = logging.getLogger(__name__)
@@ -281,7 +283,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
     _err_kws = {'alpha': 0.5, 'lw': 0.1}
     cond = df['condition'].unique()[0]
     df_msd = ImagejPandas.msd_particles(df)
-    df_msd = _msd_tag(df_msd)
+    df_msd = m._msd_tag(df_msd)
 
     sns.tsplot(
         data=df_msd[df_msd['condition'] == cond], lw=3,
@@ -308,7 +310,7 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
 
     cond = df['condition'].unique()[0]
     df_msd = ImagejPandas.msd_particles(df)
-    df_msd = _msd_tag(df_msd)
+    df_msd = m._msd_tag(df_msd)
 
     sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' displacing more'],
                color=color, linestyle='-',
@@ -604,6 +606,14 @@ def image_iterator(image_arr, channel=0, number_of_frames=1):
         ix = f * n_channels + channel
         logger.debug("retrieving frame %d of channel %d (index=%d)" % (f, channel, ix))
         if ix < nimgs: yield image_arr[ix]
+
+
+def mask_iterator(image_it, mask_lst):
+    for fr, img in enumerate(image_it):
+        for _fr, msk in mask_lst:
+            if fr != _fr: continue
+            msk_img = meas.generate_mask_from(msk, shape=img.shape)
+            yield img * msk_img
 
 
 def render_cell(df, ax, img=None, res=4.5, w=50, h=50):

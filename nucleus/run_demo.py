@@ -72,10 +72,14 @@ def msd_plots(df):
 
 
 if __name__ == '__main__':
+    """
+    after creating images, it is possible to compile them in a movie using:
+    ffmpeg -r 1 -i frame_%02d.png -c:v libx264 -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -pix_fmt yuv420p out.mp4
+    """
     if _DEBUG: logger.info("debug flag on")
     logger.info('loading data')
     file = '/Volumes/Kidbeat/data/Dynein etc/DYNH1 A19 X1 29-01-15/Capture 1 - Position 3.Project Maximum.tif'
-    t = Track(image_file=file, nucleus_channel=2)
+    t = Track(image_file=file, nucleus_channel=2, skip_frames=5)
     print(t.nucleus_rotation)
     print(sorted(t.nucleus_rotation["frame"].unique()))
     width, height = t.images[0].shape
@@ -98,6 +102,7 @@ if __name__ == '__main__':
     for f in t.nucleus_rotation["frame"].unique():
         ax.cla()
         t.render(ax, frame=f)
+        ax.text(5, height / t.pix_per_um - 10, '%02d' % f, color='white', fontsize=20)
 
         plt.draw()
         drawing_tool.display()
