@@ -19,6 +19,8 @@ from plot_special_tools import canvas_to_pil
 import plot_special_tools as sp
 
 logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("matplotlib").setLevel(logging.ERROR)
+logging.getLogger("plot_special_tools").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 
@@ -74,32 +76,32 @@ def msd_plots(df):
 if __name__ == '__main__':
     """
     after creating images, it is possible to compile them in a movie using:
-    ffmpeg -r 1 -i frame_%02d.png -c:v libx264 -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -pix_fmt yuv420p out.mp4
+    ffmpeg -r 2 -i frame_%02d.png -c:v libx264 -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" -pix_fmt yuv420p out.mp4
     """
     if _DEBUG: logger.info("debug flag on")
     logger.info('loading data')
     file = '/Volumes/Kidbeat/data/Dynein etc/DYNH1 A19 X1 29-01-15/Capture 1 - Position 3.Project Maximum.tif'
     t = Track(image_file=file, nucleus_channel=2, skip_frames=5)
-    print(t.nucleus_rotation)
-    print(sorted(t.nucleus_rotation["frame"].unique()))
+    print(t.rotation)
+    print(sorted(t.rotation["frame"].unique()))
     width, height = t.images[0].shape
 
     # filter one set
-    df = t.nucleus_rotation
+    df = t.rotation
     df = df[df['nucleus'] == 0]
     filtered = df[~df['particle'].isin(df[np.abs(df['th_dev']) > 1.5]['particle'].unique())]
 
     sns.set_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED])
     angle_plots(filtered)
-    radius_plots(t.nucleus_rotation)
-    msd_plots(t.nucleus_rotation)
+    radius_plots(t.rotation)
+    msd_plots(t.rotation)
 
     # fig = plt.figure(figsize=(width * 4 / 150, width * 4 / 150), dpi=150)
     # ax = fig.gca()
     drawing_tool.set_coordinate_system(xmin=0, xmax=width / t.pix_per_um, ymin=0, ymax=height / t.pix_per_um)
     ax = drawing_tool.ax
     sp.set_axis_size(6, 6)
-    for f in t.nucleus_rotation["frame"].unique():
+    for f in t.rotation["frame"].unique():
         ax.cla()
         t.render(ax, frame=f)
         ax.text(5, height / t.pix_per_um - 10, '%02d' % f, color='white', fontsize=20)
