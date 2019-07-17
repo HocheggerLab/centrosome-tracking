@@ -60,9 +60,9 @@ class ExperimentsList(QtGui.QWidget):
         self.experimentsTreeView.setModel(model)
         self.experimentsTreeView.setUniformRowHeights(True)
         with h5py.File(self.hdf5file, 'r') as f:
-            for cond in reversed(sorted(f.iterkeys())):
+            for cond in reversed(sorted(f.keys())):
                 conditem = QtGui.QStandardItem(cond)
-                for run in f[cond].iterkeys():
+                for run in f[cond].keys():
                     runitem = QtGui.QStandardItem(run)
                     self.experimentsTreeView.expand(runitem.index())
                     conditem.appendRow(runitem)

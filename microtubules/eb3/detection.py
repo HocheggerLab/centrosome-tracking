@@ -22,7 +22,7 @@ log.setLevel(logging.DEBUG)
 class Particles():
     def __init__(self, image_file):
         log.info("Initializing particles object")
-        self.images, self.pix_per_um, self.dt = sp.load_tiff(image_file)
+        self.images, self.pix_per_um, self.dt, self.n_frames, self.n_channels = sp.load_tiff(image_file)
         self.im_f = os.path.basename(image_file)
         self.im_p = os.path.dirname(image_file)
         self.w = self.images[0].shape[0]

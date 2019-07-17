@@ -133,41 +133,48 @@ def obj_minimize(p, yn, Np=100):
         return np.finfo('float64').max
 
 
-def planar_elastica_ivp_numeric(s, w=1.0, g=0.0, k0=1.0, alpha=np.pi / 2):
+def planar_elastica_ivp_numeric(s, w=1.0, gamma=0.0, k0=1.0, alpha=np.pi / 2):
     """
 
-        | x0' |   |  x'    |   |      cos(phi)      |
-        | x1' | = |  y'    | = |      sin(phi)      |
-        | x2' |   | phi'   |   |          k         |
-        | x3' |   |  k'    |   |  -w^2 sin(phi + g) |
+    Solves the planar elastica using a method insired in (Batista, 2014):
+
+    Milan Batista,
+    Analytical treatment of equilibrium configurations of cantilever under terminal loads using Jacobi elliptical functions,
+    International Journal of Solids and Structures,
+    Volume 51, Issue 13, 2014, Pages 2308-2326,
+    ISSN 0020-7683, https://doi.org/10.1016/j.ijsolstr.2014.02.036.
+
+
+        | x0' |   |  x'  |   |      cos(phi)        |
+        | x1' | = |  y'  | = |      sin(phi)        |
+        | x2' |   | phi' |   |         -k           |
+        | x3' |   |  k'  |   |  -w^2 sin(theta + g) |
 
         s in [0, 1]
 
-        Variables: x, y, phi, k
-        Parameters:
-            - w is the load parameter defined as w^2=FL^2/(EI)
-            - g is the angle between the x-axis and the direction of force
-        Constants: E, J
-        Initial value conditions:
-            x(0) = y(0) = 0
-            phi(0) = 0
-            k(0) = k1
+    Variables: x, y, theta, k
+
+    :param s: Arc length variable, s in [0, 1].
+    :param w: Load parameter defined as w^2=FL^2/(EI).
+    :param gamma: Angle between the x-axis and the direction of force.
+    :param k0: Initial contiditon (s=0) for k.
+    :param alpha: Boundary condition for u(0) = alpha
+    :return:
     """
 
     def fun1(s, x):
         """
-            | x0' | = | phi' | = |       -k       |
-            | x1' |   |  k'  |   |  -w^2 sin(phi) |
+            | x0' | = |  u' | = |       -k     |
+            | x1' |   |  k' |   |  -w^2 sin(u) |
 
         """
-        phi, k = x
-        return np.array([-k, w ** 2 * np.sin(phi)])
+        u, k = x
+        return np.array([-k, w ** 2 * np.sin(u)])
 
     def fun2(s, x):
-        x, y, phi, k = x
-        return np.array([np.cos(phi), np.sin(phi), k, -w ** 2 * np.sin(phi + g)])
+        x, y, theta, k = x
+        return np.array([np.cos(theta), np.sin(theta), k, -w ** 2 * np.sin(theta + gamma)])
 
-    # logger.debug('solving ivp elastica: w={:04.2e} g={:04.2e} k1={:04.2e} alpha={:04.2e}'.format(w, g, k0, alpha))
 
     # calculation of k1 by solving the first ODE
     sol0 = solve_ivp(fun1, (0, 1), (alpha, k0))

@@ -20,9 +20,15 @@ from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
 import matplotlib.colors as colors
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 import parameters
+import tools.measurements as meas
+import mechanics as m
 from imagej_pandas import ImagejPandas
+
+logger = logging.getLogger(__name__)
 
 # sussex colors
 SUSSEX_FLINT = colors.to_rgb('#013035')
@@ -58,6 +64,9 @@ class colors():
     alexa_594 = [1., .61, 0]
     alexa_647 = [.83, .28, .28]
     hoechst_33342 = [0, .57, 1.]
+    red = [1, 0, 0]
+    green = [0, 1, 0]
+    blue = [0, 0, 1]
     sussex_flint = colors.to_rgb('#013035')
     sussex_cobalt_blue = colors.to_rgb('#1e428a')
     sussex_mid_grey = colors.to_rgb('#94a596')
@@ -197,7 +206,7 @@ def congression(cg, ax=None, order=None, linestyles=None):
 
 def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8), z_max=None):
     right_axes_class = (str(type(ax)) == "<class 'matplotlib.axes._subplots.Axes3DSubplot'>") or \
-                       (str(type(ax)) == "<class 'special_plots.Axes3DSubplot'>")
+                       (str(type(ax)) == "<class 'plot_special_tools.Axes3DSubplot'>")
 
     if not right_axes_class:
         raise Exception('Not the right axes class for ribbon plot.')
@@ -274,7 +283,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
     _err_kws = {'alpha': 0.5, 'lw': 0.1}
     cond = df['condition'].unique()[0]
     df_msd = ImagejPandas.msd_particles(df)
-    df_msd = _msd_tag(df_msd)
+    df_msd = m._msd_tag(df_msd)
 
     sns.tsplot(
         data=df_msd[df_msd['condition'] == cond], lw=3,
@@ -301,7 +310,7 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
 
     cond = df['condition'].unique()[0]
     df_msd = ImagejPandas.msd_particles(df)
-    df_msd = _msd_tag(df_msd)
+    df_msd = m._msd_tag(df_msd)
 
     sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' displacing more'],
                color=color, linestyle='-',
@@ -571,7 +580,7 @@ def load_tiff(path):
                 for i, page in enumerate(tif.pages):
                     frames.append(page.asarray())
 
-            return frames, res, dt
+    return frames, res, dt, metadata['frames'], metadata['channels']
 
 
 def find_image(img_name, folder):
@@ -580,6 +589,82 @@ def find_image(img_name, folder):
             joinf = os.path.abspath(os.path.join(root, file))
             if os.path.isfile(joinf) and joinf[-4:] == '.tif' and file == img_name:
                 return load_tiff(joinf)
+
+
+def retrieve_image(image_arr, frame, channel=0, number_of_frames=1):
+    nimgs = image_arr.shape[0]
+    n_channels = int(nimgs / number_of_frames)
+    ix = frame * n_channels + channel
+    logger.debug("retrieving frame %d of channel %d (index=%d)" % (frame, channel, ix))
+    return image_arr[ix]
+
+
+def image_iterator(image_arr, channel=0, number_of_frames=1):
+    nimgs = image_arr.shape[0]
+    n_channels = int(nimgs / number_of_frames)
+    for f in range(number_of_frames):
+        ix = f * n_channels + channel
+        logger.debug("retrieving frame %d of channel %d (index=%d)" % (f, channel, ix))
+        if ix < nimgs: yield image_arr[ix]
+
+
+def mask_iterator(image_it, mask_lst):
+    for fr, img in enumerate(image_it):
+        for _fr, msk in mask_lst:
+            if fr != _fr: continue
+            msk_img = meas.generate_mask_from(msk, shape=img.shape)
+            yield img * msk_img
+
+
+def render_cell(df, ax, img=None, res=4.5, w=50, h=50):
+    """
+    Render an individual cell with all its measured features
+    """
+    from skimage import exposure
+
+    # plot image
+    if img is not None:
+        img = exposure.equalize_hist(img)
+        img = exposure.adjust_gamma(img, gamma=3)
+        ax.imshow(img, cmap='gray', extent=(0, img.shape[0] / res, img.shape[1] / res, 0))
+    # if img is not None: ax.imshow(img, cmap='gray')
+
+    _ca = df[df['CentrLabel'] == 'A']
+    _cb = df[df['CentrLabel'] == 'B']
+
+    if not _ca['NuclBound'].empty:
+        nucleus = Polygon(eval(_ca['NuclBound'].values[0][1:-1]))
+
+        nuc_center = nucleus.centroid
+        x, y = nucleus.exterior.xy
+        ax.plot(x, y, color=SUSSEX_CORN_YELLOW, linewidth=1, solid_capstyle='round')
+        ax.plot(nuc_center.x, nuc_center.y, color=SUSSEX_CORN_YELLOW, marker='+', linewidth=1, solid_capstyle='round',
+                zorder=1)
+
+    if not _ca['CellBound'].empty:
+        cell = Polygon(eval(_ca['CellBound'].values[0])) if not _ca['CellBound'].empty > 0 else None
+
+        cll_center = cell.centroid
+        x, y = cell.exterior.xy
+        ax.plot(x, y, color='w', linewidth=1, solid_capstyle='round')
+        ax.plot(cll_center.x, cll_center.y, color='w', marker='o', linewidth=1, solid_capstyle='round')
+
+    if not _ca['CentX'].empty:
+        c_a = Point(_ca['CentX'], _ca['CentY'])
+        ca = plt.Circle((c_a.x, c_a.y), radius=1, edgecolor=SUSSEX_NAVY_BLUE, facecolor='none', linewidth=2, zorder=10)
+        ax.add_artist(ca)
+
+        if not _cb['CentX'].empty:
+            c_b = Point(_cb['CentX'], _cb['CentY'])
+            cb = plt.Circle((c_b.x, c_b.y), radius=1, edgecolor=SUSSEX_CORAL_RED, facecolor='none', linewidth=2,
+                            zorder=10)
+            ax.plot((c_a.x, c_b.x), (c_a.y, c_b.y), color=SUSSEX_WARM_GREY, linewidth=1, zorder=10)
+            ax.add_artist(cb)
+
+    ax.set_xlim(c_a.x - w / 2, c_a.x + w / 2)
+    ax.set_ylim(c_a.y - h / 2 + 10, c_a.y + h / 2 + 10)
+    # ax.set_xlim(nuc_center.x - w / 2, nuc_center.x + w / 2)
+    # ax.set_ylim(nuc_center.y - h / 2, nuc_center.y + h / 2)
 
 
 def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
@@ -748,6 +833,14 @@ def pil_grid(images, max_horiz=np.iinfo(int).max):
     for i, im in enumerate(images):
         im_grid.paste(im, (h_sizes[i % n_horiz], v_sizes[i // n_horiz]))
     return im_grid
+
+
+def canvas_to_pil(canvas):
+    canvas.draw()
+    s = canvas.tostring_rgb()
+    w, h = canvas.get_width_height()[::-1]
+    im = Image.frombytes("RGB", (w, h), s)
+    return im
 
 
 # functions for plotting angle in matplotlib

@@ -10,7 +10,6 @@ log = logging.getLogger(__name__)
 
 names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_P.C.', '+STLC'),
-                     ('mother-daughter', 'mother-daughter'),
                      ('1_DIC', 'DIC+STLC'),
                      ('1_Dynei', 'DHC+STLC'),
                      ('1_ASUND', 'Asunder+STLC'),
@@ -26,6 +25,7 @@ names = OrderedDict([('1_N.C.', '-STLC'),
                      ('1_CyDT', 'Cytochalsin D+STLC'),
                      ('1_Bleb', 'Blebbistatin+STLC'),
                      ('1_FAKI', 'FAKi+STLC'),
+                     ('pc', '+STLC(2)'),
                      ('hset', 'Hset+STLC'),
                      ('kif25', 'Kif25+STLC'),
                      ('hset+kif25', 'Hset&Kif25+STLC'),
@@ -72,7 +72,7 @@ class Data():
         dfcntr = df_mc[df_mc['CentrLabel'] == 'A']
         dfcntr.loc[:, 'indiv'] = dfcntr['condition'] + '-' + dfcntr['run'] + '-' + dfcntr['Nuclei'].map(int).map(str)
         dfcntr.drop(
-            ['CentrLabel', 'Centrosome', 'NuclBound', 'CNx', 'CNy', 'CentX', 'CentY', 'NuclX', 'NuclY', 'Speed', 'Acc'],
+            ['CentrLabel', 'Centrosome', 'NuclBound', 'CentX', 'CentY', 'NuclX', 'NuclY', 'Speed', 'Acc'],
             axis=1, inplace=True)
 
         df_m.loc[:, 'indiv'] = df_m['condition'] + '|' + df_m['run'] + '|' + df_m['Nuclei'].map(int).map(str)
