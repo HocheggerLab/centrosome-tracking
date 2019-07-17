@@ -22,12 +22,13 @@ from mpl_toolkits.mplot3d import axes3d
 import matplotlib.colors as colors
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
-import matplotlib.ticker as ticker
-import scipy.stats
 
-import stats
 import parameters
+import tools.measurements as meas
+import mechanics as m
 from imagej_pandas import ImagejPandas
+
+logger = logging.getLogger(__name__)
 
 # sussex colors
 SUSSEX_FLINT = colors.to_rgb('#013035')
@@ -148,67 +149,6 @@ def set_axis_size(w, h, ax=None):
     figw = float(w) / (r - l)
     figh = float(h) / (t - b)
     ax.figure.set_size_inches(figw, figh)
-
-
-def anotated_boxplot(data_grouped, var, point_size=5, fontsize=None, cat='condition',
-                     swarm=True, swarm_subcat=None, order=None, xlabels=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
-                zorder=100)
-
-    if swarm:
-        _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, hue=swarm_subcat, ax=ax,
-                            zorder=10)
-    else:
-        _ax = sns.stripplot(data=data_grouped, y=var, x=cat, jitter=True, size=point_size, hue=swarm_subcat,
-                            order=order, ax=ax, zorder=10)
-    for i, artist in enumerate(_ax.artists):
-        artist.set_facecolor('None')
-        artist.set_edgecolor('k')
-        artist.set_zorder(5000)
-    for i, artist in enumerate(_ax.lines):
-        artist.set_color('k')
-        artist.set_zorder(5000)
-
-    order = order if order is not None else data_grouped[cat].unique()
-    if fontsize != None:
-        for x, c in enumerate(order):
-            d = data_grouped[data_grouped[cat] == c][var]
-            _max_y = _ax.axis()[3]
-            count = d.count()
-            mean = d.mean()
-            median = d.median()
-            # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
-            _txt = '%0.2f\n%d' % (median, count)
-            _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
-    # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
-    if xlabels is not None:
-        _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
-                            rotation=0, multialignment='right')
-    else:
-        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=0, multialignment='right')
-    _ax.xaxis.set_major_locator(ticker.NullLocator())
-
-    # plot pvalues
-    signals = data_grouped[cat].unique()
-    maxy = _ax.get_ylim()[1]
-    ypos = np.flip(_ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
-    dy = np.diff(ypos)[0] * -4
-    k = 0
-    for i, s11 in enumerate(signals):
-        for j, s12 in enumerate(signals):
-            if i < j:
-                sig1 = data_grouped[data_grouped[cat] == s11][var]
-                sig2 = data_grouped[data_grouped[cat] == s12][var]
-                st, p = scipy.stats.ttest_ind(sig1, sig2)
-                # st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
-                if p <= 0.05:
-                    ypos = maxy - dy * k
-                    _ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
-                    _ax.text(j, ypos - dy * 0.1, stats.star_system(p), ha='right', va='bottom', zorder=20)
-                    k += 1
-    # ax.set_xlabel('')
-
-    return _ax
 
 
 def _compute_congression(cg):
@@ -343,7 +283,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
     _err_kws = {'alpha': 0.5, 'lw': 0.1}
     cond = df['condition'].unique()[0]
     df_msd = ImagejPandas.msd_particles(df)
-    df_msd = _msd_tag(df_msd)
+    df_msd = m._msd_tag(df_msd)
 
     sns.tsplot(
         data=df_msd[df_msd['condition'] == cond], lw=3,
@@ -370,7 +310,7 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
 
     cond = df['condition'].unique()[0]
     df_msd = ImagejPandas.msd_particles(df)
-    df_msd = _msd_tag(df_msd)
+    df_msd = m._msd_tag(df_msd)
 
     sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' displacing more'],
                color=color, linestyle='-',
@@ -605,46 +545,75 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
     ax.set_ylabel('Acceleration between\ncentrosomes $\\left[\\frac{\mu m}{min^2} \\right]$')
 
 
+def load_tiff(path):
+    _, img_name = os.path.split(path)
+    with tf.TiffFile(path) as tif:
+        if tif.is_imagej is not None:
+            metadata = tif.pages[0].imagej_tags
+            dt = metadata['finterval'] if 'finterval' in metadata else 1
+
+            # asuming square pixels
+            xr = tif.pages[0].tags['x_resolution'].value
+            res = float(xr[0]) / float(xr[1])  # pixels per um
+            if metadata['unit'] == 'centimeter':
+                res = res / 1e4
+
+            if os.path.exists(parameters.experiments_dir + 'eb3/eb3_calibration.xls'):
+                cal = pd.read_excel(parameters.experiments_dir + 'eb3/eb3_calibration.xls')
+                calp = cal[cal['filename'] == img_name]
+                if not calp.empty:
+                    calp = calp.iloc[0]
+                    if calp['optivar'] == 'yes':
+                        logging.info('file with optivar configuration selected!')
+                        res *= 1.6
+
+            frames = None
+            if len(tif.pages) == 1:
+                if ('slices' in metadata and metadata['slices'] > 1) or (
+                        'frames' in metadata and metadata['frames'] > 1):
+                    frames = tif.pages[0].asarray()
+                else:
+                    frames = [tif.pages[0].asarray()]
+            elif len(tif.pages) > 1:
+                # frames = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width), dtype=np.int32)
+                frames = list()
+                for i, page in enumerate(tif.pages):
+                    frames.append(page.asarray())
+
+    return frames, res, dt, metadata['frames'], metadata['channels']
+
+
 def find_image(img_name, folder):
     for root, directories, filenames in os.walk(folder):
         for file in filenames:
             joinf = os.path.abspath(os.path.join(root, file))
             if os.path.isfile(joinf) and joinf[-4:] == '.tif' and file == img_name:
-                with tf.TiffFile(joinf) as tif:
-                    dt = None
-                    if tif.is_imagej is not None:
-                        dt = tif.imagej_metadata['finterval']
-                        res = 'n/a'
-                        if tif.imagej_metadata['unit'] == 'centimeter':
-                            # asuming square pixels
-                            xr = tif.pages[0].x_resolution
-                            res = float(xr[0]) / float(xr[1])  # pixels per cm
-                            res = res / 1e4  # pixels per um
-                        elif tif.imagej_metadata['unit'] == 'micron':
-                            # asuming square pixels
-                            xr = tif.pages[0].tags['XResolution'].value
-                            res = float(xr[0]) / float(xr[1])  # pixels per um
+                return load_tiff(joinf)
 
-                    if os.path.exists(parameters.data_dir + 'eb3/eb3_calibration.xls'):
-                        cal = pd.read_excel(parameters.data_dir + 'eb3/eb3_calibration.xls')
-                        calp = cal[cal['filename'] == img_name]
-                        if not calp.empty:
-                            calp = calp.iloc[0]
-                            if calp['optivar'] == 'yes':
-                                logging.info('file with optivar configuration selected!')
-                                res *= 1.6
 
-                    images = None
-                    # construct images array based on tif file structure:
-                    if len(tif.pages) == 1:
-                        images = np.int32(tif.pages[0].asarray())
-                    elif len(tif.pages) > 1:
-                        images = np.ndarray((len(tif.pages), tif.pages[0].imagelength, tif.pages[0].imagewidth),
-                                            dtype=np.int32)
-                        for i, page in enumerate(tif.pages):
-                            images[i] = np.int32(page.asarray())
+def retrieve_image(image_arr, frame, channel=0, number_of_frames=1):
+    nimgs = image_arr.shape[0]
+    n_channels = int(nimgs / number_of_frames)
+    ix = frame * n_channels + channel
+    logger.debug("retrieving frame %d of channel %d (index=%d)" % (frame, channel, ix))
+    return image_arr[ix]
 
-                    return (images, res, dt)
+
+def image_iterator(image_arr, channel=0, number_of_frames=1):
+    nimgs = image_arr.shape[0]
+    n_channels = int(nimgs / number_of_frames)
+    for f in range(number_of_frames):
+        ix = f * n_channels + channel
+        logger.debug("retrieving frame %d of channel %d (index=%d)" % (f, channel, ix))
+        if ix < nimgs: yield image_arr[ix]
+
+
+def mask_iterator(image_it, mask_lst):
+    for fr, img in enumerate(image_it):
+        for _fr, msk in mask_lst:
+            if fr != _fr: continue
+            msk_img = meas.generate_mask_from(msk, shape=img.shape)
+            yield img * msk_img
 
 
 def render_cell(df, ax, img=None, res=4.5, w=50, h=50):
@@ -864,6 +833,14 @@ def pil_grid(images, max_horiz=np.iinfo(int).max):
     for i, im in enumerate(images):
         im_grid.paste(im, (h_sizes[i % n_horiz], v_sizes[i // n_horiz]))
     return im_grid
+
+
+def canvas_to_pil(canvas):
+    canvas.draw()
+    s = canvas.tostring_rgb()
+    w, h = canvas.get_width_height()[::-1]
+    im = Image.frombytes("RGB", (w, h), s)
+    return im
 
 
 # functions for plotting angle in matplotlib
