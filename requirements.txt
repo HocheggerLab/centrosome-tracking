@@ -2,6 +2,7 @@ Jinja2==2.10
 Pillow==5.2.0
 PyQt4==4.11.4
 coloredlogs==10.0
+czifile==2019.7.2
 h5py==2.8.0
 matplotlib==3.0.2
 numpy==1.15.1
@@ -14,6 +15,6 @@ scikit-image==0.14.1
 scikit-learn==0.20.0
 scipy==1.1.0
 seaborn==0.9.0
-tifffile==2019.1.30
+tifffile==2019.7.2
 trackpy==0.4.1
 xlrd >= 0.9.0

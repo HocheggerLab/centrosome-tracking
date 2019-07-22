@@ -22,7 +22,8 @@ log.setLevel(logging.DEBUG)
 class Particles():
     def __init__(self, image_file):
         log.info("Initializing particles object")
-        self.images, self.pix_per_um, self.dt, self.n_frames, self.n_channels = sp.load_tiff(image_file)
+        self.images, self.pix_per_um, self.dt, self.n_frames, self.n_channels = sp.find_image(image_file)
+        self.um_per_pix = 1 / self.pix_per_um
         self.im_f = os.path.basename(image_file)
         self.im_p = os.path.dirname(image_file)
         self.w = self.images[0].shape[0]
@@ -39,6 +40,7 @@ class Particles():
         # get calibration parameters from excel file
         cal = pd.read_excel(p.experiments_dir + 'eb3/eb3_calibration.xls')
 
+        if not (cal['filename'] == self.im_f).any(): return
         calp = cal[cal['filename'] == self.im_f].iloc[0]
         self.dt = calp['dt']
 
