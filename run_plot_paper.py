@@ -1,15 +1,15 @@
 import logging
-
 import coloredlogs
-import matplotlib.gridspec
-import matplotlib.pyplot as plt
+
 import pandas as pd
-import seaborn as sns
-from matplotlib import font_manager
+
+from tools.matplotlib_essentials import plt
 from matplotlib.backends.backend_pdf import PdfPages
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.ticker as ticker
+
+import seaborn as sns
 
 import mechanics as m
 import data as hdata
@@ -20,23 +20,6 @@ import tools.plots as pl
 import tools.data as data
 
 logger = logging.getLogger(__name__)
-logger.info(font_manager.OSXInstalledFonts())
-logger.info(font_manager.OSXFontDirectories)
-
-plt.style.use('bmh')
-# print(matplotlib.rcParams.keys())
-# Type 2/TrueType fonts.
-matplotlib.rcParams.update({'pdf.fonttype': 42})
-matplotlib.rcParams.update({'ps.fonttype': 42})
-
-matplotlib.rcParams.update({'font.family': 'sans-serif'})
-matplotlib.rcParams.update({'font.sans-serif': ['Arial']})
-
-matplotlib.rcParams.update({'axes.titlesize': 8})
-matplotlib.rcParams.update({'axes.labelsize': 7})
-matplotlib.rcParams.update({'xtick.labelsize': 7})
-matplotlib.rcParams.update({'ytick.labelsize': 7})
-matplotlib.rcParams.update({'legend.fontsize': 7})
 
 pd.set_option('display.width', 320)
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)

@@ -1,12 +1,14 @@
 import logging
 
-import seaborn as sns
 import pandas as pd
 import numpy as np
+
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.ticker as ticker
 import matplotlib.lines as mlines
+
+import seaborn as sns
 
 import mechanics as m
 from imagej_pandas import ImagejPandas
@@ -16,8 +18,6 @@ from tools.manual_data import gen_dist_data
 log = logging.getLogger(__name__)
 
 pt_color = sns.light_palette(sp.SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
-_fig_size_A3 = (11.7, 16.5)
-_err_kws = {'alpha': 0.5, 'lw': 0.1}
 
 
 class Tracks():

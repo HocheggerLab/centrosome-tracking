@@ -2,32 +2,40 @@ import itertools
 import logging
 import math
 import os
-import xml.etree.ElementTree
 
 import h5py
-import matplotlib.axes
-import matplotlib.colors
-import matplotlib.lines as mlines
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import skimage.external.tifffile as tf
-from czifile import CziFile
-from PIL import Image
-from PyQt4 import Qt, QtGui
-from PyQt4.QtCore import QRect
-from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
+
+import matplotlib.axes
+import matplotlib.colors
+import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
+import matplotlib.colors as colors
 from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
-import matplotlib.colors as colors
+
+import seaborn as sns
+
+import skimage.external.tifffile as tf
+from czifile import CziFile
+from PIL import Image
+
+from PyQt4 import Qt, QtGui
+from PyQt4.QtCore import QRect
+from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
+
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+
+import scipy.stats
+import xml.etree.ElementTree
 
 import parameters
 import tools.measurements as meas
 import mechanics as m
+from tools import stats
 from imagej_pandas import ImagejPandas
 
 logger = logging.getLogger(__name__)
@@ -204,6 +212,93 @@ def congression(cg, ax=None, order=None, linestyles=None):
     ax.set_xlabel('Time $[min]$')
     ax.set_ylabel('Congression in percentage ($d<%0.2f$ $[\mu m]$)' % ImagejPandas.DIST_THRESHOLD)
     ax.legend(dhandles, dlabels, loc='upper left')
+
+
+def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition',
+                     swarm=True, stars=False, order=None, xlabels=None, ax=None):
+    sns.boxplot(data=df, y=variable, x=group, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
+                zorder=100)
+
+    if swarm:
+        _ax = sns.swarmplot(data=df, y=variable, x=group, size=point_size, order=order, ax=ax, zorder=10)
+    else:
+        _ax = sns.stripplot(data=df, y=variable, x=group, jitter=True, size=point_size, order=order, ax=ax,
+                            zorder=10)
+    for i, artist in enumerate(_ax.artists):
+        artist.set_facecolor('None')
+        artist.set_edgecolor('k')
+        artist.set_zorder(5000)
+    for i, artist in enumerate(_ax.lines):
+        artist.set_color('k')
+        artist.set_zorder(5000)
+
+    order = order if order is not None else df[group].unique()
+    if fontsize is not None:
+        for x, c in enumerate(order):
+            d = df[df[group] == c][variable]
+            _max_y = _ax.axis()[3]
+            count = d.count()
+            mean = d.mean()
+            median = d.median()
+            # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
+            _txt = '%0.2f\n%d' % (median, count)
+            _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
+    # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
+    if xlabels is not None:
+        _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
+                            rotation=45, multialignment='right')
+    else:
+        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
+    ax.set_xlabel('')
+
+    if stars:
+        signals = df[group].unique()
+        maxy = ax.get_ylim()[1]
+        ypos = np.flip(ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
+        dy = -np.diff(ypos)[0]
+        k = 0
+        for i, s11 in enumerate(signals):
+            for j, s12 in enumerate(signals):
+                if i < j:
+                    sig1 = df[df[group] == s11][variable]
+                    sig2 = df[df[group] == s12][variable]
+                    st, p = scipy.stats.ttest_ind(sig1, sig2)
+                    # st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
+                    # if p <= 0.05:
+                    ypos = maxy - dy * k
+                    ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
+                    ax.text(j, ypos + dy * 0.25, stats.star_system(p), ha='right', va='bottom', zorder=20)
+                    k += 1
+
+    return _ax
+
+
+def boxplot(df, ax, variable, group, color=None):
+    signals = df[group].unique()
+    print(signals)
+    sns.swarmplot(x=group, y=variable, hue=color, data=df, order=signals, zorder=10)
+    plt.xticks(rotation=90)
+    # Pad margins so that markers don't get clipped by the axes
+    plt.margins(0.1)
+    # Tweak spacing to prevent clipping of tick-labels
+    plt.subplots_adjust(bottom=0.3)
+
+    maxy = ax.get_ylim()[1]
+    ypos = np.flip(ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
+    dy = np.diff(ypos)[0] * -4
+    k = 0
+    for i, s11 in enumerate(signals):
+        for j, s12 in enumerate(signals):
+            if i < j:
+                sig1 = df[df[group] == s11][variable]
+                sig2 = df[df[group] == s12][variable]
+                # st, p = scipy.stats.ttest_ind(sig1, sig2)
+                st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
+                # if p <= 0.05:
+                ypos = maxy - dy * k
+                ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
+                ax.text(j, ypos - dy * 0.5, stats.star_system(p), ha='right', va='bottom', zorder=20)
+                k += 1
 
 
 def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8), z_max=None):
@@ -562,8 +657,8 @@ def load_tiff(path):
 
             # This is a hack
             # Process pixel calibration from excel file if given
-            if os.path.exists(parameters.experiments_dir + 'eb3/eb3_calibration.xls'):
-                cal = pd.read_excel(parameters.experiments_dir + 'eb3/eb3_calibration.xls')
+            if os.path.exists(parameters.out_dir + 'eb3/eb3_calibration.xls'):
+                cal = pd.read_excel(parameters.out_dir + 'eb3/eb3_calibration.xls')
                 calp = cal[cal['filename'] == img_name]
                 if not calp.empty:
                     calp = calp.iloc[0]
