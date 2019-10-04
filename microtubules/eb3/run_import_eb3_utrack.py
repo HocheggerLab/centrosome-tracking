@@ -7,8 +7,9 @@ import pandas as pd
 import scipy.io as sio
 import tifffile as tf
 
+import parameters as p
 import mechanics as m
-import special_plots as sp
+import plot_special_tools as sp
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 pd.set_option('display.width', 320)
@@ -126,7 +127,7 @@ def import_eb3_icy_all(dir_base):
 
                     iname = f[:-11] + '.tif'
                     logging.debug('trying to find image %s' % iname)
-                    img, res, dt = sp.find_image(iname, root)
+                    img, res, dt, _, _ = sp.find_image(iname, root)
                     df_mtlb['time'] = df_mtlb['frame'] * dt
                     df_mtlb['x'] /= res
                     df_mtlb['y'] /= res
@@ -145,5 +146,5 @@ def import_eb3_icy_all(dir_base):
 
 
 if __name__ == '__main__':
-    df = import_eb3_utrack_all('/Users/Fabio/data/lab/eb3')
-    df.to_pickle('/Users/Fabio/data/lab/eb3.pandas')
+    df = import_eb3_utrack_all(p.experiments_dir + 'eb3')
+    df.to_pickle(p.experiments_dir + 'eb3.pandas')

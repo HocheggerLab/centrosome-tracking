@@ -1,105 +1,123 @@
 import logging
 import os
 import re
-import sys
+import warnings
 
-import coloredlogs
-import numpy as np
 import pandas as pd
-import scipy
-import scipy.stats
-import tifffile as tf
 import trackpy as tp
+import matplotlib.pyplot as plt
+import numpy as np
+import tifffile as tf
+from moviepy.video.io.bindings import mplfig_to_npimage
+import moviepy.editor as mpy
+
+import microtubules.eb3.detection as detection
+from microtubules.eb3 import aster
+import parameters as p
+from microtubules.eb3.filters import Wheel
 import trackpy.diag
-import trackpy.predict
 
-coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
-tp.diag.performance_report()
-logging.basicConfig(stream=sys.stderr, format='%(levelname)s:%(funcName)s - %(message)s', level=logging.INFO)
-coloredlogs.install()
-trackpy.quiet()
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+# coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
+trackpy.diag.performance_report()
+# logging.basicConfig(stream=sys.stderr, format='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
+tp.quiet()
 pd.set_option('display.width', 320)
+pd.set_option('display.max_columns', 50)
 
 
-def do_trackpy(image_path):
-    with tf.TiffFile(image_path, fastij=True) as tif:
-        res = 'n/a'
-        if tif.pages[0].resolution_unit == 'centimeter':
-            # asuming square pixels
-            xr = tif.pages[0].x_resolution
-            res = float(xr[0]) / float(xr[1])  # pixels per cm
-            res = res / 1e4  # pixels per um
-        elif tif.pages[0].imagej_tags.unit == 'micron':
-            # asuming square pixels
-            xr = tif.pages[0].x_resolution
-            res = float(xr[0]) / float(xr[1])  # pixels per um
+def movie(particles, filename="movie.mp4"):
+    def make_frame_mpl(t):
+        fr = int(t)
 
-        # construct frames array based on tif file structure:
-        frames = None
-        if len(tif.pages) == 1:
-            frames = np.int32(tif.pages[0].asarray())
-        elif len(tif.pages) > 1:
-            frames = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width), dtype=np.int32)
-            for i, page in enumerate(tif.pages):
-                frames[i] = page.asarray()
+        ax.cla()
 
-        # subtract first frame and deal with negative results after the operation
-        # frames = np.int32(frames)
-        # frames -= frames[0]
-        # frames = frames[1:, :, :]
-        # frames = np.uint16(frames.clip(0))
-        diam = np.ceil(1 * res) // 2 * 2 + 1
+        # for ix, gr in linked_particles.groupby('particle'):
+        #     ax.plot(gr['xum'], gr['yum'], lw=1, c='white', alpha=0.5)
+        #     ax.scatter(gr.loc[gr['frame'] == fr, 'xum'], gr.loc[gr['frame'] == fr, 'yum'], s=1, c='red')
+        particles.render_image(ax, frame=fr)
+        particles.render_segmented_image(ax, frame=fr, color=[1., 0., 0.])
+        particles.render_detected_features(ax, frame=fr, alpha=0.4, lines=True)
+        particles.render_linked_features(ax, frame=fr)
+        for xb, yb in particles.wheel.best:
+            particles.wheel.plot(xb, yb, ax=ax)
 
-        logging.info(scipy.stats.describe(frames, axis=None))
-        f = tp.batch(frames, diam, separation=diam, characterize=True)
-        stat = f[['mass', 'size']].describe()
-        f1 = f[((f['mass'] > stat['mass']['25%']) & (f['size'] < 1.5))]
-        logging.info(stat)
+        return mplfig_to_npimage(fig)  # RGB image of the figure
 
-        pred = trackpy.predict.DriftPredict()
-        search_rng_px = 4
-        # search_rng_px=np.ceil(1 * res)
-        t = pred.link_df(f1, search_rng_px)
+    logging.info("rendering movie %s" % filename)
+    fig = plt.figure(20, dpi=300)
+    ax = fig.gca()
+    ax.set_xlabel("x [um]")
+    ax.set_ylabel("y [um]")
 
-        return t
+    animation = mpy.VideoClip(make_frame_mpl, duration=len(particles.images) - 1)
+    animation.write_videofile(filename, fps=1)
+    animation.close()
+
+
+def do_tracking(image_path, asters=None):
+    log.info("detecting points.")
+    d = detection.Particles(image_path)
+
+    # Estimate centrosome asters automatically if not provided by parameter
+    wheel = Wheel(d.df, np.max(d.images, axis=0), radius=15)
+    if asters is not None:
+        for a in asters:
+            wheel.add(a[0], a[1])
+    d.wheel = wheel
+
+    fig = plt.figure(dpi=300)
+    ax = fig.gca()
+    d.render_image(ax)
+    d.render_detected_features(ax)
+    d.render_linked_features(ax, wheel=True)
+    fig.savefig('%s_objfn.png' % image_path[:-4])
+
+    movie(d, filename='%s.mp4' % image_path[:-4])
+
+    return d.linked
 
 
 def process_dir(dir_base):
     logging.info('processing data from folder %s' % dir_base)
     df = pd.DataFrame()
-    cal = pd.read_excel('/Users/Fabio/data/lab/eb3/eb3_calibration.xls')
+
     # Traverse through all subdirs looking for image files. When a file is found, assume folder structure of (cond/date)
     for root, directories, files in os.walk(dir_base):
         for f in files:
             mpath = os.path.join(root, f)
-            if os.path.isfile(mpath) and f[-4:] == '.tif':
+            if os.path.isfile(mpath) and f[-4:] == '.tif' or f[-4:] == '.czi':
                 logging.info('processing file %s in folder %s' % (f, root))
+                csv_file = os.path.join(root, '%s.csv' % f[:-4])
+                if os.path.exists(csv_file):
+                    log.warning(
+                        "found a csv file with the same name of the one i'm trying to create, reading file instead of running tracking algorithm.")
+                    log.warning("file: %s" % csv_file)
+                    df = df.append(pd.read_csv(csv_file))
+                    continue
                 try:  # process
-                    tdf = do_trackpy(mpath)
+                    log.info('processing %s' % f)
+                    cfg_file = os.path.join(root, '%s.cfg' % f[:-4])
+                    if os.path.exists(cfg_file):
+                        asters = aster.read_aster_config(cfg_file)
+                    else:
+                        asters = aster.select_asters(mpath)
+                        aster.write_aster_config(cfg_file, asters)
+
+                    tdf = do_tracking(mpath, asters=asters)
+                    if __debug__: exit()
+                    if tdf.empty: continue
+
                     tdf['condition'] = os.path.basename(os.path.dirname(root))
                     tdf['tag'] = f[:-4]
-                    # tdf.drop(['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep'], axis=1, inplace=True)
 
-                    calp = cal[cal['filename'] == f].iloc[0]
-                    tdf['time'] = tdf['frame'] * calp['dt']
-                    tdf['x'] /= calp['resolution']
-                    tdf['y'] /= calp['resolution']
-
-                    tdf['particle'] = tdf['particle'].astype('int32')
-                    tdf['frame'] = tdf['frame'].astype('int32')
-                    tdf[['x', 'y', 'time']] = tdf[['x', 'y', 'time']].astype('float64')
-
-                    # consider 1.6X magification of optivar system
-                    if calp['optivar'] == 'yes':
-                        tdf['x'] /= 1.6
-                        tdf['y'] /= 1.6
-
+                    tdf.to_csv(csv_file, index=False)
                     df = df.append(tdf)
                 except IOError as ioe:
                     logging.warning('could not import due to IO error: %s' % ioe)
 
-    # df_matlab['tag'] = pd.factorize(df_matlab['tag'], sort=True)[0] + 1
-    # df_matlab['tag'] = df_matlab['tag'].astype('category')
     return df
 
 
@@ -172,13 +190,5 @@ if __name__ == '__main__':
     _err_kws = {'alpha': 0.3, 'lw': 1}
 
     # df = optivar_resolution_to_excel('/Users/Fabio/data/lab/eb3')
-    df = process_dir('/Users/Fabio/data/lab/eb3')
-    df.to_pickle('/Users/Fabio/data/lab/eb3.pandas')
-
-    # process dataframe and render images
-    from microtubules import run_plots_eb3
-
-    logging.info('filtering using run_plots_eb3.')
-    df, df_avg = run_plots_eb3.batch_filter(df)
-    logging.info('rendering images.')
-    run_plots_eb3.render_image_tracks(df, folder='/Users/Fabio/data/lab/eb3')
+    df = process_dir(p.experiments_dir + 'eb3')
+    df.to_pickle(p.experiments_dir + 'eb3.pandas')

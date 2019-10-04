@@ -23,7 +23,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from tools.manual_data import gen_dist_data
 import parameters
 import plot_special_tools as sp
-from microtubules import run_plots_eb3 as eb3
+from microtubules.eb3 import run_plots_eb3 as eb3
 from tools import stats as st
 from imagej_pandas import ImagejPandas
 

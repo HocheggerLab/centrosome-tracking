@@ -11,16 +11,29 @@ class PlanarElastica():
     def __init__(self, L=1.0, E=0.625, J=1.0, F=1.0,
                  x0=0.0, y0=0.0, m0=0.01,
                  phi=0.0, theta=3 * np.pi / 2):
+        """
+        Base class for an elastic rod
+
+        :param L: Length of the fiber.
+        :param E: Young's modulus.
+        :param J: Area moment of inertia of the cross section of the fiber(rod). EJ is called flexural rigidity.
+        :param F: Initial force (at s=0) in pN.
+        :param x0: Initial x coordinate of the fiber.
+        :param y0: Initial x coordinate of the fiber.
+        :param m0: Initial angular momentum (at s=0).
+        :param phi: Spatial rotation of the whole fiber.
+        :param theta: Initial rotation angle with respect to the arc length
+        """
         self._L = L
         self.E = E
         self.J = J
-        self.B = E * J  # flexural rigidity
+        self.B = E * J  #
 
         self._F = 0.0
         self._F = F
 
-        self.x0 = x0
-        self.y0 = y0
+        self._x0 = x0
+        self._y0 = y0
         self.phi = phi
 
         self._endX = 0.0
@@ -31,6 +44,7 @@ class PlanarElastica():
         self.res = None
         self.curve_x = np.array([0])
         self.curve_y = np.array([0])
+        self.curve = None
 
     def __str__(self):
         str = 'Fiber:\r\n' \
@@ -45,6 +59,22 @@ class PlanarElastica():
     def lambda_const(self):
         F = np.sqrt(self.N1 ** 2 + self.N2 ** 2)
         return F / self.B
+
+    @property
+    def x0(self):
+        return self._x0
+
+    @property
+    def y0(self):
+        return self._y0
+
+    @x0.setter
+    def x0(self, value):
+        self._x0 = value
+
+    @y0.setter
+    def y0(self, value):
+        self._y0 = value
 
     @property
     def endX(self):
@@ -109,8 +139,7 @@ class PlanarElastica():
 
     @parameters.setter
     def parameters(self, value):
-        if type(value) != Parameters:
-            raise Exception('value is not a lmfit parameters object.')
+        assert type(value) == Parameters, 'value is not a lmfit parameters object'
         vals = value.valuesdict()
 
         self.L = vals['L']
@@ -143,10 +172,11 @@ class PlanarElastica():
         if np.isnan(self.curve_x).any() or np.isnan(self.curve_y).any():
             raise Exception("NaNs in computed curves, can't plot")
 
-        ax.plot(self.curve_x, self.curve_y, lw=lw_curve, c='r', alpha=alpha,
-                label='%0.1e' % (self.E * self.J), zorder=4)
+        self.curve = ax.plot(self.curve_x, self.curve_y, lw=lw_curve, c='r', alpha=alpha,
+                             label='%0.1e' % (self.E * self.J), zorder=1, picker=lw_curve)[0]
 
         L = np.sqrt(np.diff(self.curve_x) ** 2 + np.diff(self.curve_y) ** 2).sum()
 
-        logger.debug('first ({:04.2f},{:04.2f}) last ({:04.2f},{:04.2f}) length {:04.2f}'.
-                     format(self.curve_x[0], self.curve_y[0], self.curve_x[-1], self.curve_y[-1], L))
+        logger.debug(
+            'first ({:04.2f},{:04.2f}) last ({:04.2f},{:04.2f}) phi {:04.2f} length {:04.2f} curve length {:04.2f}'.
+            format(self.curve_x[0], self.curve_y[0], self.curve_x[-1], self.curve_y[-1], self.phi, self.L, L))

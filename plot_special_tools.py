@@ -4,49 +4,61 @@ import math
 import os
 
 import h5py
-import matplotlib.axes
-import matplotlib.colors
-import matplotlib.lines as mlines
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import skimage.external.tifffile as tf
-from PIL import Image
-from PyQt4 import Qt, QtGui
-from PyQt4.QtCore import QRect
-from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
+
+import matplotlib.axes
+import matplotlib.colors
+import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
+import matplotlib.colors as colors
 from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
+
+import seaborn as sns
+
+import skimage.external.tifffile as tf
+from czifile import CziFile
+from PIL import Image
+
+from PyQt4 import Qt, QtGui
+from PyQt4.QtCore import QRect
+from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
+
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
-import matplotlib.ticker as ticker
-import scipy.stats
 
-import stats
+import scipy.stats
+import xml.etree.ElementTree
+
 import parameters
+import tools.measurements as meas
+import mechanics as m
+from tools import stats
 from imagej_pandas import ImagejPandas
 
-# sussex colors
-SUSSEX_FLINT = '#013035'
-SUSSEX_COBALT_BLUE = '#1E428A'
-SUSSEX_MID_GREY = '#94A596'
-SUSSEX_FUSCHIA_PINK = '#EB6BB0'
-SUSSEX_CORAL_RED = '#DF465A'
-SUSSEX_TURQUOISE = '#00AFAA'
-SUSSEX_WARM_GREY = '#D6D2C4'
-SUSSEX_SUNSHINE_YELLOW = '#FFB81C'
-SUSSEX_BURNT_ORANGE = '#DC582A'
-SUSSEX_SKY_BLUE = '#40B4E5'
+logger = logging.getLogger(__name__)
 
-SUSSEX_NAVY_BLUE = '#1B365D'
-SUSSEX_CHINA_ROSE = '#C284A3'
-SUSSEX_POWDER_BLUE = '#7DA1C4'
-SUSSEX_GRAPE = '#5D3754'
-SUSSEX_CORN_YELLOW = '#F2C75C'
-SUSSEX_COOL_GREY = '#D0D3D4'
-SUSSEX_DEEP_AQUAMARINE = '#487A7B'
+# sussex colors
+SUSSEX_FLINT = colors.to_rgb('#013035')
+SUSSEX_COBALT_BLUE = colors.to_rgb('#1E428A')
+SUSSEX_MID_GREY = colors.to_rgb('#94A596')
+SUSSEX_FUSCHIA_PINK = colors.to_rgb('#EB6BB0')
+SUSSEX_CORAL_RED = colors.to_rgb('#DF465A')
+SUSSEX_TURQUOISE = colors.to_rgb('#00AFAA')
+SUSSEX_WARM_GREY = colors.to_rgb('#D6D2C4')
+SUSSEX_SUNSHINE_YELLOW = colors.to_rgb('#FFB81C')
+SUSSEX_BURNT_ORANGE = colors.to_rgb('#DC582A')
+SUSSEX_SKY_BLUE = colors.to_rgb('#40B4E5')
+
+SUSSEX_NAVY_BLUE = colors.to_rgb('#1B365D')
+SUSSEX_CHINA_ROSE = colors.to_rgb('#C284A3')
+SUSSEX_POWDER_BLUE = colors.to_rgb('#7DA1C4')
+SUSSEX_GRAPE = colors.to_rgb('#5D3754')
+SUSSEX_CORN_YELLOW = colors.to_rgb('#F2C75C')
+SUSSEX_COOL_GREY = colors.to_rgb('#D0D3D4')
+SUSSEX_DEEP_AQUAMARINE = colors.to_rgb('#487A7B')
 
 
 # SUSSEX_NEON_BLUE=''
@@ -56,6 +68,33 @@ SUSSEX_DEEP_AQUAMARINE = '#487A7B'
 # SUSSEX_NEON_YELLOW=''
 # SUSSEX_NEON_SALMON=''
 # SUSSEX_NEON_PINK=''
+
+class colors():
+    alexa_488 = [.29, 1., 0]
+    alexa_594 = [1., .61, 0]
+    alexa_647 = [.83, .28, .28]
+    hoechst_33342 = [0, .57, 1.]
+    red = [1, 0, 0]
+    green = [0, 1, 0]
+    blue = [0, 0, 1]
+    sussex_flint = colors.to_rgb('#013035')
+    sussex_cobalt_blue = colors.to_rgb('#1e428a')
+    sussex_mid_grey = colors.to_rgb('#94a596')
+    sussex_fuschia_pink = colors.to_rgb('#eb6bb0')
+    sussex_coral_red = colors.to_rgb('#df465a')
+    sussex_turquoise = colors.to_rgb('#00afaa')
+    sussex_warm_grey = colors.to_rgb('#d6d2c4')
+    sussex_sunshine_yellow = colors.to_rgb('#ffb81c')
+    sussex_burnt_orange = colors.to_rgb('#dc582a')
+    sussex_sky_blue = colors.to_rgb('#40b4e5')
+
+    sussex_navy_blue = colors.to_rgb('#1b365d')
+    sussex_china_rose = colors.to_rgb('#c284a3')
+    sussex_powder_blue = colors.to_rgb('#7da1c4')
+    sussex_grape = colors.to_rgb('#5d3754')
+    sussex_corn_yellow = colors.to_rgb('#f2c75c')
+    sussex_cool_grey = colors.to_rgb('#d0d3d4')
+    sussex_deep_aquamarine = colors.to_rgb('#487a7b')
 
 
 class MyAxes3D(axes3d.Axes3D):
@@ -122,67 +161,6 @@ def set_axis_size(w, h, ax=None):
     ax.figure.set_size_inches(figw, figh)
 
 
-def anotated_boxplot(data_grouped, var, point_size=5, fontsize=None, cat='condition',
-                     swarm=True, swarm_subcat=None, order=None, xlabels=None, ax=None):
-    sns.boxplot(data=data_grouped, y=var, x=cat, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
-                zorder=100)
-
-    if swarm:
-        _ax = sns.swarmplot(data=data_grouped, y=var, x=cat, size=point_size, order=order, hue=swarm_subcat, ax=ax,
-                            zorder=10)
-    else:
-        _ax = sns.stripplot(data=data_grouped, y=var, x=cat, jitter=True, size=point_size, hue=swarm_subcat,
-                            order=order, ax=ax, zorder=10)
-    for i, artist in enumerate(_ax.artists):
-        artist.set_facecolor('None')
-        artist.set_edgecolor('k')
-        artist.set_zorder(5000)
-    for i, artist in enumerate(_ax.lines):
-        artist.set_color('k')
-        artist.set_zorder(5000)
-
-    order = order if order is not None else data_grouped[cat].unique()
-    if fontsize != None:
-        for x, c in enumerate(order):
-            d = data_grouped[data_grouped[cat] == c][var]
-            _max_y = _ax.axis()[3]
-            count = d.count()
-            mean = d.mean()
-            median = d.median()
-            # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
-            _txt = '%0.2f\n%d' % (median, count)
-            _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
-    # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
-    if xlabels is not None:
-        _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
-                            rotation=0, multialignment='right')
-    else:
-        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=0, multialignment='right')
-    _ax.xaxis.set_major_locator(ticker.NullLocator())
-
-    # plot pvalues
-    signals = data_grouped[cat].unique()
-    maxy = _ax.get_ylim()[1]
-    ypos = np.flip(_ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
-    dy = np.diff(ypos)[0] * -4
-    k = 0
-    for i, s11 in enumerate(signals):
-        for j, s12 in enumerate(signals):
-            if i < j:
-                sig1 = data_grouped[data_grouped[cat] == s11][var]
-                sig2 = data_grouped[data_grouped[cat] == s12][var]
-                st, p = scipy.stats.ttest_ind(sig1, sig2)
-                # st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
-                if p <= 0.05:
-                    ypos = maxy - dy * k
-                    _ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
-                    _ax.text(j, ypos - dy * 0.1, stats.star_system(p), ha='right', va='bottom', zorder=20)
-                    k += 1
-    # ax.set_xlabel('')
-
-    return _ax
-
-
 def _compute_congression(cg):
     # compute congression signal
     cg['cgr'] = 0
@@ -234,6 +212,93 @@ def congression(cg, ax=None, order=None, linestyles=None):
     ax.set_xlabel('Time $[min]$')
     ax.set_ylabel('Congression in percentage ($d<%0.2f$ $[\mu m]$)' % ImagejPandas.DIST_THRESHOLD)
     ax.legend(dhandles, dlabels, loc='upper left')
+
+
+def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition',
+                     swarm=True, stars=False, order=None, xlabels=None, ax=None):
+    sns.boxplot(data=df, y=variable, x=group, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
+                zorder=100)
+
+    if swarm:
+        _ax = sns.swarmplot(data=df, y=variable, x=group, size=point_size, order=order, ax=ax, zorder=10)
+    else:
+        _ax = sns.stripplot(data=df, y=variable, x=group, jitter=True, size=point_size, order=order, ax=ax,
+                            zorder=10)
+    for i, artist in enumerate(_ax.artists):
+        artist.set_facecolor('None')
+        artist.set_edgecolor('k')
+        artist.set_zorder(5000)
+    for i, artist in enumerate(_ax.lines):
+        artist.set_color('k')
+        artist.set_zorder(5000)
+
+    order = order if order is not None else df[group].unique()
+    if fontsize is not None:
+        for x, c in enumerate(order):
+            d = df[df[group] == c][variable]
+            _max_y = _ax.axis()[3]
+            count = d.count()
+            mean = d.mean()
+            median = d.median()
+            # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
+            _txt = '%0.2f\n%d' % (median, count)
+            _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
+    # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
+    if xlabels is not None:
+        _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
+                            rotation=45, multialignment='right')
+    else:
+        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
+    ax.set_xlabel('')
+
+    if stars:
+        signals = df[group].unique()
+        maxy = ax.get_ylim()[1]
+        ypos = np.flip(ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
+        dy = -np.diff(ypos)[0]
+        k = 0
+        for i, s11 in enumerate(signals):
+            for j, s12 in enumerate(signals):
+                if i < j:
+                    sig1 = df[df[group] == s11][variable]
+                    sig2 = df[df[group] == s12][variable]
+                    st, p = scipy.stats.ttest_ind(sig1, sig2)
+                    # st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
+                    # if p <= 0.05:
+                    ypos = maxy - dy * k
+                    ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
+                    ax.text(j, ypos + dy * 0.25, stats.star_system(p), ha='right', va='bottom', zorder=20)
+                    k += 1
+
+    return _ax
+
+
+def boxplot(df, ax, variable, group, color=None):
+    signals = df[group].unique()
+    print(signals)
+    sns.swarmplot(x=group, y=variable, hue=color, data=df, order=signals, zorder=10)
+    plt.xticks(rotation=90)
+    # Pad margins so that markers don't get clipped by the axes
+    plt.margins(0.1)
+    # Tweak spacing to prevent clipping of tick-labels
+    plt.subplots_adjust(bottom=0.3)
+
+    maxy = ax.get_ylim()[1]
+    ypos = np.flip(ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
+    dy = np.diff(ypos)[0] * -4
+    k = 0
+    for i, s11 in enumerate(signals):
+        for j, s12 in enumerate(signals):
+            if i < j:
+                sig1 = df[df[group] == s11][variable]
+                sig2 = df[df[group] == s12][variable]
+                # st, p = scipy.stats.ttest_ind(sig1, sig2)
+                st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
+                # if p <= 0.05:
+                ypos = maxy - dy * k
+                ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
+                ax.text(j, ypos - dy * 0.5, stats.star_system(p), ha='right', va='bottom', zorder=20)
+                k += 1
 
 
 def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8), z_max=None):
@@ -315,7 +380,7 @@ def msd_indivs(df, ax, time='Time', ylim=None):
     _err_kws = {'alpha': 0.5, 'lw': 0.1}
     cond = df['condition'].unique()[0]
     df_msd = ImagejPandas.msd_particles(df)
-    df_msd = _msd_tag(df_msd)
+    df_msd = m._msd_tag(df_msd)
 
     sns.tsplot(
         data=df_msd[df_msd['condition'] == cond], lw=3,
@@ -342,7 +407,7 @@ def msd(df, ax, time='Time', ylim=None, color='k'):
 
     cond = df['condition'].unique()[0]
     df_msd = ImagejPandas.msd_particles(df)
-    df_msd = _msd_tag(df_msd)
+    df_msd = m._msd_tag(df_msd)
 
     sns.tsplot(data=df_msd[df_msd['msd_cat'] == cond + ' displacing more'],
                color=color, linestyle='-',
@@ -577,46 +642,114 @@ def plot_acceleration_between_centrosomes(df, ax, mask=None, time_contact=None):
     ax.set_ylabel('Acceleration between\ncentrosomes $\\left[\\frac{\mu m}{min^2} \\right]$')
 
 
-def find_image(img_name, folder):
+def load_tiff(path):
+    _, img_name = os.path.split(path)
+    with tf.TiffFile(path) as tif:
+        if tif.is_imagej is not None:
+            metadata = tif.pages[0].imagej_tags
+            dt = metadata['finterval'] if 'finterval' in metadata else 1
+
+            # asuming square pixels
+            xr = tif.pages[0].tags['x_resolution'].value
+            res = float(xr[0]) / float(xr[1])  # pixels per um
+            if metadata['unit'] == 'centimeter':
+                res = res / 1e4
+
+            # This is a hack
+            # Process pixel calibration from excel file if given
+            if os.path.exists(parameters.out_dir + 'eb3/eb3_calibration.xls'):
+                cal = pd.read_excel(parameters.out_dir + 'eb3/eb3_calibration.xls')
+                calp = cal[cal['filename'] == img_name]
+                if not calp.empty:
+                    calp = calp.iloc[0]
+                    if calp['optivar'] == 'yes':
+                        logging.info('file with optivar configuration selected!')
+                        res *= 1.6
+
+            images = None
+            if len(tif.pages) == 1:
+                if ('slices' in metadata and metadata['slices'] > 1) or (
+                        'frames' in metadata and metadata['frames'] > 1):
+                    images = tif.pages[0].asarray()
+                else:
+                    images = [tif.pages[0].asarray()]
+            elif len(tif.pages) > 1:
+                # frames = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width), dtype=np.int32)
+                images = list()
+                for i, page in enumerate(tif.pages):
+                    images.append(page.asarray())
+
+            return images, res, dt, metadata['frames'], metadata['channels'] if 'channels' in metadata else 1
+
+
+def load_zeiss(path):
+    _, img_name = os.path.split(path)
+    with CziFile(path) as czi:
+        xmltxt = czi.metadata()
+        meta = xml.etree.ElementTree.fromstring(xmltxt)
+
+        # next line is somewhat cryptic, but just extracts um/pix (calibration) of X and Y into res
+        res = [float(i[0].text) for i in meta.findall('.//Scaling/Items/*') if
+               i.attrib['Id'] == 'X' or i.attrib['Id'] == 'Y']
+        assert res[0] == res[1], "pixels are not square"
+
+        # get first calibration value and convert it from meters to um
+        res = res[0] * 1e6
+
+        ts_ix = [k for k, a1 in enumerate(czi.attachment_directory) if a1.filename[:10] == 'TimeStamps'][0]
+        timestamps = list(czi.attachments())[ts_ix].data()
+        dt = np.median(np.diff(timestamps))
+
+        ax_dct = {n: k for k, n in enumerate(czi.axes)}
+        n_frames = czi.shape[ax_dct['T']]
+        n_channels = czi.shape[ax_dct['C']]
+        n_X = czi.shape[ax_dct['X']]
+        n_Y = czi.shape[ax_dct['Y']]
+
+        images = list()
+        for sb in czi.subblock_directory:
+            images.append(sb.data_segment().data().reshape((n_X, n_Y)))
+
+        return np.array(images), 1 / res, dt, n_frames, n_channels
+
+
+def find_image(img_name, folder=None):
+    if folder is None:
+        folder = os.path.dirname(img_name)
+        img_name = os.path.basename(img_name)
+
     for root, directories, filenames in os.walk(folder):
         for file in filenames:
             joinf = os.path.abspath(os.path.join(root, file))
             if os.path.isfile(joinf) and joinf[-4:] == '.tif' and file == img_name:
-                with tf.TiffFile(joinf) as tif:
-                    dt = None
-                    if tif.is_imagej is not None:
-                        dt = tif.imagej_metadata['finterval']
-                        res = 'n/a'
-                        if tif.imagej_metadata['unit'] == 'centimeter':
-                            # asuming square pixels
-                            xr = tif.pages[0].x_resolution
-                            res = float(xr[0]) / float(xr[1])  # pixels per cm
-                            res = res / 1e4  # pixels per um
-                        elif tif.imagej_metadata['unit'] == 'micron':
-                            # asuming square pixels
-                            xr = tif.pages[0].tags['XResolution'].value
-                            res = float(xr[0]) / float(xr[1])  # pixels per um
+                return load_tiff(joinf)
+            if os.path.isfile(joinf) and joinf[-4:] == '.czi' and file == img_name:
+                return load_zeiss(joinf)
 
-                    if os.path.exists(parameters.data_dir + 'eb3/eb3_calibration.xls'):
-                        cal = pd.read_excel(parameters.data_dir + 'eb3/eb3_calibration.xls')
-                        calp = cal[cal['filename'] == img_name]
-                        if not calp.empty:
-                            calp = calp.iloc[0]
-                            if calp['optivar'] == 'yes':
-                                logging.info('file with optivar configuration selected!')
-                                res *= 1.6
 
-                    images = None
-                    # construct images array based on tif file structure:
-                    if len(tif.pages) == 1:
-                        images = np.int32(tif.pages[0].asarray())
-                    elif len(tif.pages) > 1:
-                        images = np.ndarray((len(tif.pages), tif.pages[0].imagelength, tif.pages[0].imagewidth),
-                                            dtype=np.int32)
-                        for i, page in enumerate(tif.pages):
-                            images[i] = np.int32(page.asarray())
+def retrieve_image(image_arr, frame, channel=0, number_of_frames=1):
+    nimgs = image_arr.shape[0]
+    n_channels = int(nimgs / number_of_frames)
+    ix = frame * n_channels + channel
+    logger.debug("retrieving frame %d of channel %d (index=%d)" % (frame, channel, ix))
+    return image_arr[ix]
 
-                    return (images, res, dt)
+
+def image_iterator(image_arr, channel=0, number_of_frames=1):
+    nimgs = image_arr.shape[0]
+    n_channels = int(nimgs / number_of_frames)
+    for f in range(number_of_frames):
+        ix = f * n_channels + channel
+        logger.debug("retrieving frame %d of channel %d (index=%d)" % (f, channel, ix))
+        if ix < nimgs: yield image_arr[ix]
+
+
+def mask_iterator(image_it, mask_lst):
+    for fr, img in enumerate(image_it):
+        for _fr, msk in mask_lst:
+            if fr != _fr: continue
+            msk_img = meas.generate_mask_from(msk, shape=img.shape)
+            yield img * msk_img
 
 
 def render_cell(df, ax, img=None, res=4.5, w=50, h=50):
@@ -836,6 +969,14 @@ def pil_grid(images, max_horiz=np.iinfo(int).max):
     for i, im in enumerate(images):
         im_grid.paste(im, (h_sizes[i % n_horiz], v_sizes[i // n_horiz]))
     return im_grid
+
+
+def canvas_to_pil(canvas):
+    canvas.draw()
+    s = canvas.tostring_rgb()
+    w, h = canvas.get_width_height()[::-1]
+    im = Image.frombytes("RGB", (w, h), s)
+    return im
 
 
 # functions for plotting angle in matplotlib

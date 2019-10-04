@@ -93,7 +93,7 @@ class ExperimentsList(QtGui.QWidget):
         # self.timer.start(200)
 
     def populate_frames_list(self):
-        img, res, dt = sp.find_image(self.run, os.path.join(self.initial_dir, self.condition))
+        img, res, dt, _, _ = sp.find_image(self.run, os.path.join(self.initial_dir, self.condition))
         self.total_frames = img.shape[0]
         logging.debug('image has %d frames' % self.total_frames)
 
