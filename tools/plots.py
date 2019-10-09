@@ -12,7 +12,7 @@ import seaborn as sns
 
 import mechanics as m
 from imagej_pandas import ImagejPandas
-import plot_special_tools as sp
+import tools.plot_tools as sp
 from tools.manual_data import gen_dist_data
 
 log = logging.getLogger(__name__)
@@ -141,7 +141,7 @@ class Tracks():
         stats = gen_dist_data(df)
         order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid', 'Cell\nCentroid', 'Cell\n(manual)']
 
-        sp.anotated_boxplot(stats, 'Dist', cat='Type', order=order, point_size=3, fontsize=7)
+        sp.anotated_boxplot(stats, 'Dist', group='Type', order=order, point_size=3, fontsize=7)
         # sns.boxplot(data=stats, y='Dist', x='Type', order=order, width=0.5, linewidth=0.5, fliersize=0, ax=ax)
         # for i, artist in enumerate(ax.artists):
         #     artist.set_facecolor('None')

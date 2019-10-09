@@ -12,7 +12,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 
-import plot_special_tools as sp
+import tools.plot_tools as sp
 from tools import stats as st
 from imagej_pandas import ImagejPandas
 

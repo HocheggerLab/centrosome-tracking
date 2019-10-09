@@ -13,7 +13,7 @@ import pandas as pd
 import pdfkit
 import seaborn as sns
 
-import plot_special_tools as sp
+import tools.plot_tools as sp
 from imagej_pandas import ImagejPandas
 
 sns.set_style('whitegrid')

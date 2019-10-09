@@ -12,7 +12,7 @@ import pysketcher as ps
 
 from ._segment import optical_flow_lk_match, segment
 from ._common import _DEBUG, logger
-import plot_special_tools as sp
+import tools.plot_tools as sp
 import mechanics as m
 
 

@@ -1,3 +1,4 @@
+import os
 import logging
 import coloredlogs
 
@@ -15,7 +16,7 @@ import mechanics as m
 import data as hdata
 import harryplots as hp
 import parameters
-import plot_special_tools as sp
+import tools.plot_tools as sp
 import tools.plots as pl
 import tools.data as data
 
@@ -34,7 +35,7 @@ def fig_1(data):
     msd_harry = hp.MSD()
 
     logger.info('doing figure 1')
-    with PdfPages(parameters.data_dir + 'out/figure1.pdf') as pdf:
+    with PdfPages(os.path.join(parameters.out_dir, 'figure1.pdf')) as pdf:
         # ---------------------------
         #          PAGE
         # ---------------------------
@@ -215,7 +216,7 @@ def fig_1sup(data):
     msd_harry = hp.MSD()
 
     logger.info('doing supplementary of figure 1')
-    with PdfPages(parameters.data_dir + 'out/figure1_sup.pdf') as pdf:
+    with PdfPages(os.path.join(parameters.out_dir, 'figure1_sup.pdf')) as pdf:
         # ---------------------------
         #          PAGE
         # ---------------------------
@@ -252,7 +253,7 @@ def fig_1sup(data):
 
 
 def fig_3(data):
-    with PdfPages(parameters.data_dir + 'out/figure3.pdf') as pdf:
+    with PdfPages(os.path.join(parameters.out_dir, 'figure3.pdf')) as pdf:
         trk_plots = pl.Tracks(data)
         sns.set_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED])
         # ---------------------------
@@ -335,7 +336,7 @@ def fig_3(data):
 
 def fig_4(data):
     trk_plots = pl.Tracks(data)
-    with PdfPages(parameters.data_dir + 'out/figure4.pdf') as pdf:
+    with PdfPages(os.path.join(parameters.out_dir, 'figure4.pdf')) as pdf:
         sns.set_palette([sp.SUSSEX_CORAL_RED] * 5)
         # ---------------------------
         #          PAGE
@@ -347,7 +348,6 @@ def fig_4(data):
 
 
 if __name__ == '__main__':
-    logger.info('loading data')
     data = data.Data()
 
     fig_1(data)

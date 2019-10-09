@@ -1,8 +1,9 @@
 import os
-data_dir = "/Users/Fabio/data/lab/"
+
+lab_dir = "/Users/Fabio/data/lab/"
 compiled_data_dir = "/Users/Fabio/data/lab/compiled/"
-out_dir = data_dir + "scripts_output/"
-os.makedirs(data_dir, exist_ok=True)
+out_dir = lab_dir + "scripts_output/"
+os.makedirs(lab_dir, exist_ok=True)
 os.makedirs(compiled_data_dir, exist_ok=True)
 os.makedirs(out_dir, exist_ok=True)
 

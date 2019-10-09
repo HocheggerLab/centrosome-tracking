@@ -11,7 +11,7 @@ import parameters as p
 import mechanics as m
 import microtubules.eb3._manual_trackmate as tm
 import microtubules.eb3._plots as pl
-import plot_special_tools as sp
+import tools.plot_tools as sp
 
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger('matplotlib').setLevel(logging.ERROR)

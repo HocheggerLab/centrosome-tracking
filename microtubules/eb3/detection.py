@@ -13,7 +13,7 @@ import trackpy as tp
 import skimage.color as skcolor
 
 import parameters as p
-import plot_special_tools as sp
+import tools.plot_tools as sp
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)

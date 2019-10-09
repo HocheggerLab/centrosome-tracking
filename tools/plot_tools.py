@@ -249,7 +249,7 @@ def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition
                             rotation=45, multialignment='right')
     else:
         _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
-    ax.set_xlabel('')
+    _ax.set_xlabel('')
 
     if stars:
         signals = df[group].unique()
@@ -953,7 +953,7 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                 painter.end()
                 cropped = image_pixmap.copy(rect)
 
-                cropped.save(parameters.data_dir + 'out/%s_N%02d_F%03d.png' % (run, nuclei, frame))
+                cropped.save(parameters.out_dir + '%s_N%02d_F%03d.png' % (run, nuclei, frame))
 
 
 def pil_grid(images, max_horiz=np.iinfo(int).max):
