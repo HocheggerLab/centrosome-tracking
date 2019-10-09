@@ -17,7 +17,7 @@ import data as hdata
 import harryplots as hp
 import parameters
 import tools.plot_tools as sp
-import tools.plots as pl
+import plots._plots as pl
 import tools.data as data
 
 logger = logging.getLogger(__name__)

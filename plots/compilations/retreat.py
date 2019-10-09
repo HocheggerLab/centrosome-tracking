@@ -20,7 +20,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from microtubules import elastica as e
 import parameters
 import tools.plot_tools as sp
-import run_plot_report as r
+from plots.compilations import report as r
 from imagej_pandas import ImagejPandas
 
 log = logging.getLogger(__name__)

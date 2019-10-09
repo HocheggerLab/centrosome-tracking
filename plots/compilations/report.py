@@ -61,7 +61,7 @@ def plots_for_individual(df, mask=None):
         sp.plot_acceleration_between_centrosomes(between_df, ax6, mask=mask, time_contact=time_of_c)
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
-        logging.warning('Problem processing %s %s-%s in line %d of run_plot_report.py:\r\n%s' % (
+        logging.warning('Problem processing %s %s-%s in line %d of report.py:\r\n%s' % (
             condition, run, nuclei, exc_tb.tb_lineno, e))
 
     # change y axis title properties for small plots
