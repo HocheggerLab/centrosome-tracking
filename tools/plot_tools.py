@@ -674,12 +674,13 @@ def load_tiff(path):
                 else:
                     images = [tif.pages[0].asarray()]
             elif len(tif.pages) > 1:
-                # frames = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width), dtype=np.int32)
                 images = list()
                 for i, page in enumerate(tif.pages):
                     images.append(page.asarray())
 
-            return images, res, dt, metadata['frames'], metadata['channels'] if 'channels' in metadata else 1
+            return np.asarray(images), res, dt, \
+                   metadata['frames'] if 'frames' in metadata else 1, \
+                   metadata['channels'] if 'channels' in metadata else 1
 
 
 def load_zeiss(path):

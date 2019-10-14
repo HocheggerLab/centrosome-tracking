@@ -9,23 +9,23 @@ from matplotlib.backends.backend_pdf import PdfPages
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.ticker as ticker
+import matplotlib.patches as patches
 
 import seaborn as sns
 
 import mechanics as m
 import data as hdata
 import harryplots as hp
-import parameters
+import parameters as p
 import tools.plot_tools as sp
 import plots._plots as pl
 import tools.data as data
+from plots import montage, merge
 
 logger = logging.getLogger(__name__)
 
 pd.set_option('display.width', 320)
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
-
-_dpi = parameters.dpi
 
 
 def fig_1(data):
@@ -35,12 +35,12 @@ def fig_1(data):
     msd_harry = hp.MSD()
 
     logger.info('doing figure 1')
-    with PdfPages(os.path.join(parameters.out_dir, 'figure1.pdf')) as pdf:
+    with PdfPages(os.path.join(p.out_dir, 'figure1.pdf')) as pdf:
         # ---------------------------
         #          PAGE
         # ---------------------------
         sns.set_palette([sns.xkcd_rgb["silver"], sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
 
         trk_harry.for_condition(ax, '+1nmpp1+stlc-washout-STLC')
@@ -54,7 +54,7 @@ def fig_1(data):
         # ---------------------------
         sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
         # sns.set_palette(['#000000', '#000000'])
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
 
         msd_harry.displacement_more_less(ax, '+1nmpp1+stlc-washout-STLC')
@@ -69,7 +69,7 @@ def fig_1(data):
         #          PAGE
         # ---------------------------
         # sns.set_palette([sp.SUSSEX_CORAL_RED, sns.xkcd_rgb["grey"], sp.SUSSEX_COBALT_BLUE])
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
 
         msd_harry.mother_daughter(ax, '+1nmpp1+stlc-washout-STLC', 'sep')
@@ -84,7 +84,7 @@ def fig_1(data):
         #          PAGE
         # ---------------------------
         sns.set_palette([sp.SUSSEX_COBALT_BLUE])
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
         trk_plots.pSTLC(ax, centered=True)
         trk_plots.format_axes(ax)
@@ -99,7 +99,7 @@ def fig_1(data):
         # ---------------------------
         sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
         # sns.set_palette(['#000000', '#000000'])
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
 
         msd_plots.pSTLC(ax)
@@ -115,7 +115,7 @@ def fig_1(data):
         #          PAGE
         # ---------------------------
         # sns.set_palette([sp.SUSSEX_CORAL_RED, sns.xkcd_rgb["grey"], sp.SUSSEX_COBALT_BLUE])
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
 
         msd_plots.pSTLC_mother_dauther(ax)
@@ -130,7 +130,7 @@ def fig_1(data):
         #          PAGE
         # ---------------------------
         sns.set_palette([sns.xkcd_rgb["silver"], sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
 
         trk_harry.for_condition(ax, 'unperterbed')
@@ -144,7 +144,7 @@ def fig_1(data):
         # ---------------------------
         sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
         # sns.set_palette(['#000000', '#000000'])
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
 
         msd_harry.displacement_more_less(ax, 'unperterbed')
@@ -159,7 +159,7 @@ def fig_1(data):
         #          PAGE
         # ---------------------------
         # sns.set_palette([sp.SUSSEX_CORAL_RED, sns.xkcd_rgb["grey"], sp.SUSSEX_COBALT_BLUE])
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
 
         msd_harry.mother_daughter(ax, 'unperterbed', 'sep')
@@ -174,7 +174,7 @@ def fig_1(data):
         #          PAGE
         # ---------------------------
         sns.set_palette([sns.xkcd_rgb["grey"], sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
         sp.set_axis_size(3.02, 1.5, ax=ax)
 
@@ -216,12 +216,12 @@ def fig_1sup(data):
     msd_harry = hp.MSD()
 
     logger.info('doing supplementary of figure 1')
-    with PdfPages(os.path.join(parameters.out_dir, 'figure1_sup.pdf')) as pdf:
+    with PdfPages(os.path.join(p.out_dir, 'figure1_sup.pdf')) as pdf:
         # ---------------------------
         #          PAGE
         # ---------------------------
         sns.set_palette([sp.SUSSEX_CORAL_RED, sns.xkcd_rgb["grey"], sp.SUSSEX_COBALT_BLUE])
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, )
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=p.dpi, )
         ax = fig.gca()
         for ((cond, state), msd), yl in zip(msd_harry.dft.groupby(['condition', 'state']),
                                             [50, 50, 50, 200, 100, 200]):
@@ -253,13 +253,13 @@ def fig_1sup(data):
 
 
 def fig_3(data):
-    with PdfPages(os.path.join(parameters.out_dir, 'figure3.pdf')) as pdf:
+    with PdfPages(os.path.join(p.out_dir, 'figure3.pdf')) as pdf:
         trk_plots = pl.Tracks(data)
         sns.set_palette([sp.SUSSEX_COBALT_BLUE, sp.SUSSEX_CORAL_RED])
         # ---------------------------
         #          PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=p.dpi, clear=True)
         ax = fig.gca()
         trk_plots.nocodazole(ax, centered=True)
         ax.set_xlim([-100, 0])
@@ -269,7 +269,7 @@ def fig_3(data):
         # ---------------------------
         #          PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=p.dpi, clear=True)
         ax = fig.gca()
         trk_plots.chTog(ax, centered=True)
         ax.set_xlim([-100, 0])
@@ -279,7 +279,7 @@ def fig_3(data):
         # ---------------------------
         #          PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=p.dpi, clear=True)
         ax = fig.gca()
         trk_plots.MCAK(ax, centered=True)
         ax.set_xlim([-100, 0])
@@ -289,7 +289,7 @@ def fig_3(data):
         # ---------------------------
         #          PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=p.dpi, clear=True)
         ax = fig.gca()
         trk_plots.blebbistatin(ax, centered=True)
         ax.set_xlim([-100, 0])
@@ -299,7 +299,7 @@ def fig_3(data):
         # ---------------------------
         #          PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=p.dpi, clear=True)
         ax = fig.gca()
         trk_plots.cytochalsinD(ax, centered=True)
         ax.set_xlim([-100, 0])
@@ -309,7 +309,7 @@ def fig_3(data):
         # ---------------------------
         #          PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(1.8, 1.8), dpi=_dpi, clear=True)
+        fig = plt.figure(figsize=(1.8, 1.8), dpi=p.dpi, clear=True)
         ax = fig.gca()
         trk_plots.faki(ax, centered=True)
         ax.set_xlim([-100, 0])
@@ -320,7 +320,7 @@ def fig_3(data):
         # ---------------------------
         #          PAGE
         # ---------------------------
-        fig = plt.figure(dpi=_dpi, clear=True)
+        fig = plt.figure(dpi=p.dpi, clear=True)
         ax = fig.gca()
         plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.2, hspace=0.2)
         sp.set_axis_size(6, 6, ax=ax)
@@ -336,15 +336,88 @@ def fig_3(data):
 
 def fig_4(data):
     trk_plots = pl.Tracks(data)
-    with PdfPages(os.path.join(parameters.out_dir, 'figure4.pdf')) as pdf:
+    with PdfPages(os.path.join(p.out_dir, 'figure4.pdf')) as pdf:
         sns.set_palette([sp.SUSSEX_CORAL_RED] * 5)
         # ---------------------------
         #          PAGE
         # ---------------------------
-        fig = plt.figure(figsize=(3, 1.8), dpi=_dpi, clear=True)
+        fig = plt.figure(figsize=(3, 1.8), dpi=p.dpi, clear=True)
         ax = fig.gca()
         trk_plots.dist_toc(ax)
         pdf.savefig(transparent=True, bbox_inches='tight')
+
+
+def dynein_eb3():
+    global x, y
+    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - HCT106 (dynein eg5 phall)/MAX_actrng-hct_2019_09_24__15_32_15.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - HCT106 (dynein eg5 phall)/MAX_actrng-hct_2019_09_24__16_10_36.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - u2os -arr - cyto 2ng (dynein eg5 phall)/MAX_actrng-u2os-arr-cyto_2019_09_24__14_46_02.tif"
+    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - u2os -arr - cyto 2ng (dynein eg5 phall)/MAX_actrng-u2os-arr-cyto_2019_09_24__15_09_14.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - u2os -arr (dynein eg5 phall)/MAX_actrng-u2os-arrest_2019_09_24__14_13_01.tif"
+    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr- (dynein eg5)/MAX_actrng-ctr-_2019_09_27__18_42_05.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr+ (dynein eg5)/MAX_actrng-ctr+_2019_09_27__22_57_33.tif"
+    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr+ (dynein eg5)/MAX_actrng-ctr+_2019_09_27__23_07_07.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod- (dynein eg5)/MAX_actrng-fhod-_2019_09_27__23_19_56.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod- (dynein eg5)/MAX_actrng-fhod-_2019_09_27__23_32_17.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod- (dynein eg5)/MAX_actrng-fhod-_2019_09_27__23_41_34.tif"
+    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod- (dynein eg5)/MAX_actrng-fhod-_2019_09_27__23_52_29.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod+ (dynein eg5)/MAX_actrng-fhod+_2019_09_28__00_02_40.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod+ (dynein eg5)/MAX_actrng-fhod+_2019_09_28__00_13_31.tif"
+    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod+ (dynein eg5)/MAX_actrng-fhod+_2019_09_28__00_21_20.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - n2g+ (dynein eg5)/MAX_actrng-n2g+_2019_09_28__00_29_50.tif"
+    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - n2g+ (dynein eg5)/MAX_actrng-n2g+_2019_09_28__00_37_05.tif"
+    # f = ""
+    image, pix_per_um, dt, n_frames, n_channels = sp.load_tiff(f)
+    x, y = 0, 0
+    print(image.shape)
+
+    def on_click(ev):
+        global x, y
+        print(ev)
+        x, y = ev.xdata, ev.ydata
+
+    # cmaps = ['uscope_green', 'uscope_blue', 'uscope_magenta', 'uscope_red']
+    # names = ['Phalloidin', 'DAPI', 'Eg5', 'DIC2']
+    cmaps = ['uscope_blue', 'uscope_green', 'uscope_red']
+    names = ['DAPI', 'Eg5', 'DIC2']
+    order = [1, 0, 2]
+
+    # get portion of interest
+    # ---------------------------
+    fig = plt.figure(figsize=(4, 4), dpi=p.dpi, clear=True)
+    ax = fig.gca()
+    merge(image[0], ax, um_per_pix=1 / pix_per_um,
+          cmaps=cmaps, order=order,
+          merge=order)
+    fig.canvas.mpl_connect('button_release_event', on_click)
+    plt.show()
+    if x == 0 and y == 0: return
+
+    # save selection
+    winsize = 15
+    rect = patches.Rectangle((x - winsize, y - winsize), 2 * winsize, 2 * winsize, linewidth=1, edgecolor='r',
+                             facecolor='none')
+    ax.add_patch(rect)
+    fig.savefig(os.path.join(p.out_dir, "%s.selection.pdf" % os.path.basename(f)))
+
+    # zero portions of image that are not in the ROI for intensity rescale purposes
+    _f, _c, h, w = image.shape
+    c0 = int((x - winsize) * pix_per_um)
+    c1 = int((x + winsize) * pix_per_um)
+    r0 = int(h - (y + winsize) * pix_per_um)
+    r1 = int(h - (y - winsize) * pix_per_um)
+    image[:, :, 0:c0, :] = 0
+    image[:, :, c1:w, :] = 0
+    image[:, :, c1:w, 0:r0] = 0
+    image[:, :, c1:w, r1:h] = 0
+
+    # cmaps[0] = 'uscope_green'
+    # order = [0, 2, 1, 3]
+    g = montage(image[0], um_per_pix=1 / pix_per_um,
+                xlim_um=[x - winsize, x + winsize], ylim_um=[y - winsize, y + winsize],
+                cmaps=cmaps, order=order, ch_names=names,
+                merge=order[-2:])
+    g.savefig(os.path.join(p.out_dir, "%s.montage.pdf" % os.path.basename(f)))
 
 
 if __name__ == '__main__':
@@ -354,3 +427,5 @@ if __name__ == '__main__':
     fig_1sup(data)
     fig_3(data)
     fig_4(data)
+
+    dynein_eb3()

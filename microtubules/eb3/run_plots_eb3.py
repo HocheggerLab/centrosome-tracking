@@ -54,7 +54,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         # ---------------------------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(_fig_size_A3)
+        fig.set_size_inches(p.size_A3)
         gs = matplotlib.gridspec.GridSpec(3, 2)
         ax1: plt.Axes = plt.subplot(gs[0, 0])
         ax2: plt.Axes = plt.subplot(gs[0, 1])
@@ -89,7 +89,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         # ---------------------------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(_fig_size_A3)
+        fig.set_size_inches(p.size_A3)
         gs = matplotlib.gridspec.GridSpec(3, 2)
         ax1 = plt.subplot(gs[0, 0])
         ax2 = plt.subplot(gs[0, 1])
@@ -145,7 +145,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         # ---------------------------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(_fig_size_A3)
+        fig.set_size_inches(p.size_A3)
         gs = matplotlib.gridspec.GridSpec(3, 2)
         ax1 = plt.subplot(gs[0, 0])
         ax2 = plt.subplot(gs[0, 1])
@@ -295,7 +295,7 @@ def msd_plots(df):
     with PdfPages(p.out_dir + 'eb3_msd.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(_fig_size_A3)
+        fig.set_size_inches(p.size_A3)
         gs = matplotlib.gridspec.GridSpec(3, 2)
         ax1: plt.Axes = plt.subplot(gs[0:2, :])
         ax3: plt.Axes = plt.subplot(gs[2, 0])
@@ -426,9 +426,6 @@ def batch_filter(df):
 if __name__ == '__main__':
     do_filter_stats = True
     # do_filter_stats = False
-
-    _fig_size_A3 = (11.7, 16.5)
-    _err_kws = {'alpha': 0.3, 'lw': 1}
 
     if do_filter_stats:
         _df = pd.read_pickle(p.compiled_data_dir + 'eb3.pandas')
