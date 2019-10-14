@@ -1,6 +1,5 @@
 import os
 import logging
-import coloredlogs
 
 import pandas as pd
 
@@ -19,13 +18,14 @@ import harryplots as hp
 import parameters as p
 import tools.plot_tools as sp
 import plots._plots as pl
-import tools.data as data
+from tools.draggable import DraggableRectangle
 from plots import montage, merge
 
+logging.basicConfig(level=logging.INFO)
+logging.getLogger('matplotlib').setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 pd.set_option('display.width', 320)
-coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 
 
 def fig_1(data):
@@ -347,34 +347,35 @@ def fig_4(data):
         pdf.savefig(transparent=True, bbox_inches='tight')
 
 
-def dynein_eb3():
-    global x, y
+def ring_in_cell_lines_and_conditions():
     f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - HCT106 (dynein eg5 phall)/MAX_actrng-hct_2019_09_24__15_32_15.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - HCT106 (dynein eg5 phall)/MAX_actrng-hct_2019_09_24__16_10_36.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - u2os -arr - cyto 2ng (dynein eg5 phall)/MAX_actrng-u2os-arr-cyto_2019_09_24__14_46_02.tif"
     f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - u2os -arr - cyto 2ng (dynein eg5 phall)/MAX_actrng-u2os-arr-cyto_2019_09_24__15_09_14.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - u2os -arr (dynein eg5 phall)/MAX_actrng-u2os-arrest_2019_09_24__14_13_01.tif"
-    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr- (dynein eg5)/MAX_actrng-ctr-_2019_09_27__18_42_05.tif"
+    select_and_make_montage(f)
+
+
+def dynein_eb3():
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr- (dynein eg5)/MAX_actrng-ctr-_2019_09_27__18_42_05.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr+ (dynein eg5)/MAX_actrng-ctr+_2019_09_27__22_57_33.tif"
-    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr+ (dynein eg5)/MAX_actrng-ctr+_2019_09_27__23_07_07.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr+ (dynein eg5)/MAX_actrng-ctr+_2019_09_27__23_07_07.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod- (dynein eg5)/MAX_actrng-fhod-_2019_09_27__23_19_56.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod- (dynein eg5)/MAX_actrng-fhod-_2019_09_27__23_32_17.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod- (dynein eg5)/MAX_actrng-fhod-_2019_09_27__23_41_34.tif"
-    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod- (dynein eg5)/MAX_actrng-fhod-_2019_09_27__23_52_29.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod- (dynein eg5)/MAX_actrng-fhod-_2019_09_27__23_52_29.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod+ (dynein eg5)/MAX_actrng-fhod+_2019_09_28__00_02_40.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod+ (dynein eg5)/MAX_actrng-fhod+_2019_09_28__00_13_31.tif"
-    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod+ (dynein eg5)/MAX_actrng-fhod+_2019_09_28__00_21_20.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod+ (dynein eg5)/MAX_actrng-fhod+_2019_09_28__00_21_20.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - n2g+ (dynein eg5)/MAX_actrng-n2g+_2019_09_28__00_29_50.tif"
     f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - n2g+ (dynein eg5)/MAX_actrng-n2g+_2019_09_28__00_37_05.tif"
-    # f = ""
-    image, pix_per_um, dt, n_frames, n_channels = sp.load_tiff(f)
-    x, y = 0, 0
-    print(image.shape)
 
-    def on_click(ev):
-        global x, y
-        print(ev)
-        x, y = ev.xdata, ev.ydata
+    select_and_make_montage(f)
+
+
+def select_and_make_montage(f):
+    global x, y, winsize
+    image, pix_per_um, dt, n_frames, n_channels = sp.load_tiff(f)
 
     # cmaps = ['uscope_green', 'uscope_blue', 'uscope_magenta', 'uscope_red']
     # names = ['Phalloidin', 'DAPI', 'Eg5', 'DIC2']
@@ -383,41 +384,43 @@ def dynein_eb3():
     order = [1, 0, 2]
 
     # get portion of interest
-    # ---------------------------
     fig = plt.figure(figsize=(4, 4), dpi=p.dpi, clear=True)
     ax = fig.gca()
     merge(image[0], ax, um_per_pix=1 / pix_per_um,
-          cmaps=cmaps, order=order,
-          merge=order)
-    fig.canvas.mpl_connect('button_release_event', on_click)
+          cmaps=cmaps, order=order, merge=order)
+    # ---------------------------
+    winsize = 15
+    rect = patches.Rectangle((0, 0), 2 * winsize, 2 * winsize,
+                             linewidth=1, edgecolor='r', facecolor='none')
+    ax.add_patch(rect)
+    dr = DraggableRectangle(rect)
+    dr.connect()
+    # ---------------------------
     plt.show()
+    logger.info("Making montage based on selection...")
+    x, y = dr.rect.xy
     if x == 0 and y == 0: return
+    x, y = dr.x0 + winsize, dr.y0 + winsize
 
     # save selection
-    winsize = 15
-    rect = patches.Rectangle((x - winsize, y - winsize), 2 * winsize, 2 * winsize, linewidth=1, edgecolor='r',
-                             facecolor='none')
-    ax.add_patch(rect)
     fig.savefig(os.path.join(p.out_dir, "%s.selection.pdf" % os.path.basename(f)))
 
     # zero portions of image that are not in the ROI for intensity rescale purposes
     _f, _c, h, w = image.shape
     c0 = int((x - winsize) * pix_per_um)
     c1 = int((x + winsize) * pix_per_um)
-    r0 = int(h - (y + winsize) * pix_per_um)
-    r1 = int(h - (y - winsize) * pix_per_um)
-    image[:, :, 0:c0, :] = 0
-    image[:, :, c1:w, :] = 0
-    image[:, :, c1:w, 0:r0] = 0
-    image[:, :, c1:w, r1:h] = 0
+    r0 = int((y - winsize) * pix_per_um)
+    r1 = int((y + winsize) * pix_per_um)
+    image[:, :, :, 0:c0] = 0
+    image[:, :, :, c1:w] = 0
+    image[:, :, 0:r0, :] = 0
+    image[:, :, r1:h, :] = 0
 
-    # cmaps[0] = 'uscope_green'
-    # order = [0, 2, 1, 3]
     g = montage(image[0], um_per_pix=1 / pix_per_um,
                 xlim_um=[x - winsize, x + winsize], ylim_um=[y - winsize, y + winsize],
                 cmaps=cmaps, order=order, ch_names=names,
                 merge=order[-2:])
-    g.savefig(os.path.join(p.out_dir, "%s.montage.pdf" % os.path.basename(f)))
+    g.savefig(os.path.join(p.out_dir, "%s.montage.pdf" % os.path.basename(f)), dpi=p.dpi)
 
 
 if __name__ == '__main__':
