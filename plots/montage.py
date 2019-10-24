@@ -14,21 +14,24 @@ def montage(images, ch_names=None, um_per_pix=1,
             order=None, merge=None):
     def plotimg(img, ch, **kwargs):
         ax = plt.gca()
-        if ch.iloc[0] == "merge":
+        att = [1.3, 0.3, 0.6]
+        ch = ch.iloc[0]
+        if ch == "merge":
             ax.cla()
             a = ax.imshow(img.iloc[0], resample=False)
             shape = a.make_image(matplotlib.backends.backend_agg, unsampled=True)[0].shape
             img = np.zeros(shape, dtype=np.int64)
             for i in merge:
                 ax.cla()
-                a = ax.imshow(images[i], cmap=cmaps[order[i]], resample=False)
+                a = ax.imshow(images[i], cmap=cmaps[order[i]], vmax=images[i].max() * att[i], resample=False)
                 img += a.make_image(matplotlib.backends.backend_agg, unsampled=True)[0]
 
             ax.cla()
             ax.imshow(img, extent=[0, w_um, h_um, 0], resample=False)
             ax.invert_yaxis()
         else:
-            ax.imshow(img.iloc[0], extent=[0, w_um, h_um, 0], cmap=cmaps[ch.iloc[0]], resample=False)
+            img = img.iloc[0]
+            ax.imshow(img, extent=[0, w_um, h_um, 0], cmap=plt.cm.binary, resample=False, vmax=img.max() * att[ch])
 
         if xlim_um is not None and ylim_um is not None:
             x0, y0 = xlim_um[0], ylim_um[0]
