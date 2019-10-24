@@ -242,23 +242,24 @@ def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition
             median = d.median()
             # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
             _txt = '%0.2f\n%d' % (median, count)
-            _ax.text(x, _max_y * -0.7, _txt, rotation='horizontal', ha='center', va='bottom', fontsize=fontsize)
+            _ax.text(x, _max_y * -0.7, _txt, rotation=rotation, ha='center', va='bottom', fontsize=fontsize)
     # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
     if xlabels is not None:
         _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
                             rotation=45, multialignment='right')
     else:
-        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), rotation=45, multialignment='right')
+        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), multialignment='right')
     _ax.set_xlabel('')
+    # Pad margins so that markers don't get clipped by the axes
+    plt.margins(0.1)
 
     if stars:
-        signals = df[group].unique()
         maxy = ax.get_ylim()[1]
         ypos = np.flip(ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
         dy = -np.diff(ypos)[0]
         k = 0
-        for i, s11 in enumerate(signals):
-            for j, s12 in enumerate(signals):
+        for i, s11 in enumerate(order):
+            for j, s12 in enumerate(order):
                 if i < j:
                     sig1 = df[df[group] == s11][variable]
                     sig2 = df[df[group] == s12][variable]
@@ -266,39 +267,11 @@ def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition
                     # st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
                     # if p <= 0.05:
                     ypos = maxy - dy * k
-                    ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
-                    ax.text(j, ypos + dy * 0.25, stats.star_system(p), ha='right', va='bottom', zorder=20)
+                    _ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
+                    _ax.text(j, ypos + dy * 0.25, stats.star_system(p), ha='right', va='bottom', zorder=20)
                     k += 1
 
     return _ax
-
-
-def boxplot(df, ax, variable, group, color=None):
-    signals = df[group].unique()
-    print(signals)
-    sns.swarmplot(x=group, y=variable, hue=color, data=df, order=signals, zorder=10)
-    plt.xticks(rotation=90)
-    # Pad margins so that markers don't get clipped by the axes
-    plt.margins(0.1)
-    # Tweak spacing to prevent clipping of tick-labels
-    plt.subplots_adjust(bottom=0.3)
-
-    maxy = ax.get_ylim()[1]
-    ypos = np.flip(ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
-    dy = np.diff(ypos)[0] * -4
-    k = 0
-    for i, s11 in enumerate(signals):
-        for j, s12 in enumerate(signals):
-            if i < j:
-                sig1 = df[df[group] == s11][variable]
-                sig2 = df[df[group] == s12][variable]
-                # st, p = scipy.stats.ttest_ind(sig1, sig2)
-                st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
-                # if p <= 0.05:
-                ypos = maxy - dy * k
-                ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
-                ax.text(j, ypos - dy * 0.5, stats.star_system(p), ha='right', va='bottom', zorder=20)
-                k += 1
 
 
 def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8), z_max=None):
