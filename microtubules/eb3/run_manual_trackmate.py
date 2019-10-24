@@ -12,6 +12,7 @@ import mechanics as m
 import microtubules.eb3._manual_trackmate as tm
 import microtubules.eb3._plots as pl
 import tools.plot_tools as sp
+import tools.stats as st
 
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger('matplotlib').setLevel(logging.ERROR)
@@ -37,6 +38,7 @@ def import_dir(dir_base):
                 xdf = tm.read(xml_path)
                 if not xdf.empty:
                     xdf.loc[:, "file_id"] = file_n
+                    xdf.loc[:, "tag"] = f
                     file_n += 1
                     dirname = os.path.basename(os.path.dirname(root))
                     xdf.loc[:, "condition"] = dirname
@@ -49,7 +51,6 @@ def import_dir(dir_base):
 def create_df(path):
     _df = import_dir(path)
     _df.rename(columns={'time_s': 'time', 'x_um': 'x', 'y_um': 'y', 'track_id': 'particle'}, inplace=True)
-    _df['tag'] = ""
 
     # Show the names of tracs that don't start with Trackmate's default  of "Track_"
     track_idx = _df["track_name"].apply(lambda v: v[0:6] == "Track_")
@@ -79,7 +80,7 @@ if __name__ == '__main__':
     df = pd.read_csv(os.path.join(p.compiled_data_dir, "eb3.csv"), index_col=False)
 
     # construct track_average track speed and track length
-    idv_grp = ['condition', 'file_id']
+    idv_grp = ['condition', 'file_id', 'tag']
 
     dfi = df.set_index('frame').sort_index()
     dfi.loc[:, 'speed'] = dfi['speed'].abs()
@@ -92,28 +93,40 @@ if __name__ == '__main__':
     df_avg = df_avg.reset_index()
     print(df_avg)
 
-    sns.set_palette([sns.xkcd_rgb["grey"], sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
+    palette = [
+        sp.colors.sussex_cobalt_blue,
+        sp.colors.sussex_coral_red,
+        sp.colors.sussex_turquoise,
+        # sp.colors.sussex_sunshine_yellow,
+        sp.colors.sussex_deep_aquamarine,
+        # sp.colors.sussex_grape,
+        sns.xkcd_rgb["grey"]
+    ]
+    cond_order = ['arrest', 'noc20ng', 'cyto 2ug', 'n2g']
+    sns.set_palette(palette)
     fig = plt.figure()
     fig.set_size_inches((3.5, 3.5))
     ax = plt.gca()
-    sp.anotated_boxplot(df_avg, variable='speed', stars=True, ax=ax)
-    ax.set_ylim([0, 0.7])
+    sp.anotated_boxplot(df_avg, variable='speed', order=cond_order, fontsize=7, ax=ax)
+    ax.set_ylim([0, 0.5])
     fig.savefig(p.out_dir + 'eb3_speed_boxplot.pdf')
+    pmat = st.p_values(df_avg, 'speed', 'condition', filename=p.out_dir + 'eb3_speed_pval.xls')
+    # exit(1)
 
     logging.info('making msd plots')
     msd = pl.MSD(df)
     # print(sorted(msd.timeseries['time'].unique()))
 
-    sns.set_palette([sns.xkcd_rgb["grey"], sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
     fig = plt.figure()
+    sns.set_palette(palette)
     fig.set_size_inches((3.5, 3.5))
     ax = plt.gca()
-    msd.track_each(ax)
+    msd.track_each(ax, order=cond_order)
     fig.savefig(p.out_dir + 'msd_idv.pdf')
 
-    sns.set_palette([sns.xkcd_rgb["grey"], sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
     fig = plt.figure()
+    sns.set_palette(palette)
     fig.set_size_inches((3.5, 3.5))
     ax = plt.gca()
-    msd.track_average(ax)
+    msd.track_average(ax, order=cond_order)
     fig.savefig(p.out_dir + 'msd_avg.pdf')

@@ -28,6 +28,7 @@ class MSD():
         # construct timeseries using trace library and average moving window
         self.timeseries = pd.DataFrame()
         if not uneven_times:
+            self.timeseries = self.df
             # self.timeseries.loc[:,"x"]=self.df[x]
             # self.timeseries.loc[:,"y"]=self.df[y]
             # self.timeseries.loc[:,"time"]=self.df[time]
@@ -73,17 +74,17 @@ class MSD():
     def sampled_times(self, ax):
         pass
 
-    def track_each(self, ax):
+    def track_each(self, ax, order=None):
         # plot of MSD for each track
         sns.lineplot(data=self.timeseries, x='time', y='msd',
                      units='indv', estimator=None,
-                     hue=self.condition, lw=0.2, alpha=1, ax=ax)
+                     hue=self.condition, hue_order=order, lw=0.2, alpha=1, ax=ax)
         self.format_axes(ax, x_lim=[self.df['time'].min(), self.df['time'].max()],
                          y_lim=[self.df['msd'].min(), self.df['msd'].max() * 1.2])
 
-    def track_average(self, ax):
+    def track_average(self, ax, order=None):
         # plot MSD track_average per condition
         sns.lineplot(data=self.timeseries, x='time', y='msd',
-                     hue=self.condition, lw=2, ax=ax)
-        self.format_axes(ax, x_lim=[self.df['time'].min(), 30],
-                         y_lim=[0, 150])
+                     hue=self.condition, hue_order=order, lw=2, ax=ax)
+        self.format_axes(ax, x_lim=[self.df['time'].min(), 30], time_major=10,
+                         y_lim=[0, 15], msd_minor=5, msd_major=10, )

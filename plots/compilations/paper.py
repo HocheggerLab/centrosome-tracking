@@ -20,6 +20,9 @@ import tools.plot_tools as sp
 import plots._plots as pl
 from tools.draggable import DraggableRectangle
 from plots import montage, merge
+from eb3._stats import Tracks
+from eb3._plots import MSD
+import tools.stats as st
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('matplotlib').setLevel(logging.INFO)
@@ -250,6 +253,94 @@ def fig_1sup(data):
         ax.set_xlim([0, 60])
 
         pdf.savefig(transparent=True, bbox_inches='tight')
+
+
+def fig2_eb3_speed_boxplots():
+    plt.style.use('bmh')
+
+    algorithm = "eb3-drift-prediction"
+    # algorithm = "eb3-nearest-3px"
+
+    df = pd.read_pickle(os.path.join(p.compiled_data_dir, algorithm, "eb3filter.pandas"))
+    # df = df[df['particle'] <= 10]
+    print(df.columns)
+    stats = Tracks(df, track_group=["condition", "tag", "particle"], cell_group=["condition", "tag"])
+    cell = stats.per_cell()
+    cell.to_csv(os.path.join(p.compiled_data_dir, algorithm, "cell.csv"))
+    # cell = pd.read_csv(os.path.join(p.compiled_data_dir, algorithm, "cell.csv"))
+    print(cell)
+
+    cond_order = ['eb3-control', 'eb3-nocodazole', 'eb3-mcak', 'eb3-chtog']
+    cell = cell[cell['condition'].isin(cond_order)]
+
+    fig = plt.figure(figsize=(2.5, 1.5))
+    fig.clf()
+    ax = fig.gca()
+    sns.set_palette([sp.SUSSEX_COBALT_BLUE] * 4)
+    sp.anotated_boxplot(cell, 'speed|mean', group='condition', order=cond_order,
+                        point_size=2.5, fontsize=7, stars=True,
+                        xlabels={'eb3-control': '+STLC',
+                                 'eb3-nocodazole': 'Noc 10ng\n+STLC',
+                                 'eb3-mcak': 'MCAK\n+STLC',
+                                 'eb3-chtog': 'chTog\n+STLC'},
+                        ax=ax)
+    ax.set_ylim([0, 0.3])
+    figname = os.path.join(p.out_dir, "%s.speed.pdf" % algorithm)
+    fig.savefig(figname, transparent=True, bbox_inches='tight', pad_inches=0.3)
+    st.p_values(cell, 'speed|mean', 'condition',
+                filename=os.path.join(p.out_dir, "%s.pvals.xls" % algorithm))
+
+
+def fig2_eb3_msd():
+    plt.style.use('bmh')
+
+    algorithm = "eb3-drift-prediction"
+    # algorithm = "eb3-nearest-3px"
+
+    palette = [
+        sp.colors.sussex_cobalt_blue,
+        sp.colors.sussex_coral_red,
+        sp.colors.sussex_turquoise,
+        # sp.colors.sussex_sunshine_yellow,
+        sp.colors.sussex_deep_aquamarine,
+        # sp.colors.sussex_grape,
+        sns.xkcd_rgb["grey"]
+    ]
+    sns.set_palette(palette)
+
+    df = pd.read_pickle(os.path.join(p.compiled_data_dir, algorithm, "eb3filter.pandas"))
+    # df = df[df['particle'] <= 10]
+    # convert categorical data to int
+    df.loc[:, 'tag'] = df['tag'].astype('category')
+    df.loc[:, 'file_id'] = df['tag'].cat.codes
+    df.loc[:, 'indv'] = df['condition'] + '|' + df['file_id'].map(str) + '|' + df['particle'].map(str)
+
+    cond_order = df['condition'].unique()
+    cond_order = ['eb3-control', 'eb3-nocodazole', 'eb3-mcak', 'eb3-chtog']
+    df.loc[:, :] = df[df['condition'].isin(cond_order)]
+
+    print(df.head(10))
+    print(df.columns)
+    print(cond_order)
+    # exit(0)
+
+    logging.info('making msd plots')
+    msd = MSD(df, track_group=["condition", "tag", "particle"], cell_group=["condition", "tag"], uneven_times=True)
+    # print(sorted(msd.timeseries['time'].unique()))
+
+    fig = plt.figure(dpi=p.dpi, clear=True)
+    sns.set_palette(palette)
+    fig.set_size_inches((1.8, 1.8))
+    ax = plt.gca()
+    msd.track_each(ax, order=cond_order)
+    fig.savefig(p.out_dir + 'msd_idv.pdf')
+
+    fig = plt.figure(dpi=p.dpi, clear=True)
+    sns.set_palette(palette)
+    fig.set_size_inches((1.8, 1.8))
+    ax = plt.gca()
+    msd.track_average(ax, order=cond_order)
+    fig.savefig(p.out_dir + 'msd_avg.pdf')
 
 
 def fig_3(data):
