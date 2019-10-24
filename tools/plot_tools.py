@@ -215,7 +215,7 @@ def congression(cg, ax=None, order=None, linestyles=None):
 
 
 def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition',
-                     swarm=True, stars=False, order=None, xlabels=None, ax=None):
+                     swarm=True, stars=False, order=None, xlabels=None, rotation='horizontal', ax=None):
     sns.boxplot(data=df, y=variable, x=group, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
                 zorder=100)
 
@@ -246,7 +246,7 @@ def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition
     # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
     if xlabels is not None:
         _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
-                            rotation=45, multialignment='right')
+                            rotation=rotation, multialignment='right')
     else:
         _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), multialignment='right')
     _ax.set_xlabel('')
