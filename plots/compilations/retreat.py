@@ -19,8 +19,8 @@ from mpl_toolkits.mplot3d import Axes3D
 
 from microtubules import elastica as e
 import parameters
-import plot_special_tools as sp
-import run_plot_report as r
+import tools.plot_tools as sp
+from plots.compilations import report as r
 from imagej_pandas import ImagejPandas
 
 log = logging.getLogger(__name__)
@@ -124,7 +124,7 @@ def retreat0(_df, _mask):
     run = df['run'].unique()[0]
     nuclei = df['Nuclei'].unique()[0]
 
-    with PdfPages(parameters.data_dir + 'out/retreat2017fig-0.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'retreat2017fig-0.pdf') as pdf:
         fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex='col',
                                        gridspec_kw={'height_ratios': [2, 1]}, figsize=(9.3, 9.3 / 3))
         plt.subplots_adjust(left=0.125, bottom=0.22, right=0.9, top=0.99, wspace=0.2, hspace=0.1)
@@ -153,7 +153,7 @@ def retreat1(df, dfc):
     _conds = ['1_N.C.', '1_P.C.']
     _df, conds, colors = sorted_conditions(df, _conds)
 
-    with PdfPages(parameters.data_dir + 'out/retreat2017fig-1.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'retreat2017fig-1.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches(9.3, 9.3)
@@ -175,7 +175,7 @@ def retreat1(df, dfc):
 
     _conds = ['mother-daughter']
     _df, conds, colors = sorted_conditions(df, _conds)
-    with PdfPages(parameters.data_dir + 'out/retreat2017fig-mother-daughter.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'retreat2017fig-mother-daughter.pdf') as pdf:
         # -----------
         # Page 1
         # -----------
@@ -238,7 +238,7 @@ def retreat2(df):
     colors.extend([sp.SUSSEX_TURQUOISE] * 3)
     colortuple = dict(zip(conds, colors))
 
-    with PdfPages(parameters.data_dir + 'out/retreat2017fig-2.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'retreat2017fig-2.pdf') as pdf:
         # -----------
         # Page 1
         # -----------
@@ -281,7 +281,7 @@ def retreat4(df):
     df, conds, colors = sorted_conditions(df, _conds)
     colortuple = dict(zip(conds, colors))
 
-    with PdfPages(parameters.data_dir + 'out/retreat2017fig-4.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'retreat2017fig-4.pdf') as pdf:
         # -----------
         # Page 1
         # -----------
@@ -368,14 +368,14 @@ def retreat4(df):
 
 
 def retreat5(df):
-    with PdfPages(parameters.data_dir + 'out/elastica.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'elastica.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches(5.27, 5.27)
         gs = matplotlib.gridspec.GridSpec(2, 2)
         ax1 = plt.subplot(gs[0:2, 0:2])
 
-        with open(parameters.data_dir + 'elastica.cfg.txt', 'r') as configfile:
+        with open(parameters.compiled_data_dir + 'elastica.cfg.txt', 'r') as configfile:
             config = configparser.ConfigParser()
             config.readfp(configfile)
 
@@ -448,7 +448,7 @@ def animations(_df, _mask):
     matplotlib.rcParams.update(matplotlib.rcParamsDefault)
     matplotlib.use('Agg')
 
-    _hdf5file = parameters.data_dir + 'centrosomes.nexus.hdf5'
+    _hdf5file = parameters.compiled_data_dir + 'centrosomes.nexus.hdf5'
     _conds = ['pc']
     df, conds, colors = sorted_conditions(_df, _conds)
     mask, condsm, colorsm = sorted_conditions(_mask, _conds)
@@ -585,12 +585,12 @@ def animations(_df, _mask):
     for f in range(20):
         ax.cla()
         cell_movie(ax, f)
-        plt.savefig(parameters.data_dir + 'out/mov1_f%03d.png' % f, dpi=dpi_anim)
+        plt.savefig(parameters.out_dir + 'mov1_f%03d.png' % f, dpi=dpi_anim)
 
     for f in range(20):
         ax.cla()
         dist_movie(f, df)
-        plt.savefig(parameters.data_dir + 'out/mov2_f%03d.png' % f, dpi=dpi_anim, transparent=True)
+        plt.savefig(parameters.out_dir + 'mov2_f%03d.png' % f, dpi=dpi_anim, transparent=True)
 
 
 def color_keys(dfc):
@@ -602,7 +602,7 @@ def color_keys(dfc):
         mua = coldf.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
         sp.anotated_boxplot(mua, 'SpeedCentr', order=conds)
         fig.gca().set_ylabel('Avg. track speed between centrosomes $[\mu m/min]$')
-        fig.savefig(parameters.data_dir + 'out/colors.pdf', format='pdf')
+        fig.savefig(parameters.out_dir + 'colors.pdf', format='pdf')
 
 
 if __name__ == '__main__':
@@ -611,9 +611,9 @@ if __name__ == '__main__':
     new_distcntr_name = 'Distance between centrosomes $[\mu m]$'
     new_speedcntr_name = 'Speed between centrosomes $[\mu m/min]$'
 
-    df_m = pd.read_pickle(parameters.data_dir + 'merge.pandas')
-    df_mc = pd.read_pickle(parameters.data_dir + 'merge_centered.pandas')
-    df_msk_disk = pd.read_pickle(parameters.data_dir + 'mask.pandas')
+    df_m = pd.read_pickle(parameters.compiled_data_dir + 'merge.pandas')
+    df_mc = pd.read_pickle(parameters.compiled_data_dir + 'merge_centered.pandas')
+    df_msk_disk = pd.read_pickle(parameters.compiled_data_dir + 'mask.pandas')
 
     df_m = df_m.loc[df_m['Time'] >= 0, :]
     df_m = df_m.loc[df_m['Time'] <= 100, :]
@@ -645,5 +645,5 @@ if __name__ == '__main__':
     retreat1(df_m, df_mc)
     retreat2(df_m)
     retreat4(df_m)
-    retreat5(df=pd.read_csv(parameters.data_dir + 'elastica.csv'))
+    retreat5(df=pd.read_csv(parameters.compiled_data_dir + 'elastica.csv'))
     animations(df_m, mask)

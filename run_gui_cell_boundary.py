@@ -16,7 +16,7 @@ import hdf5_nexus as hdf
 import im_gabor
 import mechanics as m
 import parameters
-import plot_special_tools as sp
+import tools.plot_tools as sp
 from imagej_pandas import ImagejPandas
 
 pd.options.display.max_colwidth = 10
@@ -342,7 +342,7 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication(sys.argv)
 
-    folders = ExperimentsList(parameters.data_dir + 'centrosomes.nexus.hdf5')
+    folders = ExperimentsList(parameters.compiled_data_dir + 'centrosomes.nexus.hdf5')
     folders.show()
 
     sys.exit(app.exec_())

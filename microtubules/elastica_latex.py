@@ -9,7 +9,7 @@ from matplotlib.patches import Arc
 
 from microtubules import elastica as e
 import parameters
-import plot_special_tools as sp
+import tools.plot_tools as sp
 
 logging.basicConfig(level=logging.INFO)
 np.set_printoptions(3, suppress=True)
@@ -140,7 +140,7 @@ def sampled_elastica_figure():
     # ax.get_xaxis().set_visible(False)
     # ax.get_yaxis().set_visible(False)
 
-    plt.savefig(parameters.data_dir + 'out/elastica-measured.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig(parameters.out_dir + 'elastica-measured.pdf', format='pdf', bbox_inches='tight')
 
 
 if __name__ == '__main__':

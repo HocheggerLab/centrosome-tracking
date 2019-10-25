@@ -16,7 +16,7 @@ from scipy import stats
 
 import parameters as p
 import mechanics as m
-import plots as sp
+import tools.plot_tools as sp
 from tools import stats as st
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
@@ -45,7 +45,7 @@ def df_filter(df, k=10, f=-1):
 
 
 def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
-    with PdfPages(p.experiments_dir + '%s' % pdf_fname) as pdf:
+    with PdfPages(p.out_dir + '%s' % pdf_fname) as pdf:
         flatui = ['#9b59b6', '#3498db', '#95a5a6', '#e74c3c', '#34495e', '#2ecc71']
         palette = sns.color_palette(flatui)
 
@@ -54,7 +54,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         # ---------------------------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(_fig_size_A3)
+        fig.set_size_inches(p.size_A3)
         gs = matplotlib.gridspec.GridSpec(3, 2)
         ax1: plt.Axes = plt.subplot(gs[0, 0])
         ax2: plt.Axes = plt.subplot(gs[0, 1])
@@ -89,7 +89,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         # ---------------------------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(_fig_size_A3)
+        fig.set_size_inches(p.size_A3)
         gs = matplotlib.gridspec.GridSpec(3, 2)
         ax1 = plt.subplot(gs[0, 0])
         ax2 = plt.subplot(gs[0, 1])
@@ -125,7 +125,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
                 x_trklen = kde_trklen(y_trklen) * 100
                 ax5.plot(x_avgspd, y_trklen, color=_color)  # gaussian kde
                 ax6.plot(x_trklen, y_trklen, color=_color)  # gaussian kde
-            except:
+            except Exception:
                 pass
 
         ax1.set(yscale='log')
@@ -145,7 +145,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
         # ---------------------------
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(_fig_size_A3)
+        fig.set_size_inches(p.size_A3)
         gs = matplotlib.gridspec.GridSpec(3, 2)
         ax1 = plt.subplot(gs[0, 0])
         ax2 = plt.subplot(gs[0, 1])
@@ -184,7 +184,7 @@ def indiv_plots(dff, df_stat, pdf_fname='eb3_indv.pdf'):
 
 
 def stats_plots(df, df_stats):
-    with PdfPages(p.experiments_dir + 'boxplot_spd.pdf') as pdf:
+    with PdfPages(p.out_dir + 'boxplot_spd.pdf') as pdf:
         flatui = ['#9b59b6', '#3498db', '#95a5a6', '#e74c3c', '#34495e', '#2ecc71']
         palette = sns.color_palette(flatui)
 
@@ -237,8 +237,8 @@ def stats_plots(df, df_stats):
                 tick.set_label(tick.get_label()[4:])
                 tick.set_rotation('vertical')
 
-        pmat = st.p_values(df_stats, 'speed', 'condition', filename=p.experiments_dir + 'pvalues_spd.xls')
-        pmat = st.p_values(df_stats, 'length', 'condition', filename=p.experiments_dir + 'pvalues_len.xls')
+        pmat = st.p_values(df_stats, 'speed', 'condition', filename=p.out_dir + 'pvalues_spd.xls')
+        pmat = st.p_values(df_stats, 'length', 'condition', filename=p.out_dir + 'pvalues_len.xls')
 
         pdf.savefig()
 
@@ -292,10 +292,10 @@ def stats_plots(df, df_stats):
 
 def msd_plots(df):
     dfn = df.reset_index()
-    with PdfPages(p.experiments_dir + 'eb3_msd.pdf') as pdf:
+    with PdfPages(p.out_dir + 'eb3_msd.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
-        fig.set_size_inches(_fig_size_A3)
+        fig.set_size_inches(p.size_A3)
         gs = matplotlib.gridspec.GridSpec(3, 2)
         ax1: plt.Axes = plt.subplot(gs[0:2, :])
         ax3: plt.Axes = plt.subplot(gs[2, 0])
@@ -390,60 +390,57 @@ def render_image_tracks(df_total, folder='.'):
 def batch_filter(df):
     logging.info('%d tracks prior to apply filters' % df.set_index(indiv_idx).index.unique().size)
 
-    df_flt = df_filter(df, k=3)
-    df_flt = m.get_msd(df_flt, group=indiv_idx)
+    flt = df_filter(df, k=3)
+    flt = m.get_msd(flt, group=indiv_idx)
 
     # filter dataframe based on track's displacement
     msd_thr = 5
-    filtered_ix = df_flt.set_index('frame').sort_index().groupby(indiv_idx).apply(
+    filtered_ix = flt.set_index('frame').sort_index().groupby(indiv_idx).apply(
         lambda t: t['msd'].iloc[-1] > msd_thr)
-    df_flt = df_flt.set_index(indiv_idx)[filtered_ix].reset_index()
+    flt = flt.set_index(indiv_idx)[filtered_ix].reset_index()
     logging.info('filtered %d tracks after MSD filter with msd_thr=%0.1f' % (
-        df_flt.set_index(indiv_idx).index.unique().size, msd_thr))
+        flt.set_index(indiv_idx).index.unique().size, msd_thr))
 
     logging.info('computing speed, acceleration, length')
-    df_flt = m.get_speed_acc(df_flt, group=indiv_idx)
-    df_flt = m.get_center_df(df_flt, group=indiv_idx)
-    df_flt = m.get_trk_length(df_flt, group=indiv_idx)
+    flt = m.get_speed_acc(flt, group=indiv_idx)
+    flt = m.get_center_df(flt, group=indiv_idx)
+    flt = m.get_trk_length(flt, group=indiv_idx)
 
     # construct average track speed and track length
-    dfi = df_flt.set_index('frame').sort_index()
+    dfi = flt.set_index('frame').sort_index()
     dfi['speed'] = dfi['speed'].abs()
-    df_avg = dfi.groupby(indiv_idx)['time', 'speed'].mean()
-    df_avg.loc[:, 'time'] = dfi.groupby(indiv_idx)['time'].first()
-    df_avg.loc[:, 'n_points'] = dfi.groupby(indiv_idx)['x'].count()
-    df_avg.loc[:, 'length'] = dfi.groupby(indiv_idx)['s'].agg(np.sum)
-    df_avg = df_avg.reset_index()
+    avg = dfi.groupby(indiv_idx)['time', 'speed'].mean()
+    avg.loc[:, 'time'] = dfi.groupby(indiv_idx)['time'].first()
+    avg.loc[:, 'n_points'] = dfi.groupby(indiv_idx)['x'].count()
+    avg.loc[:, 'length'] = dfi.groupby(indiv_idx)['s'].agg(np.sum)
+    avg = avg.reset_index()
 
     # # speed filter
     # print (dfi['speed'].describe())
     # speed_ix = dfi.groupby(indiv_idx).apply(lambda t: t['speed'].max() < 0.4)
     # df_flt = df_flt.set_index(indiv_idx)[speed_ix].reset_index()
 
-    return df_flt, df_avg
+    return flt, avg
 
 
 if __name__ == '__main__':
     do_filter_stats = True
     # do_filter_stats = False
 
-    _fig_size_A3 = (11.7, 16.5)
-    _err_kws = {'alpha': 0.3, 'lw': 1}
-
     if do_filter_stats:
-        _df = pd.read_pickle(p.experiments_dir + 'eb3.pandas')
+        _df = pd.read_pickle(p.compiled_data_dir + 'eb3.pandas')
         df_flt, df_avg = batch_filter(_df)
         df_avg = df_avg.replace([np.inf, -np.inf], np.nan).dropna()
-        df_flt.to_pickle(p.experiments_dir + 'eb3filter.pandas')
-        df_avg.to_pickle(p.experiments_dir + 'eb3stats.pandas')
+        df_flt.to_pickle(p.compiled_data_dir + 'eb3filter.pandas')
+        df_avg.to_pickle(p.compiled_data_dir + 'eb3stats.pandas')
     else:
-        if os.path.exists(p.experiments_dir + 'eb3_selected.pandas'):
+        if os.path.exists(p.compiled_data_dir + 'eb3_selected.pandas'):
             logging.info('Loading GUI selected features instead of filtered particles!')
-            df_flt = pd.read_pickle(p.experiments_dir + 'eb3_selected.pandas')
-            df_avg = pd.read_pickle(p.experiments_dir + 'eb3stats_sel.pandas')
+            df_flt = pd.read_pickle(p.compiled_data_dir + 'eb3_selected.pandas')
+            df_avg = pd.read_pickle(p.compiled_data_dir + 'eb3stats_sel.pandas')
         else:
-            df_flt = pd.read_pickle(p.experiments_dir + 'eb3filter.pandas')
-            df_avg = pd.read_pickle(p.experiments_dir + 'eb3stats.pandas')
+            df_flt = pd.read_pickle(p.compiled_data_dir + 'eb3filter.pandas')
+            df_avg = pd.read_pickle(p.compiled_data_dir + 'eb3stats.pandas')
         logging.info('Loaded %d tracks after filters' % df_flt.set_index(indiv_idx).index.unique().size)
 
     # # # logging.info('rendering images.')

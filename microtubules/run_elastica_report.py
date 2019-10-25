@@ -31,7 +31,7 @@ msd_ylim = [0, 420]
 
 
 def fig_1(df):
-    with PdfPages(parameters.data_dir + 'out/elastica.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'elastica.pdf') as pdf:
         fig = matplotlib.pyplot.gcf()
         fig.clf()
         fig.set_size_inches(_fig_size_A3)
@@ -169,6 +169,6 @@ def fig_1(df):
 
 
 if __name__ == '__main__':
-    df = pd.read_csv(parameters.data_dir + 'elastica.csv')
+    df = pd.read_csv(parameters.compiled_data_dir + 'elastica.csv')
 
     fig_1(df)

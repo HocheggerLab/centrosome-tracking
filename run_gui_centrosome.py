@@ -12,7 +12,7 @@ from PyQt4.QtGui import QAbstractItemView
 
 import hdf5_nexus as hdf
 import parameters
-import plot_special_tools as spc
+import tools.plot_tools as spc
 from imagej_pandas import ImagejPandas
 
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
@@ -259,9 +259,9 @@ class SelectionGui(QtGui.QWidget):
     @QtCore.pyqtSlot()
     def on_export_pandas_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save centrosome file',
-                                                  directory=parameters.data_dir + 'centrosomes.pandas')
+                                                  directory=parameters.compiled_data_dir + 'centrosomes.pandas')
         mname = QtGui.QFileDialog.getSaveFileName(self, caption='Save mask dataframe file',
-                                                  directory=parameters.data_dir + 'mask.pandas')
+                                                  directory=parameters.compiled_data_dir + 'mask.pandas')
         fname = str(fname)
         mname = str(mname)
 
@@ -278,7 +278,7 @@ class SelectionGui(QtGui.QWidget):
     @QtCore.pyqtSlot()
     def on_export_sel_button(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, caption='Save selection file',
-                                                  directory=parameters.data_dir + 'centrosomes_selection.txt')
+                                                  directory=parameters.compiled_data_dir + 'centrosomes_selection.txt')
         fname = str(fname)
         logging.info('saving to %s' % fname)
 
@@ -360,7 +360,7 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication(sys.argv)
 
-    gui = SelectionGui(parameters.data_dir + 'centrosomes.nexus.hdf5')
+    gui = SelectionGui(parameters.compiled_data_dir + 'centrosomes.nexus.hdf5')
     gui.show()
 
     sys.exit(app.exec_())

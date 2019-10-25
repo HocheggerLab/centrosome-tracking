@@ -4,28 +4,38 @@ import math
 import os
 
 import h5py
-import matplotlib.axes
-import matplotlib.colors
-import matplotlib.lines as mlines
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import skimage.external.tifffile as tf
-from PIL import Image
-from PyQt4 import Qt, QtGui
-from PyQt4.QtCore import QRect
-from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
+
+import matplotlib.axes
+import matplotlib.colors
+import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
+import matplotlib.colors as colors
 from matplotlib.patches import Arc
 from matplotlib.ticker import FormatStrFormatter, LinearLocator
 from mpl_toolkits.mplot3d import axes3d
-import matplotlib.colors as colors
+
+import seaborn as sns
+
+import skimage.external.tifffile as tf
+from czifile import CziFile
+from PIL import Image
+
+from PyQt4 import Qt, QtGui
+from PyQt4.QtCore import QRect
+from PyQt4.QtGui import QBrush, QColor, QFont, QPainter, QPen
+
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+
+import scipy.stats
+import xml.etree.ElementTree
 
 import parameters
 import tools.measurements as meas
 import mechanics as m
+from tools import stats
 from imagej_pandas import ImagejPandas
 
 logger = logging.getLogger(__name__)
@@ -202,6 +212,66 @@ def congression(cg, ax=None, order=None, linestyles=None):
     ax.set_xlabel('Time $[min]$')
     ax.set_ylabel('Congression in percentage ($d<%0.2f$ $[\mu m]$)' % ImagejPandas.DIST_THRESHOLD)
     ax.legend(dhandles, dlabels, loc='upper left')
+
+
+def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition',
+                     swarm=True, stars=False, order=None, xlabels=None, rotation='horizontal', ax=None):
+    sns.boxplot(data=df, y=variable, x=group, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
+                zorder=100)
+
+    if swarm:
+        _ax = sns.swarmplot(data=df, y=variable, x=group, size=point_size, order=order, ax=ax, zorder=10)
+    else:
+        _ax = sns.stripplot(data=df, y=variable, x=group, jitter=True, size=point_size, order=order, ax=ax,
+                            zorder=10)
+    for i, artist in enumerate(_ax.artists):
+        artist.set_facecolor('None')
+        artist.set_edgecolor('k')
+        artist.set_zorder(5000)
+    for i, artist in enumerate(_ax.lines):
+        artist.set_color('k')
+        artist.set_zorder(5000)
+
+    order = order if order is not None else df[group].unique()
+    if fontsize is not None:
+        for x, c in enumerate(order):
+            d = df[df[group] == c][variable]
+            _max_y = _ax.axis()[3]
+            count = d.count()
+            mean = d.mean()
+            median = d.median()
+            # _txt = '%0.2f\n%0.2f\n%d' % (mean, median, count)
+            _txt = '%0.2f\n%d' % (median, count)
+            _ax.text(x, _max_y * -0.7, _txt, rotation=rotation, ha='center', va='bottom', fontsize=fontsize)
+    # print [i.get_text() for i in _ax.xaxis.get_ticklabels()]
+    if xlabels is not None:
+        _ax.set_xticklabels([xlabels[tl.get_text()] for tl in _ax.xaxis.get_ticklabels()],
+                            rotation=rotation, multialignment='right')
+    else:
+        _ax.set_xticklabels(_ax.xaxis.get_ticklabels(), multialignment='right')
+    _ax.set_xlabel('')
+    # Pad margins so that markers don't get clipped by the axes
+    plt.margins(0.1)
+
+    if stars:
+        maxy = ax.get_ylim()[1]
+        ypos = np.flip(ax.yaxis.get_major_locator().tick_values(maxy, maxy * 0.8))
+        dy = -np.diff(ypos)[0]
+        k = 0
+        for i, s11 in enumerate(order):
+            for j, s12 in enumerate(order):
+                if i < j:
+                    sig1 = df[df[group] == s11][variable]
+                    sig2 = df[df[group] == s12][variable]
+                    st, p = scipy.stats.ttest_ind(sig1, sig2)
+                    # st, p = scipy.stats.mannwhitneyu(sig1, sig2, use_continuity=False, alternative='two-sided')
+                    # if p <= 0.05:
+                    ypos = maxy - dy * k
+                    _ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
+                    _ax.text(j, ypos + dy * 0.25, stats.star_system(p), ha='right', va='bottom', zorder=20)
+                    k += 1
+
+    return _ax
 
 
 def ribbon(df, ax, ribbon_width=0.75, n_indiv=8, indiv_cols=range(8), z_max=None):
@@ -558,8 +628,10 @@ def load_tiff(path):
             if metadata['unit'] == 'centimeter':
                 res = res / 1e4
 
-            if os.path.exists(parameters.experiments_dir + 'eb3/eb3_calibration.xls'):
-                cal = pd.read_excel(parameters.experiments_dir + 'eb3/eb3_calibration.xls')
+            # This is a hack
+            # Process pixel calibration from excel file if given
+            if os.path.exists(parameters.out_dir + 'eb3/eb3_calibration.xls'):
+                cal = pd.read_excel(parameters.out_dir + 'eb3/eb3_calibration.xls')
                 calp = cal[cal['filename'] == img_name]
                 if not calp.empty:
                     calp = calp.iloc[0]
@@ -567,28 +639,66 @@ def load_tiff(path):
                         logging.info('file with optivar configuration selected!')
                         res *= 1.6
 
-            frames = None
+            images = None
             if len(tif.pages) == 1:
                 if ('slices' in metadata and metadata['slices'] > 1) or (
                         'frames' in metadata and metadata['frames'] > 1):
-                    frames = tif.pages[0].asarray()
+                    images = tif.pages[0].asarray()
                 else:
-                    frames = [tif.pages[0].asarray()]
+                    images = [tif.pages[0].asarray()]
             elif len(tif.pages) > 1:
-                # frames = np.ndarray((len(tif.pages), tif.pages[0].image_length, tif.pages[0].image_width), dtype=np.int32)
-                frames = list()
+                images = list()
                 for i, page in enumerate(tif.pages):
-                    frames.append(page.asarray())
+                    images.append(page.asarray())
 
-    return frames, res, dt, metadata['frames'], metadata['channels']
+            return np.asarray(images), res, dt, \
+                   metadata['frames'] if 'frames' in metadata else 1, \
+                   metadata['channels'] if 'channels' in metadata else 1
 
 
-def find_image(img_name, folder):
+def load_zeiss(path):
+    _, img_name = os.path.split(path)
+    with CziFile(path) as czi:
+        xmltxt = czi.metadata()
+        meta = xml.etree.ElementTree.fromstring(xmltxt)
+
+        # next line is somewhat cryptic, but just extracts um/pix (calibration) of X and Y into res
+        res = [float(i[0].text) for i in meta.findall('.//Scaling/Items/*') if
+               i.attrib['Id'] == 'X' or i.attrib['Id'] == 'Y']
+        assert res[0] == res[1], "pixels are not square"
+
+        # get first calibration value and convert it from meters to um
+        res = res[0] * 1e6
+
+        ts_ix = [k for k, a1 in enumerate(czi.attachment_directory) if a1.filename[:10] == 'TimeStamps'][0]
+        timestamps = list(czi.attachments())[ts_ix].data()
+        dt = np.median(np.diff(timestamps))
+
+        ax_dct = {n: k for k, n in enumerate(czi.axes)}
+        n_frames = czi.shape[ax_dct['T']]
+        n_channels = czi.shape[ax_dct['C']]
+        n_X = czi.shape[ax_dct['X']]
+        n_Y = czi.shape[ax_dct['Y']]
+
+        images = list()
+        for sb in czi.subblock_directory:
+            images.append(sb.data_segment().data().reshape((n_X, n_Y)))
+
+        return np.array(images), 1 / res, dt, n_frames, n_channels
+
+
+def find_image(img_name, folder=None):
+    if folder is None:
+        folder = os.path.dirname(img_name)
+        img_name = os.path.basename(img_name)
+
     for root, directories, filenames in os.walk(folder):
         for file in filenames:
             joinf = os.path.abspath(os.path.join(root, file))
             if os.path.isfile(joinf) and joinf[-4:] == '.tif' and file == img_name:
                 return load_tiff(joinf)
+            if os.path.isfile(joinf) and joinf[-4:] == '.czi' and file == img_name:
+                return load_zeiss(joinf)
 
 
 def retrieve_image(image_arr, frame, channel=0, number_of_frames=1):
@@ -817,7 +927,7 @@ def render_tracked_centrosomes(hdf5_fname, condition, run, nuclei):
                 painter.end()
                 cropped = image_pixmap.copy(rect)
 
-                cropped.save(parameters.data_dir + 'out/%s_N%02d_F%03d.png' % (run, nuclei, frame))
+                cropped.save(parameters.out_dir + '%s_N%02d_F%03d.png' % (run, nuclei, frame))
 
 
 def pil_grid(images, max_horiz=np.iinfo(int).max):

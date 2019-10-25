@@ -88,7 +88,7 @@ def process_dir(dir_base):
     for root, directories, files in os.walk(dir_base):
         for f in files:
             mpath = os.path.join(root, f)
-            if os.path.isfile(mpath) and f[-4:] == '.tif':
+            if os.path.isfile(mpath) and f[-4:] == '.tif' or f[-4:] == '.czi':
                 logging.info('processing file %s in folder %s' % (f, root))
                 csv_file = os.path.join(root, '%s.csv' % f[:-4])
                 if os.path.exists(csv_file):

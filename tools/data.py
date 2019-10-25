@@ -3,7 +3,7 @@ from collections import OrderedDict
 import seaborn as sns
 
 import parameters
-import plot_special_tools as sp
+import tools.plot_tools as sp
 from .manual_data import *
 
 log = logging.getLogger(__name__)
@@ -64,9 +64,9 @@ def sorted_conditions(df, original_conds):
 class Data():
     def __init__(self):
         logging.info('loading data for track plotting.')
-        df_m = pd.read_pickle(parameters.data_dir + 'merge.pandas')
-        df_msk = pd.read_pickle(parameters.data_dir + 'mask.pandas')
-        df_mc = pd.read_pickle(parameters.data_dir + 'merge_centered.pandas')
+        df_m = pd.read_pickle(parameters.compiled_data_dir + 'merge.pandas')
+        df_msk = pd.read_pickle(parameters.compiled_data_dir + 'mask.pandas')
+        df_mc = pd.read_pickle(parameters.compiled_data_dir + 'merge_centered.pandas')
 
         # filter original dataframe to get just data between centrosomes
         dfcntr = df_mc[df_mc['CentrLabel'] == 'A']

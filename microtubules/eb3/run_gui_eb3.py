@@ -11,7 +11,7 @@ from PyQt4.QtCore import QTimer
 
 import mechanics as m
 import parameters
-import plot_special_tools as sp
+import tools.plot_tools as sp
 
 pd.options.display.max_colwidth = 10
 logging.basicConfig(level=logging.DEBUG)
@@ -104,9 +104,9 @@ class ExperimentsList(QtGui.QWidget):
         #                                           directory=constants.data_dir+'eb3_selected.pandas')
         # fname = str(fname)
 
-        df = pd.read_pickle(parameters.data_dir + 'eb3filter.pandas')
+        df = pd.read_pickle(parameters.compiled_data_dir + 'eb3filter.pandas')
         # get selection from disk
-        with open(parameters.data_dir + 'eb3trk.selec.txt', 'r') as configfile:
+        with open(parameters.compiled_data_dir + 'eb3trk.selec.txt', 'r') as configfile:
             config = configparser.ConfigParser()
             config.readfp(configfile)
 
@@ -117,7 +117,7 @@ class ExperimentsList(QtGui.QWidget):
                     ix_sel = (df['tag'] == tag) & (df['particle'].isin(selection))
                     sel = df[ix_sel]
                     selected = selected.append(sel)
-            selected.to_pickle(parameters.data_dir + 'eb3_selected.pandas')
+            selected.to_pickle(parameters.compiled_data_dir + 'eb3_selected.pandas')
             df = selected
 
         indiv_idx = ['condition', 'tag', 'particle']
@@ -130,7 +130,7 @@ class ExperimentsList(QtGui.QWidget):
         df_avg.loc[:, 'trk_len'] = dfi.groupby(indiv_idx)['x'].count()
         df_avg.loc[:, 'length'] = dfi.groupby(indiv_idx)['s'].agg(np.sum)
         df_avg = df_avg.reset_index()
-        df_avg.to_pickle(parameters.data_dir + 'eb3stats_sel.pandas')
+        df_avg.to_pickle(parameters.compiled_data_dir + 'eb3stats_sel.pandas')
 
         print('export finished.')
 

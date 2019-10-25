@@ -15,8 +15,8 @@ from pysketcher import drawing_tool
 from nucleus._track import Track
 from nucleus._common import _DEBUG
 import nucleus.plots as plots
-from plot_special_tools import canvas_to_pil
-import plot_special_tools as sp
+from tools.plot_tools import canvas_to_pil
+import tools.plot_tools as sp
 
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("matplotlib").setLevel(logging.ERROR)

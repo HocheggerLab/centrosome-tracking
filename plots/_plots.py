@@ -1,23 +1,23 @@
 import logging
 
-import seaborn as sns
 import pandas as pd
 import numpy as np
+
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.ticker as ticker
 import matplotlib.lines as mlines
 
+import seaborn as sns
+
 import mechanics as m
 from imagej_pandas import ImagejPandas
-import plot_special_tools as sp
+import tools.plot_tools as sp
 from tools.manual_data import gen_dist_data
 
 log = logging.getLogger(__name__)
 
 pt_color = sns.light_palette(sp.SUSSEX_COBALT_BLUE, n_colors=10, reverse=True)[3]
-_fig_size_A3 = (11.7, 16.5)
-_err_kws = {'alpha': 0.5, 'lw': 0.1}
 
 
 class Tracks():
@@ -141,7 +141,7 @@ class Tracks():
         stats = gen_dist_data(df)
         order = ['C1 (Away)', 'C2 (Close)', 'Nucleus\nCentroid', 'Cell\nCentroid', 'Cell\n(manual)']
 
-        sp.anotated_boxplot(stats, 'Dist', cat='Type', order=order, point_size=3, fontsize=7)
+        sp.anotated_boxplot(stats, 'Dist', group='Type', order=order, point_size=3, fontsize=7)
         # sns.boxplot(data=stats, y='Dist', x='Type', order=order, width=0.5, linewidth=0.5, fliersize=0, ax=ax)
         # for i, artist in enumerate(ax.artists):
         #     artist.set_facecolor('None')

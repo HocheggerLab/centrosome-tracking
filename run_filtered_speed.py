@@ -23,9 +23,9 @@ new_distcntr_name = 'Distance between\ncentrosomes $[\mu m]$'
 new_speedcntr_name = 'Speed between\ncentrosomes $\\left[\\frac{\mu m}{min} \\right]$'
 
 # distribution of speed and tracks for speed filtered dataframe
-if not os.path.isfile(p.data_dir + 'filt_tracks.pandas'):
+if not os.path.isfile(p.compiled_data_dir + 'filt_tracks.pandas'):
     print('computing')
-    dfcentr = pd.read_pickle(p.data_dir + 'merge_centered.pandas')
+    dfcentr = pd.read_pickle(p.compiled_data_dir + 'merge_centered.pandas')
     # filter original dataframe to get just data between centrosomes
     dfcentr.loc[:, 'indv'] = dfcentr['condition'] + '-' + dfcentr['run'] + '-' + dfcentr['Nuclei'].map(int).map(str) + \
                              '-' + dfcentr['CentrLabel']
@@ -46,12 +46,12 @@ if not os.path.isfile(p.data_dir + 'filt_tracks.pandas'):
         trk_df = trk_df.append(trklbldf)
 
     trk_df.drop(['Dist', 'Speed', 'Acc'], axis=1, inplace=True)
-    trk_df.to_pickle(p.data_dir + 'filt_tracks.pandas')
-    spd_df.to_pickle(p.data_dir + 'filt_speedpoints.pandas')
+    trk_df.to_pickle(p.compiled_data_dir + 'filt_tracks.pandas')
+    spd_df.to_pickle(p.compiled_data_dir + 'filt_speedpoints.pandas')
     print('computed')
 else:
-    trk_df = pd.read_pickle(p.data_dir + 'filt_tracks.pandas')
-    spd_df = pd.read_pickle(p.data_dir + 'filt_speedpoints.pandas')
+    trk_df = pd.read_pickle(p.compiled_data_dir + 'filt_tracks.pandas')
+    spd_df = pd.read_pickle(p.compiled_data_dir + 'filt_speedpoints.pandas')
     print('loaded')
 
 # names = ['1_N.C.', '1_P.C.', '1_DIC', '1_Dynei', '1_CENPF', '1_BICD2', '2_Kines1', '2_CDK1_DK', '2_CDK1_DC']
@@ -65,7 +65,7 @@ g = sns.FacetGrid(trk_df, row='condition', col='filter_speed', hue='timepoint_cl
 g.map(plt.plot, 'Time', 'DistCentr')
 g.map(plt.scatter, 'Time', 'DistCentr')
 g.fig.suptitle('Centrosome pair speed distribution for speeds greater than filter_speed $[\mu m/min]$')
-plt.savefig(p.data_dir + 'out/sfilt_cond_dist.pdf', format='pdf')
+plt.savefig(p.out_dir + 'sfilt_cond_dist.pdf', format='pdf')
 
 # plt.figure()
 # sns.swarmplot(x='filter_speed', y='consecutive_time_points', hue='condition', data=spd_df)
@@ -73,7 +73,7 @@ plt.savefig(p.data_dir + 'out/sfilt_cond_dist.pdf', format='pdf')
 
 plt.figure()
 sns.barplot(x='filter_speed', y='consecutive_time_points', hue='condition', data=spd_df)
-plt.savefig(p.data_dir + 'out/sfilt_bar.pdf', format='pdf')
+plt.savefig(p.out_dir + 'sfilt_bar.pdf', format='pdf')
 
 # g = sns.FacetGrid(trk_df, row='indv', col='filter_speed', hue='timepoint_cluster_id')
 # g.map(plt.plot, 'DistCentr')

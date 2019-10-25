@@ -19,7 +19,7 @@ from matplotlib.ticker import MultipleLocator
 from mpl_toolkits.mplot3d import Axes3D
 
 import parameters
-import plot_special_tools as sp
+import tools.plot_tools as sp
 from microtubules.eb3 import run_plots_eb3 as eb3
 from tools import stats as st, manual_data as md
 from imagej_pandas import ImagejPandas
@@ -135,7 +135,7 @@ def dist_stlc(df, dfc):
     # pil_grid = sp.pil_grid(images, max_horiz=5)
     # pil_grid.save(parameters.data_dir + 'out/fig1_grid.png')
 
-    with PdfPages(parameters.data_dir + 'out/stlc.pdf') as pdf:
+    with PdfPages(parameters.lab_dir + 'out/stlc.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
@@ -260,7 +260,7 @@ def msd_stlc(df, dfc):
     df_msd = ImagejPandas.msd_particles(dfs)
     time = 'Time'
 
-    with PdfPages(parameters.data_dir + 'out/msd-stlc.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'msd-stlc.pdf') as pdf:
         # MSD
         sns.set_palette([sp.SUSSEX_CORAL_RED, sp.SUSSEX_COBALT_BLUE])
         # ---------------------------
@@ -432,7 +432,7 @@ def stlc_selected_track(df, mask):
     df_selected = df[(df['condition'] == 'pc') & (df['run'] == 'run_114') & (df['Nuclei'] == 2)]
     msk_selected = mask[(mask['condition'] == 'pc') & (mask['run'] == 'run_114') & (mask['Nuclei'] == 2)]
 
-    with PdfPages(parameters.data_dir + 'out/fig1-selected.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'fig1-selected.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
@@ -469,7 +469,7 @@ def stlc_selected_track(df, mask):
 def stlc_mother_daughter(df, dfc):
     # MOTHER-DAUGHTER
     _conds = ['mother-daughter']
-    with PdfPages(parameters.data_dir + 'out/fig1-mother.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'fig1-mother.pdf') as pdf:
         dfs, conds, colors = sorted_conditions(df, _conds)
 
         # ---------------------------
@@ -533,7 +533,7 @@ def stlc_mother_daughter(df, dfc):
 
 
 def dynein(df, dfc):
-    with PdfPages(parameters.data_dir + 'out/dynein.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'dynein.pdf') as pdf:
         # ---------------------------
         #          NEXT PAGE
         # ---------------------------
@@ -691,11 +691,11 @@ def dynein(df, dfc):
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.05)
 
     mua = dfc.groupby(['condition', 'run', 'Nuclei']).mean().reset_index()
-    pmat = st.p_values(mua, 'SpeedCentr', 'condition', filename=parameters.data_dir + 'out/pvalues_spd_fig2.xls')
+    pmat = st.p_values(mua, 'SpeedCentr', 'condition', filename=parameters.out_dir + 'pvalues_spd_fig2.xls')
 
 
 def kinesin(df, dfc):
-    with PdfPages(parameters.data_dir + 'out/kinesin.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'kinesin.pdf') as pdf:
         # ---------------------------
         #          FIRST PAGE
         # ---------------------------
@@ -788,7 +788,7 @@ def kinesin(df, dfc):
 
 
 def microtubule(df, dfc):
-    with PdfPages(parameters.data_dir + 'out/microtubules.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'microtubules.pdf') as pdf:
         # ---------------------------
         #    PAGE
         # ---------------------------
@@ -888,7 +888,7 @@ def microtubule(df, dfc):
         ax2.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.05)
         pmat = st.p_values(mua, 'SpeedCentr', 'condition',
-                           filename=parameters.data_dir + 'out/pvalues_pc-noc-mcak_spd.xls')
+                           filename=parameters.out_dir + 'pvalues_pc-noc-mcak_spd.xls')
 
         df = df[df['Time'] <= 50]
         # ---------------------------
@@ -962,7 +962,7 @@ def microtubule(df, dfc):
 
 
 def eb3_tracking(eb3df):
-    with PdfPages(parameters.data_dir + 'out/eb3.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'eb3.pdf') as pdf:
         # ---------------------------
         #    PAGE - time colorbar
         # ---------------------------
@@ -987,7 +987,7 @@ def eb3_tracking(eb3df):
         # ---------------------------
         #    PAGE - tracks control
         # ---------------------------
-        eb3fld = parameters.data_dir + 'out/eb3'
+        eb3fld = parameters.out_dir + 'eb3'
         fig = plt.figure(figsize=_fig_size_square, dpi=_dpi / 4)
         fig.clf()
         ax = fig.add_subplot(111)
@@ -1057,7 +1057,7 @@ def eb3_tracking(eb3df):
 
 def eb3_stats(eb3_stats, filename='eb3_boxplots.pdf', title=None):
     pt_color = sp.SUSSEX_COBALT_BLUE
-    with PdfPages(parameters.data_dir + 'out/%s' % filename) as pdf:
+    with PdfPages(parameters.out_dir + '%s' % filename) as pdf:
         # ---------------------------
         #    PAGE - Eb3 velocity boxplots
         # ---------------------------
@@ -1098,7 +1098,7 @@ def eb3_stats(eb3_stats, filename='eb3_boxplots.pdf', title=None):
         # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.05)
 
         pmat = st.p_values(df_stats, 'speed', 'condition',
-                           filename=parameters.data_dir + 'out/pvalues_%s_ctr-noc-mcak-chtog.xls' % filename)
+                           filename=parameters.out_dir + 'pvalues_%s_ctr-noc-mcak-chtog.xls' % filename)
 
         # ---------------------------
         #    PAGE - Eb3 velocity boxplots
@@ -1133,12 +1133,12 @@ def eb3_stats(eb3_stats, filename='eb3_boxplots.pdf', title=None):
         # pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.05)
 
         pmat = st.p_values(df_stats, 'speed', 'condition',
-                           filename=parameters.data_dir + 'out/pvalues_%s_ctr-g2.xls' % filename)
+                           filename=parameters.out_dir + 'pvalues_%s_ctr-g2.xls' % filename)
         # pmat = st.p_values(df_stats, 'length', 'condition', filename=parameters.data_dir+'out/pvalues_len.xls')
 
 
 def actin(df, dfc):
-    with PdfPages(parameters.data_dir + 'out/actin.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'actin.pdf') as pdf:
         # ---------------------------
         #    PAGES - individuals
         # ---------------------------
@@ -1190,7 +1190,7 @@ def actin(df, dfc):
         ax2.set_ylabel('Average speed [um/min]')
         pdf.savefig(transparent=True, bbox_inches='tight', pad_inches=0.05)
         pmat = st.p_values(mua, 'SpeedCentr', 'condition',
-                           filename=parameters.data_dir + 'out/pvalues_pc-noc-mcak_spd.xls')
+                           filename=parameters.out_dir + 'pvalues_pc-noc-mcak_spd.xls')
 
         df = df[df['Time'] <= 50]
         # ---------------------------
@@ -1225,7 +1225,7 @@ def summary_msd_cgr(df):
     colors.extend([sp.SUSSEX_TURQUOISE] * 3)
     colortuple = dict(zip(conds, colors))
 
-    with PdfPages(parameters.data_dir + 'out/msd-cgr.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'msd-cgr.pdf') as pdf:
         # -----------
         # Page 1
         # -----------
@@ -1264,7 +1264,7 @@ def summary_msd_cgr(df):
 def color_keys(df, dfc):
     cldf, conds, colors = sorted_conditions(df, names.keys())
     coldf, conds, colors = sorted_conditions(dfc, names.keys())
-    with PdfPages(parameters.data_dir + 'out/colors.pdf') as pdf:
+    with PdfPages(parameters.out_dir + 'colors.pdf') as pdf:
         with sns.color_palette(colors):
             # ---------------------------
             #          FIRST PAGE
@@ -1287,9 +1287,9 @@ def color_keys(df, dfc):
 
 
 if __name__ == '__main__':
-    df_m = pd.read_pickle(parameters.data_dir + 'merge.pandas')
-    df_msk = pd.read_pickle(parameters.data_dir + 'mask.pandas')
-    df_mc = pd.read_pickle(parameters.data_dir + 'merge_centered.pandas')
+    df_m = pd.read_pickle(parameters.compiled_data_dir + 'merge.pandas')
+    df_msk = pd.read_pickle(parameters.compiled_data_dir + 'mask.pandas')
+    df_mc = pd.read_pickle(parameters.compiled_data_dir + 'merge_centered.pandas')
 
     df_m = df_m.loc[df_m['Time'] >= 0, :]
     df_m = df_m.loc[df_m['Time'] <= 100, :]
