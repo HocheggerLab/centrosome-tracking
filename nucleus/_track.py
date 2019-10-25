@@ -10,6 +10,7 @@ import trackpy as tp
 import seaborn as sns
 import pysketcher as ps
 
+import tools.image as image
 from ._segment import optical_flow_lk_match, segment
 from ._common import _DEBUG, logger
 import tools.plot_tools as sp
@@ -58,7 +59,7 @@ def velocity(df, time='time', frame='frame'):
 class Track():
     def __init__(self, image_file, nucleus_channel=0, skip_frames=0):
         logger.info("Initializing nucleus track object")
-        self.images, self.pix_per_um, self.dt, self.n_frames, self.n_channels = sp.load_tiff(image_file)
+        self.images, self.pix_per_um, self.dt, self.n_frames, self.n_channels = image.load_tiff(image_file)
         self.um_per_pix = 1 / self.pix_per_um
         self._ch = nucleus_channel
         self.im_f = os.path.basename(image_file)
@@ -78,7 +79,7 @@ class Track():
     def _segment_boundary(self):
         logger.info("Segmenting nuclear boundary")
         self._boundary_pix = pd.DataFrame()
-        for k, im in enumerate(sp.image_iterator(self.images, channel=self._ch, number_of_frames=self.n_frames)):
+        for k, im in enumerate(image.image_iterator(self.images, channel=self._ch, number_of_frames=self.n_frames)):
             if _DEBUG and k > 5: break
 
             img_lbl, detected = segment(im, radius=10 * self.pix_per_um)
@@ -132,8 +133,8 @@ class Track():
 
             for _p, nuc in self._boundary_pix.groupby("particle"):
                 pt_in_nuc = optical_flow_lk_match(
-                    sp.mask_iterator(
-                        sp.image_iterator(nrm, channel=self._ch, number_of_frames=self.n_frames),
+                    image.mask_iterator(
+                        image.image_iterator(nrm, channel=self._ch, number_of_frames=self.n_frames),
                         list(nuc.set_index("frame").sort_index()["boundary"].items())
                     )
                 )
@@ -176,7 +177,7 @@ class Track():
 
     def render(self, ax, frame, alpha=1):
         ext = [0, self.w / self.pix_per_um, self.h / self.pix_per_um, 0]
-        im = sp.retrieve_image(self.images, frame, channel=2, number_of_frames=self.n_frames)
+        im = image.retrieve_image(self.images, frame, channel=2, number_of_frames=self.n_frames)
         ax.imshow(im, interpolation='none', extent=ext, cmap=cm.gray, alpha=alpha)
 
         for _n, nuc in self.boundary[self.boundary["frame"] == frame].iterrows():

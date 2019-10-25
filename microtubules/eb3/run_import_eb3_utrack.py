@@ -7,9 +7,9 @@ import pandas as pd
 import scipy.io as sio
 import tifffile as tf
 
+import tools.image as image
 import parameters as p
 import mechanics as m
-import tools.plot_tools as sp
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 pd.set_option('display.width', 320)
@@ -127,7 +127,7 @@ def import_eb3_icy_all(dir_base):
 
                     iname = f[:-11] + '.tif'
                     logging.debug('trying to find image %s' % iname)
-                    img, res, dt, _, _ = sp.find_image(iname, root)
+                    img, res, dt, _, _ = image.find_image(iname, root)
                     df_mtlb['time'] = df_mtlb['frame'] * dt
                     df_mtlb['x'] /= res
                     df_mtlb['y'] /= res

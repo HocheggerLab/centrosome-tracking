@@ -9,9 +9,9 @@ import pandas as pd
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import QTimer
 
+import tools.image as image
 import mechanics as m
 import parameters
-import tools.plot_tools as sp
 
 pd.options.display.max_colwidth = 10
 logging.basicConfig(level=logging.DEBUG)
@@ -93,7 +93,7 @@ class ExperimentsList(QtGui.QWidget):
         # self.timer.start(200)
 
     def populate_frames_list(self):
-        img, res, dt, _, _ = sp.find_image(self.run, os.path.join(self.initial_dir, self.condition))
+        img, res, dt, _, _ = image.find_image(self.run, os.path.join(self.initial_dir, self.condition))
         self.total_frames = img.shape[0]
         logging.debug('image has %d frames' % self.total_frames)
 
