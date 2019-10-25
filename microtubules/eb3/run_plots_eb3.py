@@ -337,7 +337,7 @@ def render_image_track(df, ax, folder, point_size=5, line_width=1, palette=None,
                        tracks_to_show=np.infty):
     iname = df['tag'].iloc[0] + '.tif'
     logging.debug('reading %s' % iname)
-    img, res, dt = image.find_image(iname, folder)
+    img, res, dt, _, _, _ = image.find_image(iname, folder)
     max_time = df['time'].max()
     _, height, width = img.shape
 

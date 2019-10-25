@@ -23,7 +23,7 @@ log.setLevel(logging.DEBUG)
 class Particles():
     def __init__(self, image_file):
         log.info("Initializing particles object")
-        self.images, self.pix_per_um, self.dt, self.n_frames, self.n_channels = image.find_image(image_file)
+        self.images, self.pix_per_um, self.dt, self.n_frames, self.n_channels, _ = image.find_image(image_file)
         self.um_per_pix = 1 / self.pix_per_um
         self.im_f = os.path.basename(image_file)
         self.im_p = os.path.dirname(image_file)

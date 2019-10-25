@@ -59,7 +59,7 @@ def velocity(df, time='time', frame='frame'):
 class Track():
     def __init__(self, image_file, nucleus_channel=0, skip_frames=0):
         logger.info("Initializing nucleus track object")
-        self.images, self.pix_per_um, self.dt, self.n_frames, self.n_channels = image.load_tiff(image_file)
+        self.images, self.pix_per_um, self.dt, self.n_frames, self.n_channels, _ = image.load_tiff(image_file)
         self.um_per_pix = 1 / self.pix_per_um
         self._ch = nucleus_channel
         self.im_f = os.path.basename(image_file)

@@ -53,7 +53,8 @@ def load_tiff(path):
 
             return np.asarray(images), res, dt, \
                    metadata['frames'] if 'frames' in metadata else 1, \
-                   metadata['channels'] if 'channels' in metadata else 1
+                   metadata['channels'] if 'channels' in metadata else 1, \
+                   tif.series
 
 
 def load_zeiss(path):
@@ -84,7 +85,7 @@ def load_zeiss(path):
         for sb in czi.subblock_directory:
             images.append(sb.data_segment().data().reshape((n_X, n_Y)))
 
-        return np.array(images), 1 / res, dt, n_frames, n_channels
+        return np.array(images), 1 / res, dt, n_frames, n_channels, None
 
 
 def find_image(img_name, folder=None):

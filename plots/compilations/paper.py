@@ -466,7 +466,7 @@ def dynein_eb3():
 
 def select_and_make_montage(f):
     global x, y, winsize
-    image, pix_per_um, dt, n_frames, n_channels = tim.load_tiff(f)
+    image, pix_per_um, dt, n_frames, n_channels, _ = tim.load_tiff(f)
 
     # cmaps = ['uscope_green', 'uscope_blue', 'uscope_magenta', 'uscope_red']
     # names = ['Phalloidin', 'DAPI', 'Eg5', 'DIC2']
