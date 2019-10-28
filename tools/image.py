@@ -110,6 +110,17 @@ def retrieve_image(image_arr, frame, channel=0, number_of_frames=1):
     return image_arr[ix]
 
 
+def retrieve_from_pageseries(series: tf.tifffile.TiffPageSeries, frame, channel='all', zstack='all'):
+    idx = series.axes
+    assert idx == 'TZCYX', "can't handle series at the moment (got %s)." % idx
+    # logger.debug("retrieving frame %d of channel %d (index=%d)" % (frame, channel, ix))
+    if channel == 'all':
+        channel = slice(series.shape[idx.find('C')])
+    if zstack == 'all':
+        zstack = slice(series.shape[idx.find('Z')])
+    return series.asarray()[frame, zstack, channel, :, :]
+
+
 def image_iterator(image_arr, channel=0, number_of_frames=1):
     nimgs = image_arr.shape[0]
     n_channels = int(nimgs / number_of_frames)
