@@ -20,6 +20,7 @@ from matplotlib.ticker import MultipleLocator
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 
+import tools.image as image
 from tools.manual_data import gen_dist_data
 import parameters
 import tools.plot_tools as sp
@@ -276,7 +277,7 @@ def fig_1_selected_track(df, mask):
     sp.render_tracked_centrosomes('/Users/Fabio/centrosomes.nexus.hdf5', 'pc', 'run_114', 2)
     img_fnames = [os.path.join('/Users/Fabio/data', 'run_114_N02_F%03d.png' % f) for f in range(20)]
     images = [PIL.Image.open(path) for path in img_fnames]
-    pil_grid = sp.pil_grid(images, max_horiz=5)
+    pil_grid = image.pil_grid(images, max_horiz=5)
     pil_grid.save(parameters.out_dir + 'fig1_grid.png')
 
     with PdfPages(parameters.out_dir + 'fig1-selected.pdf') as pdf:

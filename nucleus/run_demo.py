@@ -15,7 +15,7 @@ from pysketcher import drawing_tool
 from nucleus._track import Track
 from nucleus._common import _DEBUG
 import nucleus.plots as plots
-from tools.plot_tools import canvas_to_pil
+from tools.image import canvas_to_pil
 import tools.plot_tools as sp
 
 logging.basicConfig(level=logging.DEBUG)

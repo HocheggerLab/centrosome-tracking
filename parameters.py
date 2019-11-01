@@ -1,8 +1,8 @@
 import os
 
 lab_dir = "/Users/Fabio/data/lab/"
-compiled_data_dir = "/Users/Fabio/data/lab/compiled/"
-out_dir = lab_dir + "scripts_output/"
+compiled_data_dir = os.path.join(lab_dir, "compiled")
+out_dir = os.path.join(lab_dir, "scripts_output")
 os.makedirs(lab_dir, exist_ok=True)
 os.makedirs(compiled_data_dir, exist_ok=True)
 os.makedirs(out_dir, exist_ok=True)

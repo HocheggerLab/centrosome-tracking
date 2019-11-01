@@ -9,8 +9,8 @@ from PyQt4 import QtGui
 from PyQt4.QtCore import QPoint, QRect, QSize, Qt
 from PyQt4.QtGui import QBrush, QColor, QPainter, QPen, QRubberBand
 
+import tools.image as image
 import parameters
-import tools.plot_tools as sp
 
 # profile decorator support when not profiling
 try:
@@ -136,7 +136,7 @@ class Eb3ImageQLabel(QtGui.QLabel):
             self.frame = frame
             self.dataHasChanged = True
 
-            img, res, dt, _, _ = sp.find_image(run, os.path.join(self.exp_folder, condition))
+            img, res, dt, _, _, _ = image.find_image(run, os.path.join(self.exp_folder, condition))
             img = img[frame]
             self.dwidth, self.dheight = img.shape
 
