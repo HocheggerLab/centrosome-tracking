@@ -2,24 +2,24 @@ import os
 import logging
 
 import pandas as pd
-
 from tools.matplotlib_essentials import plt
 from matplotlib.backends.backend_pdf import PdfPages
 # noinspection PyUnresolvedReferences
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.ticker as ticker
 import matplotlib.patches as patches
-
 import seaborn as sns
 
+import tools.image as tim
 import mechanics as m
 import data as hdata
+import tools.data as data
 import harryplots as hp
 import parameters as p
 import tools.plot_tools as sp
 import plots._plots as pl
 from tools.draggable import DraggableRectangle
-from plots import montage, merge
+from plots import merge, montage
 from eb3._stats import Tracks
 from eb3._plots import MSD
 import tools.stats as st
@@ -466,7 +466,7 @@ def dynein_eb3():
 
 def select_and_make_montage(f):
     global x, y, winsize
-    image, pix_per_um, dt, n_frames, n_channels = sp.load_tiff(f)
+    image, pix_per_um, dt, n_frames, n_channels, _ = tim.load_tiff(f)
 
     # cmaps = ['uscope_green', 'uscope_blue', 'uscope_magenta', 'uscope_red']
     # names = ['Phalloidin', 'DAPI', 'Eg5', 'DIC2']
