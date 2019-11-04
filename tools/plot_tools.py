@@ -256,7 +256,8 @@ def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition
                     # if p <= 0.05:
                     ypos = maxy - dy * k
                     _ax.plot([i, j], [ypos, ypos], lw=0.75, color='k', zorder=20)
-                    _ax.text(j, ypos + dy * 0.25, stats.star_system(p), ha='right', va='bottom', zorder=20)
+                    _ax.text(j, ypos + dy * 0.25, stats.star_system(p), ha='right', va='bottom',
+                             fontsize=fontsize, zorder=20)
                     k += 1
 
     return _ax
