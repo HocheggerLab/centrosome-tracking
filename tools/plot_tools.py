@@ -202,16 +202,26 @@ def congression(cg, ax=None, order=None, linestyles=None):
     ax.legend(dhandles, dlabels, loc='upper left')
 
 
-def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition',
+def anotated_boxplot(df, variable, point_size=5, fontsize=None, group='condition', repeat_grp=None,
                      swarm=True, stars=False, order=None, xlabels=None, rotation='horizontal', ax=None):
     sns.boxplot(data=df, y=variable, x=group, linewidth=0.5, width=0.4, fliersize=0, order=order, ax=ax,
                 zorder=100)
 
+    plt_kws = {'zorder': 10, 'ax': ax}
     if swarm:
-        _ax = sns.swarmplot(data=df, y=variable, x=group, size=point_size, order=order, ax=ax, zorder=10)
+        fn = sns.swarmplot
     else:
-        _ax = sns.stripplot(data=df, y=variable, x=group, jitter=True, size=point_size, order=order, ax=ax,
-                            zorder=10)
+        fn = sns.stripplot
+        plt_kws['jitter'] = True
+
+    # if repeat_grp is not None:
+    #     markers = ['o', 'p', '^', 's', 'v', '<', 'x', ]
+    #     for c, f in df.groupby(repeat_grp):
+    #         _ax = fn(data=f, y=variable, x=group, size=point_size, order=order, marker=markers[c], **plt_kws)
+    # else:
+    #     _ax = fn(data=df, y=variable, x=group, size=point_size, order=order, **plt_kws)
+    _ax = fn(data=df, y=variable, x=group, hue=repeat_grp, size=point_size, order=order, **plt_kws)
+
     for i, artist in enumerate(_ax.artists):
         artist.set_facecolor('None')
         artist.set_edgecolor('k')

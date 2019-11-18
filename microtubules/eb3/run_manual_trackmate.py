@@ -69,8 +69,14 @@ def create_df(path):
     _df = m.get_msd(_df, group=indiv_idx)
     for needs_rounding in ['time', 'time_i', 'dist', 'dist_i', 'speed', 'acc', 's', 'msd', 'x', 'y']:
         _df.loc[:, needs_rounding] = _df[needs_rounding].apply(np.round, decimals=4)
+
+    # # convert categorical data to int
+    for c, d in _df.groupby('condition'):
+        _df.loc[d.index, 'rep_id'] = pd.factorize(d['repeat'])[0] + 1
+
     _df["spot_id"] = _df["spot_id"].astype(int)
     _df["file_id"] = _df["file_id"].astype(int)
+    _df["rep_id"] = _df["rep_id"].astype(int)
 
     return _df
 
@@ -80,9 +86,10 @@ if __name__ == '__main__':
     # df = create_df(eb3_path)
     # df.to_csv(os.path.join(p.compiled_data_dir, "eb3.csv"))
     df = pd.read_csv(os.path.join(p.compiled_data_dir, "eb3.csv"), index_col=False)
+    print(df.columns)
 
     # construct track_average track speed and track length
-    idv_grp = ['condition', 'repeat', 'file_id', 'tag']
+    idv_grp = ['condition', 'repeat', 'rep_id', 'file_id', 'tag']
 
     dfi = df.set_index('frame').sort_index()
     dfi.loc[:, 'speed'] = dfi['speed'].abs()
@@ -109,16 +116,19 @@ if __name__ == '__main__':
     fig = plt.figure()
     fig.set_size_inches((3.5, 3.5))
     ax = plt.gca()
-    df_rep = df_avg[df_avg['condition'] == 'n2g']
+    repvar = 'arrest'
+    df_rep = df_avg[df_avg['condition'] == repvar]
     sp.anotated_boxplot(df_rep, variable='speed', group='repeat', stars=True, fontsize=7, ax=ax)
     ax.set_ylim([0, 0.5])
-    fig.savefig(os.path.join(p.out_dir, "eb3_speed_n2g_repeats.pdf"))
+    fig.savefig(os.path.join(p.out_dir, "eb3_speed_%s_repeats.pdf" % repvar))
     # exit(1)
 
+    sns.set_palette([sp.colors.sussex_cobalt_blue, sp.colors.sussex_mid_grey])
     fig = plt.figure()
     fig.set_size_inches((4.5, 3.5))
     ax = plt.gca()
-    sp.anotated_boxplot(df_avg, variable='speed', order=cond_order, stars=True, fontsize=7, point_size=3, ax=ax)
+    sp.anotated_boxplot(df_avg, variable='speed', order=cond_order, repeat_grp='rep_id', stars=True, fontsize=7,
+                        point_size=3, ax=ax)
     ax.set_ylim([0, 0.5])
     fig.savefig(os.path.join(p.out_dir, "eb3_speed_boxplot.pdf"))
     pmat = st.p_values(df_avg, 'speed', 'condition', filename=os.path.join(p.out_dir, "eb3_speed_pval.xls"))

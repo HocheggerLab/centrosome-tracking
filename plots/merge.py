@@ -22,7 +22,10 @@ def merge(images, ax, um_per_pix=1,
     img = np.zeros(shape, dtype=np.int64)
     for i in merge:
         ax.cla()
-        a = ax.imshow(images[i], cmap=cmaps[order[i]], resample=False)
+        j = order.index(i)
+        o = order[j]
+        print("selecting merge index %d order index %d cmap %s" % (i, j, cmaps[j]))
+        a = ax.imshow(images[o], cmap=cmaps[o], resample=False)
         img += a.make_image(matplotlib.backends.backend_agg, unsampled=True)[0]
 
     ax.cla()
