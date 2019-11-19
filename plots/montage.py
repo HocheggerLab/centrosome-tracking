@@ -14,7 +14,7 @@ def montage(images, ch_names=None, um_per_pix=1,
             order=None, merge=None):
     def plotimg(img, ch, **kwargs):
         ax = plt.gca()
-        att = [1.3, 0.3, 0.6]
+        att = [1.3, .6, 0.9]
         ch = ch.iloc[0]
         if ch == "merge":
             ax.cla()
@@ -23,7 +23,9 @@ def montage(images, ch_names=None, um_per_pix=1,
             img = np.zeros(shape, dtype=np.int64)
             for i in merge:
                 ax.cla()
-                a = ax.imshow(images[i], cmap=cmaps[order[i]], vmax=images[i].max() * att[i], resample=False)
+                j = order.index(i)
+                o = order[j]
+                a = ax.imshow(images[o], cmap=cmaps[o], vmax=images[o].max() * att[j], resample=False)
                 img += a.make_image(matplotlib.backends.backend_agg, unsampled=True)[0]
 
             ax.cla()
@@ -47,10 +49,10 @@ def montage(images, ch_names=None, um_per_pix=1,
     cmaps = ['gray'] * n_channels if cmaps is None else cmaps
 
     im_df = pd.DataFrame()
-    for i, (o, title) in enumerate(zip(order, ch_names)):
+    for i, o in enumerate(order):
         d = pd.DataFrame(data={
             'channel': [i],
-            'name': [title],
+            'name': [ch_names[o]],
             'image': [images[o]],
         })
         im_df = im_df.append(d, ignore_index=True, sort=False)

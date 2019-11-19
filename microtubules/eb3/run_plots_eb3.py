@@ -429,19 +429,19 @@ if __name__ == '__main__':
     # do_filter_stats = False
 
     if do_filter_stats:
-        _df = pd.read_pickle(p.compiled_data_dir + 'eb3.pandas')
+        _df = pd.read_pickle(os.path.join(p.compiled_data_dir, "eb3.pandas"))
         df_flt, df_avg = batch_filter(_df)
         df_avg = df_avg.replace([np.inf, -np.inf], np.nan).dropna()
-        df_flt.to_pickle(p.compiled_data_dir + 'eb3filter.pandas')
-        df_avg.to_pickle(p.compiled_data_dir + 'eb3stats.pandas')
+        df_flt.to_pickle(os.path.join(p.compiled_data_dir, "eb3filter.pandas"))
+        df_avg.to_pickle(os.path.join(p.compiled_data_dir, "eb3stats.pandas"))
     else:
         if os.path.exists(p.compiled_data_dir + 'eb3_selected.pandas'):
             logging.info('Loading GUI selected features instead of filtered particles!')
-            df_flt = pd.read_pickle(p.compiled_data_dir + 'eb3_selected.pandas')
-            df_avg = pd.read_pickle(p.compiled_data_dir + 'eb3stats_sel.pandas')
+            df_flt = pd.read_pickle(os.path.join(p.compiled_data_dir, "eb3_selected.pandas"))
+            df_avg = pd.read_pickle(os.path.join(p.compiled_data_dir, "eb3stats_sel.pandas"))
         else:
-            df_flt = pd.read_pickle(p.compiled_data_dir + 'eb3filter.pandas')
-            df_avg = pd.read_pickle(p.compiled_data_dir + 'eb3stats.pandas')
+            df_flt = pd.read_pickle(os.path.join(p.compiled_data_dir, "eb3filter.pandas"))
+            df_avg = pd.read_pickle(os.path.join(p.compiled_data_dir, "eb3stats.pandas"))
         logging.info('Loaded %d tracks after filters' % df_flt.set_index(indiv_idx).index.unique().size)
 
     # # # logging.info('rendering images.')

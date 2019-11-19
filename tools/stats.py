@@ -35,7 +35,7 @@ def p_values(data, var, group_label, filename=None):
         star.to_excel(writer, 'star system')
         writer.save()
 
-    return df_p.as_matrix()
+    return df_p.values
 
 
 def dataframe_centered_in_time_of_contact(df):

@@ -1,6 +1,7 @@
 import os
 import logging
 
+import numpy as np
 import pandas as pd
 from tools.matplotlib_essentials import plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -439,16 +440,18 @@ def fig_4(data):
 
 
 def ring_in_cell_lines_and_conditions():
-    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - HCT106 (dynein eg5 phall)/MAX_actrng-hct_2019_09_24__15_32_15.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - HCT106 (dynein eg5 phall)/MAX_actrng-hct_2019_09_24__15_32_15.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - HCT106 (dynein eg5 phall)/MAX_actrng-hct_2019_09_24__16_10_36.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - u2os -arr - cyto 2ng (dynein eg5 phall)/MAX_actrng-u2os-arr-cyto_2019_09_24__14_46_02.tif"
-    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - u2os -arr - cyto 2ng (dynein eg5 phall)/MAX_actrng-u2os-arr-cyto_2019_09_24__15_09_14.tif"
+    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - u2os -arr - cyto 2ng (dynein eg5 phall)/MAX_actrng-u2os-arr-cyto_2019_09_24__15_09_14.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190924 - u2os -arr (dynein eg5 phall)/MAX_actrng-u2os-arrest_2019_09_24__14_13_01.tif"
+    f = "/Volumes/Kidbeat/data/lab/airy-ring/20190921 - actrng - u2os - arrest/actrng-u2os-arrest_2019_09_21__12_14_31.czi"
     select_and_make_montage(f)
 
 
 def dynein_eb3():
-    # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr- (dynein eg5)/MAX_actrng-ctr-_2019_09_27__18_42_05.tif"
+    f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr- (dynein eg5)/MAX_actrng-ctr-_2019_09_27__18_42_05.tif"
+    # f = "/Volumes/Kidbeat/data/lab/airy-dynein-eg5/20190927 - ctr- (dynein eg5)/MAX_actrng-ctr-_2019_09_27__18_34_14.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr+ (dynein eg5)/MAX_actrng-ctr+_2019_09_27__22_57_33.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - ctr+ (dynein eg5)/MAX_actrng-ctr+_2019_09_27__23_07_07.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod- (dynein eg5)/MAX_actrng-fhod-_2019_09_27__23_19_56.tif"
@@ -460,19 +463,33 @@ def dynein_eb3():
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - fhod+ (dynein eg5)/MAX_actrng-fhod+_2019_09_28__00_21_20.tif"
     # f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - n2g+ (dynein eg5)/MAX_actrng-n2g+_2019_09_28__00_29_50.tif"
     f = "/Users/Fabio/data/lab/airy-dynein-eg5/20190927 - n2g+ (dynein eg5)/MAX_actrng-n2g+_2019_09_28__00_37_05.tif"
+    # f = "/Volumes/Kidbeat/data/lab/airy-dynein-eg5/20190924 - u2os -arr - cyto 2ng (dynein eg5 phall)/MAX_actrng-u2os-arr-cyto_2019_09_24__14_46_02.tif"
+    # f = "/Volumes/Kidbeat/data/lab/airy-dynein-eg5/20190924 - HCT106 (dynein eg5 phall)/MAX_actrng-hct_2019_09_24__15_32_15.tif"
+    # f = "/Volumes/Kidbeat/data/lab/airy-dynein-eg5/20190924 - HCT106 (dynein eg5 phall)/MAX_actrng-hct_2019_09_24__16_10_36.tif"
+    # f = ""
 
     select_and_make_montage(f)
 
 
 def select_and_make_montage(f):
+    # import numpy as np
     global x, y, winsize
     image, pix_per_um, dt, n_frames, n_channels, _ = tim.load_tiff(f)
+    # image, pix_per_um, dt, n_frames, n_channels, _ = tim.load_zeiss(f)
 
     # cmaps = ['uscope_green', 'uscope_blue', 'uscope_magenta', 'uscope_red']
     # names = ['Phalloidin', 'DAPI', 'Eg5', 'DIC2']
-    cmaps = ['uscope_blue', 'uscope_green', 'uscope_red']
-    names = ['DAPI', 'Eg5', 'DIC2']
+
+    names = ['Eg5', 'DAPI', 'DIC2']
+    cmaps = ['uscope_green', 'uscope_blue', 'uscope_red']
     order = [1, 0, 2]
+
+    # names = ['Phalloidin', 'Eg5', 'DAPI', 'DIC2']
+    # cmaps = ['uscope_green', 'uscope_green', 'uscope_blue', 'uscope_red']
+    # order = [2, 1, 3]
+
+    # image = np.expand_dims(image[6:9], axis=0)
+    print(image[0].shape)
 
     # get portion of interest
     fig = plt.figure(figsize=(4, 4), dpi=p.dpi, clear=True)
@@ -514,6 +531,55 @@ def select_and_make_montage(f):
     g.savefig(os.path.join(p.out_dir, "%s.montage.pdf" % os.path.basename(f)), dpi=p.dpi)
 
 
+def helfrid_plot():
+    path = "/Volumes/Kidbeat/data/lab/compiled/Congression tracks.csv"
+    df = pd.read_csv(path)
+    df = pd.melt(df, id_vars='Time', value_name='Dist')
+    v = df["variable"].str.split("_", n=1, expand=True)
+    df.loc[:, "condition"] = v[0]
+    df.loc[:, "run"] = v[1]
+    df.drop(columns=["variable"], inplace=True)
+    df.loc[:, "indv"] = df['condition'] + '|' + df['run']
+    print(df)
+
+    palette = [
+        sp.colors.sussex_cobalt_blue,
+        sp.colors.sussex_coral_red,
+        sp.colors.sussex_turquoise,
+        # sp.colors.sussex_sunshine_yellow,
+        sp.colors.sussex_deep_aquamarine,
+        # sp.colors.sussex_grape,
+        sns.xkcd_rgb["grey"]
+    ]
+    cond_order = ['arrest', 'noc20ng', 'cyto 2ug', 'fhod1', 'n2g']
+    sns.set_palette(palette)
+
+    fig = plt.figure()
+    fig.set_size_inches((3.5, 3.5))
+    ax = plt.gca()
+    sns.lineplot(data=df,
+                 x='Time', y='Dist',
+                 hue='condition',
+                 estimator=np.nanmean, err_style=None,
+                 lw=2, alpha=1, ax=ax)
+    sns.lineplot(data=df,
+                 x='Time', y='Dist',
+                 hue='condition',
+                 units='indv', estimator=None,
+                 lw=0.2, alpha=1, ax=ax)
+    # ax.legend(title=None, loc='upper left')
+    ax.set_ylim([0, 35])
+    ax.get_legend().remove()
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(15))
+    ax.xaxis.set_minor_locator(ticker.MultipleLocator(5))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(10))
+    ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))
+    ax.set_xlabel('Time [min]')
+    ax.set_ylabel('Distance [um]')
+
+    fig.savefig(os.path.join(p.out_dir, "congression.pdf"))
+
+
 if __name__ == '__main__':
     data = data.Data()
 
@@ -522,4 +588,6 @@ if __name__ == '__main__':
     fig_3(data)
     fig_4(data)
 
+    ring_in_cell_lines_and_conditions()
     dynein_eb3()
+    helfrid_plot()

@@ -39,8 +39,9 @@ class Eb3ImageQLabel(QtGui.QLabel):
         self.df = None
         self.ix = None
         self.selected = set()
-        self.fname = parameters.compiled_data_dir + 'eb3/eb3trk.selec.txt'
-        self.cal = pd.read_excel(parameters.compiled_data_dir + 'eb3/eb3_calibration.xls')
+        # retrieve file from manually tracked data
+        self.fname = os.path.join(parameters.compiled_data_dir, "eb3trk.selec.txt")
+        self.cal = pd.read_excel(os.path.join(parameters.compiled_data_dir, "eb3_calibration.xls"))
 
         if not os.path.isfile(self.fname):
             with open(self.fname, 'w') as configfile:
@@ -125,7 +126,8 @@ class Eb3ImageQLabel(QtGui.QLabel):
             painter = QPainter()
             painter.begin(self.image_pixmap)
             painter.drawImage(0, 0, self.bkg_pixmap.toImage())
-            painter.drawImage(0, 0, self.measurements_pixmap.toImage())
+            if self.measurements_pixmap is not None:
+                painter.drawImage(0, 0, self.measurements_pixmap.toImage())
             painter.end()
 
             self.setPixmap(self.image_pixmap)
@@ -154,7 +156,7 @@ class Eb3ImageQLabel(QtGui.QLabel):
             self.condition, self.run = condition, run
             self.dataHasChanged = True
 
-            self.df = pd.read_pickle(parameters.compiled_data_dir + 'eb3filter.pandas')
+            self.df = pd.read_pickle(os.path.join(parameters.compiled_data_dir, "eb3filter.pandas"))
             ix = (self.df['condition'] == self.condition) & (self.df['tag'] == self.run)
             self.df = self.df[ix]
             # consider 1.6X magification of optivar system

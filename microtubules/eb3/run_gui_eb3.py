@@ -78,8 +78,8 @@ class ExperimentsList(QtGui.QWidget):
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
     def on_exp_change(self, current, previous):
-        self.condition = str(current.parent().data().toString())
-        self.run = str(current.data().toString())
+        self.condition = str(current.parent().data())
+        self.run = str(current.data())
         self.frame = 0
         if len(self.condition) > 0:
             self.populate_frames_list()
@@ -104,9 +104,9 @@ class ExperimentsList(QtGui.QWidget):
         #                                           directory=constants.data_dir+'eb3_selected.pandas')
         # fname = str(fname)
 
-        df = pd.read_pickle(parameters.compiled_data_dir + 'eb3filter.pandas')
+        df = pd.read_pickle(os.path.join(parameters.compiled_data_dir, "eb3filter.pandas"))
         # get selection from disk
-        with open(parameters.compiled_data_dir + 'eb3trk.selec.txt', 'r') as configfile:
+        with open(os.path.join(parameters.compiled_data_dir, "eb3trk.selec.txt"), 'r') as configfile:
             config = configparser.ConfigParser()
             config.readfp(configfile)
 
@@ -117,7 +117,7 @@ class ExperimentsList(QtGui.QWidget):
                     ix_sel = (df['tag'] == tag) & (df['particle'].isin(selection))
                     sel = df[ix_sel]
                     selected = selected.append(sel)
-            selected.to_pickle(parameters.compiled_data_dir + 'eb3_selected.pandas')
+            selected.to_pickle(os.path.join(parameters.compiled_data_dir, "eb3_selected.pandas"))
             df = selected
 
         indiv_idx = ['condition', 'tag', 'particle']
@@ -130,7 +130,7 @@ class ExperimentsList(QtGui.QWidget):
         df_avg.loc[:, 'trk_len'] = dfi.groupby(indiv_idx)['x'].count()
         df_avg.loc[:, 'length'] = dfi.groupby(indiv_idx)['s'].agg(np.sum)
         df_avg = df_avg.reset_index()
-        df_avg.to_pickle(parameters.compiled_data_dir + 'eb3stats_sel.pandas')
+        df_avg.to_pickle(os.path.join(parameters.compiled_data_dir, "eb3stats_sel.pandas"))
 
         print('export finished.')
 
@@ -150,7 +150,7 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication(sys.argv)
 
-    folders = ExperimentsList(parameters.experiments_dir + 'eb3/')
+    folders = ExperimentsList(os.path.join(parameters.lab_dir, "eb3"))
     folders.show()
 
     sys.exit(app.exec_())
