@@ -528,7 +528,7 @@ def select_and_make_montage(f):
                 xlim_um=[x - winsize, x + winsize], ylim_um=[y - winsize, y + winsize],
                 cmaps=cmaps, order=order, ch_names=names,
                 merge=order[-2:])
-    g.savefi
+    g.savefig(os.path.join(p.out_dir, "%s.montage.pdf" % os.path.basename(f)), dpi=p.dpi)
 
 
 def helfrid_plot():
