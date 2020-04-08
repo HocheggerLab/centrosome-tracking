@@ -6,9 +6,10 @@ import re
 import coloredlogs
 import h5py
 import pandas as pd
-from PyQt4 import QtCore, QtGui, uic
-from PyQt4.QtCore import QTimer, Qt
-from PyQt4.QtGui import QAbstractItemView
+
+from PyQt5 import QtCore, QtGui, QtWidgets, uic
+from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtWidgets import QAbstractItemView, QWidget
 
 import hdf5_nexus as hdf
 import parameters
@@ -19,9 +20,9 @@ coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=loggin
 pd.set_option('display.width', 320)
 
 
-class SelectionGui(QtGui.QWidget):
+class SelectionGui(QWidget):
     def __init__(self, path):
-        QtGui.QWidget.__init__(self)
+        QWidget.__init__(self)
         uic.loadUi('gui_exp_selection.ui', self)
 
         self.frame = 0
@@ -29,6 +30,10 @@ class SelectionGui(QtGui.QWidget):
         self.nuclei_selected = None
         self.hdf5file = path
         self.centrosome_dropped = False
+        self.centrosome_group = None
+        self.centrosome_selected = None
+        self.condition = None
+        self.run = None
 
         self.movieImgLabel.hdf5file = path
         self.movieImgLabel.clear()
@@ -39,13 +44,13 @@ class SelectionGui(QtGui.QWidget):
         self.timer = QTimer()
         self.timer.start(200)
 
-        QtCore.QObject.connect(self.exportPandasButton, QtCore.SIGNAL('pressed()'), self.on_export_pandas_button)
-        QtCore.QObject.connect(self.exportSelectionButton, QtCore.SIGNAL('pressed()'), self.on_export_sel_button)
-        QtCore.QObject.connect(self.importSelectionButton, QtCore.SIGNAL('pressed()'), self.on_import_sel_button)
-        QtCore.QObject.connect(self.clearRunButton, QtCore.SIGNAL('pressed()'), self.on_clear_run_button)
-        QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('valueChanged(int)'), self.on_frame_slider_change)
-        QtCore.QObject.connect(self.frameHSlider, QtCore.SIGNAL('sliderPressed()'), self.on_frame_slider_press)
-        QtCore.QObject.connect(self.timer, QtCore.SIGNAL('timeout()'), self.anim)
+        self.exportPandasButton.pressed.connect(self.on_export_pandas_button)
+        self.exportSelectionButton.pressed.connect(self.on_export_sel_button)
+        self.importSelectionButton.pressed.connect(self.on_import_sel_button)
+        self.clearRunButton.pressed.connect(self.on_clear_run_button)
+        self.frameHSlider.valueChanged.connect(self.on_frame_slider_change)
+        self.frameHSlider.sliderPressed.connect(self.on_frame_slider_press)
+        self.timer.timeout.connect(self.anim)
 
     def anim(self):
         if self.total_frames > 0:
@@ -71,11 +76,10 @@ class SelectionGui(QtGui.QWidget):
                     self.experimentsTreeView.expand(index)
         # select first row
         self.experimentsTreeView.setCurrentIndex(model.index(0, 1))
-        QtCore.QObject.connect(self.experimentsTreeView.selectionModel(),
-                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.on_exp_change)
+        self.experimentsTreeView.selectionModel().currentChanged.connect(self.on_exp_change)
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
-    def on_exp_change(self, current, previous):
+    def on_exp_change(self, current):
         self.condition = str(current.parent().data())
         self.run = str(current.data())
         self.frame = 0
@@ -124,25 +128,23 @@ class SelectionGui(QtGui.QWidget):
             sel = f['%s/%s/selection' % (self.condition, self.run)]
             for nucID in nuc:
                 conditem = QtGui.QStandardItem(nucID)
-                # conditem.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
                 if nucID in sel:
                     conditem.setData(Qt.Checked, Qt.CheckStateRole)
                 else:
                     conditem.setData(Qt.Unchecked, Qt.CheckStateRole)
                 conditem.setCheckable(True)
                 model.appendRow(conditem)
-        QtCore.QObject.connect(self.nucleiListView.selectionModel(),
-                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.on_nuclei_change)
+        self.nucleiListView.selectionModel().currentChanged.connect(self.on_nuclei_change)
         model.itemChanged.connect(self.on_nucleitick_change)
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
-    def on_nuclei_change(self, current, previous):
+    def on_nuclei_change(self, current):
         self.nuclei_selected = int(current.data()[1:])
         self.populate_centrosomes()
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
         self.plot_tracks_of_nuclei(self.nuclei_selected)
 
-    @QtCore.pyqtSlot('QStandardItem')
+    @QtCore.pyqtSlot('QStandardItem*')
     def on_nucleitick_change(self, item):
         self.nuclei_selected = int(item.text()[1:])
         if item.checkState() == QtCore.Qt.Unchecked:
@@ -161,18 +163,14 @@ class SelectionGui(QtGui.QWidget):
         self.mplDistance.clear()
         with h5py.File(self.hdf5file, 'r') as f:
             if 'pandas_dataframe' in f['%s/%s/processed' % (self.condition, self.run)]:
-                read_ok = True
-            else:
-                read_ok = False
-        if read_ok:
-            df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_dataframe' % (self.condition, self.run))
-            mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
-            df = df[df['Nuclei'] == nuclei]
-            mask = mask[mask['Nuclei'] == nuclei]
-            toc, foc, doc = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
-            print(toc, foc, doc)
-            spc.distance_to_nuclei_center(df, self.mplDistance.canvas.ax, mask=mask, time_contact=toc)
-            self.mplDistance.canvas.draw()
+                df = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_dataframe' % (self.condition, self.run))
+                mask = pd.read_hdf(self.hdf5file, key='%s/%s/processed/pandas_masks' % (self.condition, self.run))
+                df = df[df['Nuclei'] == nuclei]
+                mask = mask[mask['Nuclei'] == nuclei]
+                toc, foc, doc = ImagejPandas.get_contact_time(df, ImagejPandas.DIST_THRESHOLD)
+                print(toc, foc, doc)
+                spc.distance_to_nuclei_center(df, self.mplDistance.canvas.ax, mask=mask, time_contact=toc)
+                self.mplDistance.canvas.draw()
 
     def populate_centrosomes(self):
         model = QtGui.QStandardItemModel()
@@ -212,14 +210,12 @@ class SelectionGui(QtGui.QWidget):
                 item = QtGui.QStandardItem(cntrID)
                 model.appendRow(item)
 
-        QtCore.QObject.connect(modelA, QtCore.SIGNAL('itemChanged(QStandardItem)'), self.on_centrosometick_change)
         modelA.itemChanged.connect(self.on_centrosometick_change)
         modelB.itemChanged.connect(self.on_centrosometick_change)
+        modelA.rowsInserted.connect(self.on_centrosome_a_drop)
+        modelB.rowsInserted.connect(self.on_centrosome_b_drop)
 
-        QtCore.QObject.connect(modelA, QtCore.SIGNAL('rowsInserted(QModelIndex,int,int)'), self.on_centrosome_a_drop)
-        QtCore.QObject.connect(modelB, QtCore.SIGNAL('rowsInserted(QModelIndex,int,int)'), self.on_centrosome_b_drop)
-
-    @QtCore.pyqtSlot('QStandardItem')
+    @QtCore.pyqtSlot('QStandardItem*')
     def on_centrosometick_change(self, item):
         self.centrosome_selected = str(item.text())
         hlab = hdf.LabHDF5NeXusFile(filename=self.hdf5file)
@@ -348,8 +344,8 @@ class SelectionGui(QtGui.QWidget):
 if __name__ == '__main__':
     import sys
 
-    from PyQt4.QtCore import QT_VERSION_STR
-    from PyQt4.Qt import PYQT_VERSION_STR
+    from PyQt5.QtCore import QT_VERSION_STR
+    from PyQt5.Qt import PYQT_VERSION_STR
 
     base_path = os.path.abspath('%s' % os.getcwd())
     logging.info('Qt version:' + QT_VERSION_STR)
@@ -358,9 +354,9 @@ if __name__ == '__main__':
     logging.info('Base dir:' + base_path)
     os.chdir(base_path)
 
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
 
-    gui = SelectionGui(parameters.compiled_data_dir + 'centrosomes.nexus.hdf5')
+    gui = SelectionGui(os.path.join(parameters.compiled_data_dir, 'centrosomes.nexus.hdf5'))
     gui.show()
 
     sys.exit(app.exec_())
