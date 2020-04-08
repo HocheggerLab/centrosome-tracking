@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+		http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>sc.fiji</groupId>
+		<artifactId>pom-fiji</artifactId>
+		<version>26.1.0</version>
+		<relativePath />
+	</parent>
+
+	<groupId>imagej-hochegger-lab</groupId>
+	<artifactId>centrosome_tracking</artifactId>
+	<version>0.1</version>
+
+	<name>Centrosomes analysis</name>
+	<description>Centrosome analysis.
+
+
+Written by Fabio Echegaray.</description>
+
+	<properties>
+		<main-class>CentrosomeTracking</main-class>
+		<scijava.jvm.version>1.8</scijava.jvm.version>
+	</properties>
+
+	<repositories>
+		<repository>
+			<id>imagej.public</id>
+			<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
+
+	<dependencies>
+		<!-- Fiji dependencies -->
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>fiji-lib</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>net.imglib2</groupId>
+		    <artifactId>imglib2-ij</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>sc.fiji</groupId>
+		    <artifactId>TrackMate_</artifactId>
+		</dependency>
+
+		<!-- ImageJ dependencies -->
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej</artifactId>
+		</dependency>
+	</dependencies>
+	<organization>
+		<name>Hochegger Lab</name>
+	</organization>
+</project>
