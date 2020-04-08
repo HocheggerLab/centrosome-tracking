@@ -48,9 +48,6 @@ class CentrosomeImageQLabel(QLabel):
         self.image_pixmap = QtGui.QPixmap(qtimage)
         self.setPixmap(self.image_pixmap)
 
-    def mouseReleaseEvent(self, ev):
-        self.clicked.emit()
-
     def paintEvent(self, event):
         if self.dataHasChanged:
             # print 'paintEvent reloading data from file %s' % self.hdf5file

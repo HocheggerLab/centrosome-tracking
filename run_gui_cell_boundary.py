@@ -8,24 +8,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from PyQt4 import QtCore, QtGui, uic
-from PyQt4.QtCore import QTimer, Qt
+from PyQt5 import QtCore, QtGui, QtWidgets, uic
+from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtWidgets import QWidget
 from matplotlib.backends.backend_pdf import PdfPages
 
 import hdf5_nexus as hdf
-import im_gabor
 import mechanics as m
 import parameters
 import tools.plot_tools as sp
 from imagej_pandas import ImagejPandas
+from cell import cell_boundary
 
 pd.options.display.max_colwidth = 10
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 
 
-class ExperimentsList(QtGui.QWidget):
+class ExperimentsList(QWidget):
     def __init__(self, path):
-        QtGui.QWidget.__init__(self)
+        QWidget.__init__(self)
         uic.loadUi('gui_cell_boundary.ui', self)
 
         self.frame = 0
@@ -45,9 +46,9 @@ class ExperimentsList(QtGui.QWidget):
         self.timer = QTimer()
         self.timer.start(200)
 
-        QtCore.QObject.connect(self.renderBoxplotButton, QtCore.SIGNAL('pressed()'), self.on_render_boxplot_button)
-        QtCore.QObject.connect(self.timer, QtCore.SIGNAL('timeout()'), self.anim)
-        QtCore.QObject.connect(self.gaborLineEdit, QtCore.SIGNAL('editingFinished()'), self.on_gabor_change)
+        self.renderBoxplotButton.pressed.connect(self.on_render_boxplot_button)
+        self.timer.timeout.connect(self.anim)
+        self.gaborLineEdit.editingFinished.connect(self.on_render_boxplot_button)
 
     def anim(self):
         if self.total_frames > 0:
@@ -73,13 +74,12 @@ class ExperimentsList(QtGui.QWidget):
                     self.experimentsTreeView.expand(index)
         # select first row
         self.experimentsTreeView.setCurrentIndex(model.index(0, 1))
-        QtCore.QObject.connect(self.experimentsTreeView.selectionModel(),
-                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.on_exp_change)
+        self.experimentsTreeView.selectionModel().currentChanged.connect(self.on_exp_change)
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
-    def on_exp_change(self, current, previous):
-        self.condition = str(current.parent().data().toString())
-        self.run = str(current.data().toString())
+    def on_exp_change(self, current):
+        self.condition = current.parent().data()
+        self.run = current.data()
         self.frame = 0
         self.mplDistance.canvas.ax.cla()
         if len(self.condition) > 0:
@@ -115,12 +115,11 @@ class ExperimentsList(QtGui.QWidget):
                     conditem.setData(QtCore.QVariant(Qt.Unchecked), Qt.CheckStateRole)
                 conditem.setCheckable(False)
                 model.appendRow(conditem)
-        QtCore.QObject.connect(self.nucleiListView.selectionModel(),
-                               QtCore.SIGNAL('currentChanged(QModelIndex, QModelIndex)'), self.on_nuclei_change)
+        self.nucleiListView.selectionModel().currentChanged.connect(self.on_nuclei_change)
 
     @QtCore.pyqtSlot('QModelIndex, QModelIndex')
-    def on_nuclei_change(self, current, previous):
-        self.nuclei_selected = int(current.data().toString()[1:])
+    def on_nuclei_change(self, current):
+        self.nuclei_selected = int(current.data()[1:])
 
         with h5py.File(self.hdf5file, 'r') as f:
             nuc_sel = f['%s/%s/selection/N%02d' % (self.condition, self.run, self.nuclei_selected)]
@@ -139,7 +138,7 @@ class ExperimentsList(QtGui.QWidget):
         self.movieImgLabel.render_frame(self.condition, self.run, self.frame, nuclei_selected=self.nuclei_selected)
         self.plot_tracks_of_nuclei(self.nuclei_selected)
 
-    @QtCore.pyqtSlot('QStandardItem')
+    @QtCore.pyqtSlot('QStandardItem*')
     def on_gabor_change(self):
         if self.condition is None or self.run is None or self.nuclei_selected is None:
             self.timer.start(200)
@@ -206,8 +205,7 @@ class ExperimentsList(QtGui.QWidget):
                             ny = int(nfxy[fidx][2] * resolution)
                             cv2.circle(marker, (nx, ny), 5, nid, thickness=-1)
 
-                    boundary_list, gabor = im_gabor.cell_boundary(tubulin, hoechst, markers=marker,
-                                                                  threshold=new_gabor_thr)
+                    boundary_list, gabor = cell_boundary(tubulin, hoechst, markers=marker, threshold=new_gabor_thr)
                     for b in boundary_list:
                         nuc = b['id']
                         if nuc == self.nuclei_selected:
@@ -330,8 +328,8 @@ class ExperimentsList(QtGui.QWidget):
 if __name__ == '__main__':
     import sys
 
-    from PyQt4.QtCore import QT_VERSION_STR
-    from PyQt4.Qt import PYQT_VERSION_STR
+    from PyQt5.QtCore import QT_VERSION_STR
+    from PyQt5.Qt import PYQT_VERSION_STR
 
     base_path = os.path.abspath('%s' % os.getcwd())
     logging.info('Qt version:' + QT_VERSION_STR)
@@ -340,9 +338,9 @@ if __name__ == '__main__':
     logging.info('Base dir:' + base_path)
     os.chdir(base_path)
 
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
 
-    folders = ExperimentsList(parameters.compiled_data_dir + 'centrosomes.nexus.hdf5')
+    folders = ExperimentsList(os.path.join(parameters.compiled_data_dir, 'centrosomes.nexus.hdf5'))
     folders.show()
 
     sys.exit(app.exec_())
