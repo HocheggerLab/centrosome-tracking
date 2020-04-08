@@ -3,13 +3,16 @@ import logging
 import h5py
 import numpy as np
 import pandas as pd
-from PyQt4 import Qt, QtCore, QtGui
-from PyQt4.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
+
+from PyQt5 import QtGui
+from PyQt5.QtCore import QPoint
+from PyQt5.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QPolygon
+from PyQt5.QtWidgets import QLabel
 
 
-class CentrosomeImageQLabel(QtGui.QLabel):
+class CentrosomeImageQLabel(QLabel):
     def __init__(self, parent, hdf_file=None):
-        QtGui.QLabel.__init__(self, parent)
+        QLabel.__init__(self, parent)
         self.selected = True
         self._hdf5file = hdf_file
         self.nucleiSelected = None
@@ -45,9 +48,6 @@ class CentrosomeImageQLabel(QtGui.QLabel):
         self.image_pixmap = QtGui.QPixmap(qtimage)
         self.setPixmap(self.image_pixmap)
 
-    def mouseReleaseEvent(self, ev):
-        self.emit(QtCore.SIGNAL('clicked()'))
-
     def paintEvent(self, event):
         if self.dataHasChanged:
             # print 'paintEvent reloading data from file %s' % self.hdf5file
@@ -60,11 +60,11 @@ class CentrosomeImageQLabel(QtGui.QLabel):
             self.dwidth, self.dheight = data.shape
             # map the data range to 0 - 255
             img_8bit = ((data - data.min()) / (data.ptp() / 255.0)).astype(np.uint8)
-            qtimage = QtGui.QImage(img_8bit.repeat(4), self.dwidth, self.dheight, QtGui.QImage.Format_RGB32)
+            qtimage = QtGui.QImage(img_8bit.repeat(3), self.dwidth, self.dheight, QtGui.QImage.Format_RGB888)
             self.image_pixmap = QPixmap(qtimage)
             self.draw_measurements()
             self.setPixmap(self.image_pixmap)
-        return QtGui.QLabel.paintEvent(self, event)
+        return QLabel.paintEvent(self, event)
 
     def render_frame(self, condition, run, frame, nuclei_selected=None):
         self.condition, self.run, self.frame = condition, run, frame
@@ -117,8 +117,8 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                         cell_boundary = df_nucfr['NuclBound'].values[0]
                         if cell_boundary[1:-1] != '':
                             nucb_points = eval(cell_boundary[1:-1])
-                            nucb_qpoints = [Qt.QPoint(x * self.resolution, y * self.resolution) for x, y in nucb_points]
-                            nucb_poly = Qt.QPolygon(nucb_qpoints)
+                            nucb_qpoints = [QPoint(x * self.resolution, y * self.resolution) for x, y in nucb_points]
+                            nucb_poly = QPolygon(nucb_qpoints)
 
                             if nid == self.nucleiSelected:
                                 painter.setPen(QPen(QBrush(QColor('yellow')), 2))
@@ -137,8 +137,8 @@ class CentrosomeImageQLabel(QtGui.QLabel):
                                 if type(cell_bnd_str) == str:
                                     cell_boundary = np.array(eval(cell_bnd_str)) * self.resolution
                                     cell_centroid = dfbound.iloc[0][['CellX', 'CellY']].values * self.resolution
-                                    nucb_qpoints = [Qt.QPoint(x, y) for x, y in cell_boundary]
-                                    nucb_poly = Qt.QPolygon(nucb_qpoints)
+                                    nucb_qpoints = [QPoint(x, y) for x, y in cell_boundary]
+                                    nucb_poly = QPolygon(nucb_qpoints)
 
                                     painter.setBrush(QColor('transparent'))
                                     painter.setPen(QPen(QBrush(QColor(0, 255, 0)), 2))
@@ -179,7 +179,7 @@ class CentrosomeImageQLabel(QtGui.QLabel):
             # draw selection
             for nuclei_str in f['%s/%s/selection' % (self.condition, self.run)]:
                 if nuclei_str == 'pandas_dataframe' or nuclei_str == 'pandas_masks': continue
-                nuclei_id = int(nuclei_str[1:])
+                # nuclei_id = int(nuclei_str[1:])
                 centrosomes_of_nuclei_a = f['%s/%s/selection/%s/A' % (self.condition, self.run, nuclei_str)].keys()
                 centrosomes_of_nuclei_b = f['%s/%s/selection/%s/B' % (self.condition, self.run, nuclei_str)].keys()
                 painter.setPen(QPen(QBrush(QColor('orange')), 2))
