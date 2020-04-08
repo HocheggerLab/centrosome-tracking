@@ -11,7 +11,7 @@ import matplotlib.lines as mlines
 import seaborn as sns
 
 import mechanics as m
-from imagej_pandas import ImagejPandas
+from imagej.imagej_pandas import ImagejPandas
 import tools.plot_tools as sp
 from tools.manual_data import gen_dist_data
 

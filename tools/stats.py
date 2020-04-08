@@ -4,7 +4,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from imagej_pandas import ImagejPandas
+from imagej.imagej_pandas import ImagejPandas
 
 
 def star_system(p_value):

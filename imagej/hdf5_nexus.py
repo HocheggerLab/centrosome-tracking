@@ -12,7 +12,7 @@ import pandas as pd
 import tifffile as tf
 
 from tools import stats
-from imagej_pandas import ImagejPandas
+from imagej.imagej_pandas import ImagejPandas
 
 
 class LabHDF5NeXusFile():
@@ -423,19 +423,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Create hdf5 file if it doesn't exist
-    hdf5 = LabHDF5NeXusFile(filename='/Users/Fabio/centrosomes.nexus.hdf5',
-                            imagesfile='/Users/Fabio/centrosomes-images.nexus.hdf5', fileflag='a')
+    hdf5 = LabHDF5NeXusFile(filename='out/centrosomes.nexus.hdf5',
+                            imagesfile='out/centrosomes-images.nexus.hdf5', fileflag='a')
     try:
         process_dir(args.input, hdf5)
-        move_images('/Users/Fabio/centrosomes.nexus.hdf5', '/Users/Fabio/centrosomes-images.nexus.hdf5')
+        move_images('out/centrosomes.nexus.hdf5', 'out/centrosomes-images.nexus.hdf5')
 
         logging.info('--------------------------------------------------------------')
         logging.info('shrinking file size...')
-        call('h5repack /Users/Fabio/centrosomes.nexus.hdf5 /Users/Fabio/repack.hdf5', shell=True)
-        os.remove('/Users/Fabio/centrosomes.nexus.hdf5')
-        os.rename('/Users/Fabio/repack.hdf5', '/Users/Fabio/centrosomes.nexus.hdf5')
-        call('h5repack /Users/Fabio/centrosomes-images.nexus.hdf5 /Users/Fabio/repack.hdf5', shell=True)
-        os.remove('/Users/Fabio/centrosomes-images.nexus.hdf5')
-        os.rename('/Users/Fabio/repack.hdf5', '/Users/Fabio/centrosomes-images.nexus.hdf5')
+        call('h5repack out/centrosomes.nexus.hdf5 out/repack.hdf5', shell=True)
+        os.remove('out/centrosomes.nexus.hdf5')
+        os.rename('out/repack.hdf5', 'out/centrosomes.nexus.hdf5')
+        call('h5repack out/centrosomes-images.nexus.hdf5 out/repack.hdf5', shell=True)
+        os.remove('out/centrosomes-images.nexus.hdf5')
+        os.rename('out/repack.hdf5', 'out/centrosomes-images.nexus.hdf5')
     finally:
         logging.info('finished.')

@@ -13,11 +13,11 @@ from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtWidgets import QWidget
 from matplotlib.backends.backend_pdf import PdfPages
 
-import hdf5_nexus as hdf
+from imagej import hdf5_nexus as hdf
 import mechanics as m
 import parameters
 import tools.plot_tools as sp
-from imagej_pandas import ImagejPandas
+from imagej.imagej_pandas import ImagejPandas
 from cell import cell_boundary
 
 pd.options.display.max_colwidth = 10
@@ -27,7 +27,7 @@ coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=loggin
 class ExperimentsList(QWidget):
     def __init__(self, path):
         QWidget.__init__(self)
-        uic.loadUi('gui_cell_boundary.ui', self)
+        uic.loadUi('gui/gui_cell_boundary.ui', self)
 
         self.frame = 0
         self.total_frames = 0
@@ -277,7 +277,7 @@ class ExperimentsList(QWidget):
         logging.debug(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique())
         logging.debug(len(df_valid.set_index(ImagejPandas.NUCLEI_INDIV_INDEX).sort_index().index.unique()))
 
-        with PdfPages('/Users/Fabio/dist_nucleus_cell.pdf') as pdf:
+        with PdfPages('out/dist_nucleus_cell.pdf') as pdf:
             fig = plt.gcf()
             fig.clf()
             fig.set_size_inches(9.3, 9.3 / 2)

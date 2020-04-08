@@ -2,7 +2,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from imagej_pandas import ImagejPandas
+from imagej.imagej_pandas import ImagejPandas
 
 log = logging.getLogger(__name__)
 

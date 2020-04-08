@@ -2,6 +2,12 @@ import numpy as np
 from matplotlib.lines import Line2D
 from matplotlib.artist import Artist
 
+"""
+
+Source code extracted from https://matplotlib.org/3.1.1/gallery/event_handling/poly_editor.html
+
+"""
+
 
 def _dist(x, y):
     """

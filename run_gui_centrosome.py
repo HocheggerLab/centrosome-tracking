@@ -11,10 +11,10 @@ from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtWidgets import QAbstractItemView, QWidget
 
-import hdf5_nexus as hdf
+from imagej import hdf5_nexus as hdf
 import parameters
 import tools.plot_tools as spc
-from imagej_pandas import ImagejPandas
+from imagej.imagej_pandas import ImagejPandas
 
 coloredlogs.install(fmt='%(levelname)s:%(funcName)s - %(message)s', level=logging.DEBUG)
 pd.set_option('display.width', 320)
@@ -23,7 +23,7 @@ pd.set_option('display.width', 320)
 class SelectionGui(QWidget):
     def __init__(self, path):
         QWidget.__init__(self)
-        uic.loadUi('gui_exp_selection.ui', self)
+        uic.loadUi('gui/gui_exp_selection.ui', self)
 
         self.frame = 0
         self.total_frames = 0

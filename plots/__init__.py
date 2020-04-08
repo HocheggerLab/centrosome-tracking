@@ -2,9 +2,6 @@ import logging
 import matplotlib.cm
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
-from .montage import montage
-from .merge import merge
-
 logger = logging.getLogger(__name__)
 
 #  register some color palletes for use with microscopy images
